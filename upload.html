@@ -129,7 +129,7 @@
         alert(error.message);
     } else {
         alert("Order Submitted Successfully");
-        window.location.href = "payment.html";
+        localStorage.setItem("amount", amount);
     }
 }
     </script>
