@@ -125,11 +125,15 @@
                 }
             ]);
 
-    if (error) {
+       if (error) {
         alert(error.message);
+        console.log(error);
     } else {
         alert("Order Submitted Successfully");
+
         localStorage.setItem("amount", amount);
+
+        window.location.href = "payment.html";
     }
 }
     </script>
