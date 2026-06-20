@@ -129,11 +129,11 @@
         alert(error.message);
         console.log(error);
     } else {
-        alert("Order Submitted Successfully");
-
         localStorage.setItem("amount", amount);
 
-        window.location.href = "payment.html";
+setTimeout(function () {
+    window.location.href = "payment.html";
+}, 500);
     }
 }
     </script>
