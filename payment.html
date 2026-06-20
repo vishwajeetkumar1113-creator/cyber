@@ -1,9 +1,46 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Payment</title>
     <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #f5f5f5;
+        }
+
+        .card {
+            max-width: 400px;
+            margin: 50px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        img {
+            margin: 20px 0;
+        }
+
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #218838;
+        }
+    </style>
 </head>
+
 <body>
 
 <div class="card">
@@ -12,10 +49,14 @@
 
     <h3 id="amount">Amount: ₹0</h3>
 
-    <img src="images/upi-qr.png" width="250">
+    <!-- Upload your QR image to images/upi-qr.png -->
+    <img src="images/upi-qr.png" width="250" alt="UPI QR">
 
-    <p>UPI ID:</p>
+    <p><strong>UPI ID:</strong></p>
+
     <h3>7992433200@sbi</h3>
+
+    <p>Scan the QR code and complete the payment.</p>
 
     <button onclick="paid()">
         I Have Paid
@@ -25,8 +66,12 @@
 
 <script>
 
-document.getElementById("amount").innerHTML =
-    "Amount: ₹" + localStorage.getItem("amount");
+const amount = localStorage.getItem("amount");
+
+if (amount) {
+    document.getElementById("amount").innerHTML =
+        "Amount: ₹" + amount;
+}
 
 function paid() {
     window.location.href = "success.html";
