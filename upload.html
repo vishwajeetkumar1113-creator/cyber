@@ -1,104 +1,114 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Upload Document</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
-<div class="card">
-    <h2>Upload Document</h2>
+    <div class="card">
 
-    <input type="text" id="name" placeholder="Customer Name">
+        <h2>Upload Document</h2>
 
-    <input type="tel" id="mobile" placeholder="Mobile Number">
+        <input type="text" id="name" placeholder="Customer Name">
 
-    <input type="file" id="file">
+        <input type="tel" id="mobile" placeholder="Mobile Number">
 
-    <input type="number" id="pages" value="1" min="1">
+        <input type="file" id="file">
 
-    <select id="type">
-        <option value="5">Black & White</option>
-        <option value="10">Color</option>
-    </select>
+        <input type="number" id="pages" value="1" min="1">
 
-    <button onclick="calculate()">Calculate Price</button>
+        <select id="type">
+            <option value="5">Black & White</option>
+            <option value="10">Color</option>
+        </select>
 
-    <h3 id="total">Total: ₹5</h3>
+        <button onclick="calculate()">
+            Calculate Price
+        </button>
 
-    <button onclick="submitOrder()">
-        Submit Order
-    </button>
-</div>
+        <h3 id="total">Total: ₹5</h3>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <button onclick="submitOrder()">
+            Submit Order
+        </button>
 
-<script src="js/calculator.js"></script>
+    </div>
 
-<script>
-function calculate() {
-    let pages =
-        document.getElementById("pages").value;
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    let price =
-        document.getElementById("type").value;
+    <script>
 
-    document.getElementById("total").innerHTML =
-        "Total: ₹" + (pages * price);
-}
+        function calculate() {
+            let pages =
+                document.getElementById("pages").value;
 
-const SUPABASE_URL =
-"https://irqlvuphoblgjqysteto.supabase.co";
+            let price =
+                document.getElementById("type").value;
 
-const SUPABASE_KEY =
-"sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+            document.getElementById("total").innerHTML =
+                "Total: ₹" + (pages * price);
+        }
 
-const supabase =
-window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_KEY
-);
+        const SUPABASE_URL =
+            "https://irqlvuphoblgjqysteto.supabase.co";
 
-async function submitOrder() {
+        const SUPABASE_KEY =
+            "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
 
-    const name =
-        document.getElementById("name").value;
+        const client =
+            window.supabase.createClient(
+                SUPABASE_URL,
+                SUPABASE_KEY
+            );
 
-    const mobile =
-        document.getElementById("mobile").value;
+        async function submitOrder() {
 
-    const pages =
-        parseInt(document.getElementById("pages").value);
+            const name =
+                document.getElementById("name").value;
 
-    const type =
-        document.getElementById("type").value;
+            const mobile =
+                document.getElementById("mobile").value;
 
-    const amount = pages * type;
+            const pages =
+                parseInt(
+                    document.getElementById("pages").value
+                );
 
-    const { error } = await supabase
-        .from("orders")
-        .insert([
-            {
-                customer_name: name,
-                mobile: mobile,
-                pages: pages,
-                print_type:
-                    type == 5 ?
-                    "Black & White" :
-                    "Color",
-                amount: amount
+            const type =
+                document.getElementById("type").value;
+
+            const amount = pages * type;
+
+            const { error } =
+                await client
+                    .from("orders")
+                    .insert([
+                        {
+                            customer_name: name,
+                            mobile: mobile,
+                            pages: pages,
+                            print_type:
+                                type == 5
+                                    ? "Black & White"
+                                    : "Color",
+                            amount: amount
+                        }
+                    ]);
+
+            if (error) {
+                console.log(error);
+                alert(error.message);
+            } else {
+                alert("Order Submitted Successfully");
+                window.location.href = "payment.html";
             }
-        ]);
+        }
 
-    if (error) {
-        alert("Order failed.");
-        console.log(error);
-    } else {
-        alert("Order submitted successfully.");
-        window.location.href = "payment.html";
-    }
-}
-</script>
+    </script>
 
 </body>
+
 </html>
