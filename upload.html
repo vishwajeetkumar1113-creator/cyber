@@ -1,1 +1,104 @@
-<!DOCTYPE html><html><head><title>Upload</title><link rel="stylesheet" href="css/style.css"></head><body><div class="card"><h2>Upload Document</h2><input type="file"><input type="number" id="pages" value="1"><select id="type"><option value="5">Black & White</option><option value="10">Color</option></select><button onclick="calculate()">Calculate</button><h3 id="total">Total: ₹5</h3><a class="btn" href="payment.html">Proceed to Payment</a></div><script src="js/calculator.js"></script></body></html>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Document</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="card">
+    <h2>Upload Document</h2>
+
+    <input type="text" id="name" placeholder="Customer Name">
+
+    <input type="tel" id="mobile" placeholder="Mobile Number">
+
+    <input type="file" id="file">
+
+    <input type="number" id="pages" value="1" min="1">
+
+    <select id="type">
+        <option value="5">Black & White</option>
+        <option value="10">Color</option>
+    </select>
+
+    <button onclick="calculate()">Calculate Price</button>
+
+    <h3 id="total">Total: ₹5</h3>
+
+    <button onclick="submitOrder()">
+        Submit Order
+    </button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="js/calculator.js"></script>
+
+<script>
+function calculate() {
+    let pages =
+        document.getElementById("pages").value;
+
+    let price =
+        document.getElementById("type").value;
+
+    document.getElementById("total").innerHTML =
+        "Total: ₹" + (pages * price);
+}
+
+const SUPABASE_URL =
+"https://irqlvuphoblgjqysteto.supabase.co";
+
+const SUPABASE_KEY =
+"sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+
+const supabase =
+window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
+
+async function submitOrder() {
+
+    const name =
+        document.getElementById("name").value;
+
+    const mobile =
+        document.getElementById("mobile").value;
+
+    const pages =
+        parseInt(document.getElementById("pages").value);
+
+    const type =
+        document.getElementById("type").value;
+
+    const amount = pages * type;
+
+    const { error } = await supabase
+        .from("orders")
+        .insert([
+            {
+                customer_name: name,
+                mobile: mobile,
+                pages: pages,
+                print_type:
+                    type == 5 ?
+                    "Black & White" :
+                    "Color",
+                amount: amount
+            }
+        ]);
+
+    if (error) {
+        alert("Order failed.");
+        console.log(error);
+    } else {
+        alert("Order submitted successfully.");
+        window.location.href = "payment.html";
+    }
+}
+</script>
+
+</body>
+</html>
