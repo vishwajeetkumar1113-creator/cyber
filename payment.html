@@ -1,1 +1,38 @@
-<!DOCTYPE html><html><head><title>Payment</title><link rel="stylesheet" href="css/style.css"></head><body><div class="card"><h2>Pay Using UPI</h2><p>7992433200@sbi</p><img src="images/qr.png" width="220"><br><br><a class="btn" href="success.html">Submit Order</a></div></body></html>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="card">
+
+    <h2>Payment</h2>
+
+    <h3 id="amount">Amount: ₹0</h3>
+
+    <img src="images/upi-qr.png" width="250">
+
+    <p>UPI ID:</p>
+    <h3>7992433200@sbi</h3>
+
+    <button onclick="paid()">
+        I Have Paid
+    </button>
+
+</div>
+
+<script>
+
+document.getElementById("amount").innerHTML =
+    "Amount: ₹" + localStorage.getItem("amount");
+
+function paid() {
+    window.location.href = "success.html";
+}
+
+</script>
+
+</body>
+</html>
