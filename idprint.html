@@ -140,15 +140,17 @@ const client =
         SUPABASE_KEY
     );
 
+const AI_API =
+    "https://ai-cleaner-e8vk.onrender.com/upload";
+
 let frontCropper;
 let backCropper;
 
 let frontBlob;
 let backBlob;
-      const AI_API =
-    "https://ai-cleaner-e8vk.onrender.com/upload";
 
-/* FRONT */
+
+/* FRONT IMAGE */
 
 document.getElementById(
     "frontFile"
@@ -156,46 +158,51 @@ document.getElementById(
     "change",
     function(e){
 
-    const file =
-        e.target.files[0];
+        const file =
+            e.target.files[0];
 
-    const reader =
-        new FileReader();
+        if(!file) return;
 
-    reader.onload =
-        function(event){
+        const reader =
+            new FileReader();
 
-        const img =
-            document.getElementById(
-                "frontImage"
-            );
+        reader.onload =
+            function(event){
 
-        img.src =
-            event.target.result;
+                const img =
+                    document.getElementById(
+                        "frontImage"
+                    );
 
-        if(frontCropper){
-            frontCropper.destroy();
-        }
+                img.src =
+                    event.target.result;
 
-        frontCropper =
-    new Cropper(
-        img,
-        {
-            aspectRatio: NaN,
-            viewMode: 1,
-            autoCropArea: 0.9,
-            movable: true,
-            scalable: true,
-            zoomable: true,
-            rotatable: true
-        }
-    );
+                if(frontCropper){
+                    frontCropper.destroy();
+                }
+
+                frontCropper =
+                    new Cropper(
+                        img,
+                        {
+                            aspectRatio: NaN,
+                            viewMode: 1,
+                            autoCropArea: 0.9,
+                            movable: true,
+                            scalable: true,
+                            zoomable: true,
+                            rotatable: true
+                        }
+                    );
+            };
+
+        reader.readAsDataURL(file);
+
+    }
 );
-    reader.readAsDataURL(file);
 
-});
 
-/* BACK */
+/* BACK IMAGE */
 
 document.getElementById(
     "backFile"
@@ -203,84 +210,112 @@ document.getElementById(
     "change",
     function(e){
 
-    const file =
-        e.target.files[0];
+        const file =
+            e.target.files[0];
 
-    const reader =
-        new FileReader();
+        if(!file) return;
 
-    reader.onload =
-        function(event){
+        const reader =
+            new FileReader();
 
-        const img =
-            document.getElementById(
-                "backImage"
-            );
+        reader.onload =
+            function(event){
 
-        img.src =
-            event.target.result;
+                const img =
+                    document.getElementById(
+                        "backImage"
+                    );
 
-        if(backCropper){
-            backCropper.destroy();
-        }
+                img.src =
+                    event.target.result;
 
-        backCropper =
-            new Cropper(
-        img,
-        {
-            aspectRatio: NaN,
-            viewMode: 1,
-            autoCropArea: 0.9,
-            movable: true,
-            scalable: true,
-            zoomable: true,
-            rotatable: true
-        }
-    );
+                if(backCropper){
+                    backCropper.destroy();
+                }
+
+                backCropper =
+                    new Cropper(
+                        img,
+                        {
+                            aspectRatio: NaN,
+                            viewMode: 1,
+                            autoCropArea: 0.9,
+                            movable: true,
+                            scalable: true,
+                            zoomable: true,
+                            rotatable: true
+                        }
+                    );
+            };
+
+        reader.readAsDataURL(file);
+
+    }
 );
-    reader.readAsDataURL(file);
 
-});
 
 /* FRONT CONTROLS */
 
 function rotate(){
-    frontCropper.rotate(-90);
+    if(frontCropper){
+        frontCropper.rotate(-90);
+    }
 }
 
 function rotateRight(){
-    frontCropper.rotate(90);
+    if(frontCropper){
+        frontCropper.rotate(90);
+    }
 }
 
 function zoomIn(){
-    frontCropper.zoom(0.1);
+    if(frontCropper){
+        frontCropper.zoom(0.1);
+    }
 }
 
 function zoomOut(){
-    frontCropper.zoom(-0.1);
+    if(frontCropper){
+        frontCropper.zoom(-0.1);
+    }
 }
+
 
 /* BACK CONTROLS */
 
 function rotateBack(){
-    backCropper.rotate(-90);
+    if(backCropper){
+        backCropper.rotate(-90);
+    }
 }
 
 function rotateRightBack(){
-    backCropper.rotate(90);
+    if(backCropper){
+        backCropper.rotate(90);
+    }
 }
 
 function zoomInBack(){
-    backCropper.zoom(0.1);
+    if(backCropper){
+        backCropper.zoom(0.1);
+    }
 }
 
 function zoomOutBack(){
-    backCropper.zoom(-0.1);
+    if(backCropper){
+        backCropper.zoom(-0.1);
+    }
 }
 
-/* SAVE */
+
+/* SAVE FRONT */
 
 function saveFront(){
+
+    if(!frontCropper){
+        alert("Select front image.");
+        return;
+    }
 
     frontCropper
     .getCroppedCanvas()
@@ -327,7 +362,16 @@ function saveFront(){
         }
     );
 }
+
+
+/* SAVE BACK */
+
 function saveBack(){
+
+    if(!backCropper){
+        alert("Select back image.");
+        return;
+    }
 
     backCropper
     .getCroppedCanvas()
@@ -375,11 +419,13 @@ function saveBack(){
     );
 }
 
+
+/* AI UPLOAD */
+
 async function uploadToAI(file){
 
-    console.log("Uploading to AI...");
-
-    const formData = new FormData();
+    const formData =
+        new FormData();
 
     formData.append(
         "image",
@@ -397,15 +443,8 @@ async function uploadToAI(file){
                 }
             );
 
-        console.log(response);
-
         const result =
             await response.json();
-
-        console.log(
-            "AI Result:",
-            result
-        );
 
         return result;
 
@@ -421,98 +460,117 @@ async function uploadToAI(file){
     }
 }
 
-   
 
 /* SUBMIT */
 
 async function submitID(){
 
     const name =
-        document.getElementById(
+        document
+        .getElementById(
             "name"
-        ).value.trim();
+        )
+        .value
+        .trim();
 
     const mobile =
-        document.getElementById(
+        document
+        .getElementById(
             "mobile"
-        ).value.trim();
+        )
+        .value
+        .trim();
 
     if(name === ""){
-        alert("Enter customer name.");
+        alert(
+            "Enter customer name."
+        );
         return;
     }
 
     if(mobile === ""){
-        alert("Enter mobile number.");
+        alert(
+            "Enter mobile number."
+        );
         return;
     }
 
     if(!frontBlob){
-        alert("Save front side first.");
+        alert(
+            "Save front side first."
+        );
         return;
     }
 
     if(!backBlob){
-        alert("Save back side first.");
+        alert(
+            "Save back side first."
+        );
         return;
     }
 
     const frontName =
-        Date.now() + "_front.jpg";
+        Date.now() +
+        "_front.jpg";
 
     const backName =
-        Date.now() + "_back.jpg";
+        Date.now() +
+        "_back.jpg";
 
-   const frontUpload =
-    await client.storage
-    .from("documents")
-    .upload(
-        frontName,
-        frontBlob,
-        {
-            contentType: "image/jpeg",
-            upsert: true
-        }
-    );
+    const frontUpload =
+        await client.storage
+        .from("documents")
+        .upload(
+            frontName,
+            frontBlob,
+            {
+                contentType:
+                    "image/jpeg",
+                upsert: true
+            }
+        );
 
-console.log(frontUpload);
-
-if(frontUpload.error){
-    alert(frontUpload.error.message);
-    console.log(frontUpload.error);
-    return;
-}
+    if(frontUpload.error){
+        alert(
+            frontUpload.error.message
+        );
+        return;
+    }
 
     const backUpload =
-    await client.storage
-    .from("documents")
-    .upload(
-        backName,
-        backBlob,
-        {
-            contentType: "image/jpeg",
-            upsert: true
-        }
-    );
+        await client.storage
+        .from("documents")
+        .upload(
+            backName,
+            backBlob,
+            {
+                contentType:
+                    "image/jpeg",
+                upsert: true
+            }
+        );
 
-console.log(backUpload);
-
-if(backUpload.error){
-    alert(backUpload.error.message);
-    console.log(backUpload.error);
-    return;
-}
+    if(backUpload.error){
+        alert(
+            backUpload.error.message
+        );
+        return;
+    }
 
     const frontUrl =
         client.storage
         .from("documents")
-        .getPublicUrl(frontName)
+        .getPublicUrl(
+            frontName
+        )
         .data.publicUrl;
 
     const backUrl =
         client.storage
         .from("documents")
-        .getPublicUrl(backName)
+        .getPublicUrl(
+            backName
+        )
         .data.publicUrl;
 
     const { error } =
@@ -520,45 +578,54 @@ if(backUpload.error){
         .from("orders")
         .insert([
             {
-                customer_name: name,
-                mobile: mobile,
-                print_type: "ID Card",
+                customer_name:
+                    name,
+                mobile:
+                    mobile,
+                print_type:
+                    "ID Card",
                 pages: 1,
                 amount: 20,
-                front_url: frontUrl,
-                back_url: backUrl,
-                payment_status: "Pending",
-                payment_id: ""
+                front_url:
+                    frontUrl,
+                back_url:
+                    backUrl,
+                payment_status:
+                    "Pending",
+                payment_id:
+                    ""
             }
         ]);
 
     if(error){
-        alert(error.message);
+        alert(
+            error.message
+        );
         return;
     }
 
-localStorage.setItem(
-    "frontImage",
-    frontUrl
-);
+    localStorage.setItem(
+        "frontImage",
+        frontUrl
+    );
 
-localStorage.setItem(
-    "backImage",
-    backUrl
-);
+    localStorage.setItem(
+        "backImage",
+        backUrl
+    );
 
-localStorage.setItem(
-    "amount",
-    5
-);
+    localStorage.setItem(
+        "amount",
+        5
+    );
 
-localStorage.setItem(
-    "printType",
-    "id"
-);
+    localStorage.setItem(
+        "printType",
+        "id"
+    );
 
-window.location.href =
-    "payment.html";
+    window.location.href =
+        "payment.html";
 }
 
 </script>
