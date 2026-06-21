@@ -100,28 +100,36 @@ async function loadOrders() {
 
         if (order.front_url && order.back_url) {
 
-            preview = `
-                <div>
-                    <b>Front</b><br>
-                    <img src="${order.front_url}"><br>
+    preview = `
+        <div>
+            <b>Front</b><br>
+            <img src="${order.front_url}" width="120"><br>
 
-                    <a href="${order.front_url}" target="_blank">
-                        View Front
-                    </a>
+            <a href="${order.front_url}" target="_blank">
+                View Front
+            </a>
 
-                    <br><br>
+            <br><br>
 
-                    <b>Back</b><br>
-                    <img src="${order.back_url}"><br>
+            <b>Back</b><br>
+            <img src="${order.back_url}" width="120"><br>
 
-                    <a href="${order.back_url}" target="_blank">
-                        View Back
-                    </a>
-                </div>
-            `;
+            <a href="${order.back_url}" target="_blank">
+                View Back
+            </a>
 
-        }
+            <br><br>
 
+            <button onclick="
+                localStorage.setItem('frontImage','${order.front_url}');
+                localStorage.setItem('backImage','${order.back_url}');
+                window.open('idpreview.html','_blank');
+            ">
+                A4 Preview / Print
+            </button>
+        </div>
+    `;
+}
         /* DOCUMENT ORDER */
 
         else if (order.file_url) {
