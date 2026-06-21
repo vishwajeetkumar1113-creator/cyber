@@ -5,6 +5,7 @@ body {
     background: #f4f6f9;
 }
 
+/* Header */
 header {
     background: #1976d2;
     color: white;
@@ -14,14 +15,13 @@ header {
 
 header h1 {
     margin: 0;
-    font-size: 32px;
 }
 
 header p {
     margin-top: 10px;
-    font-size: 18px;
 }
 
+/* Card */
 .card {
     max-width: 500px;
     margin: 30px auto;
@@ -29,45 +29,69 @@ header p {
     padding: 25px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-sizing: border-box;
+}
+
+/* Heading */
+.card h2 {
+    color: #1976d2;
     text-align: center;
 }
 
-.card h2 {
-    color: #1976d2;
+/* Inputs */
+input,
+select {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 16px;
 }
 
-.card p {
-    font-size: 18px;
-    color: #333;
-}
-
+/* Buttons */
+button,
 .btn {
-    display: inline-block;
-    margin-top: 20px;
+    width: 100%;
     background: #28a745;
     color: white;
-    padding: 14px 30px;
+    border: none;
+    padding: 14px;
+    font-size: 16px;
+    border-radius: 6px;
+    cursor: pointer;
     text-decoration: none;
-    border-radius: 8px;
-    font-size: 18px;
+    display: inline-block;
+    box-sizing: border-box;
 }
 
+button:hover,
 .btn:hover {
     background: #218838;
 }
 
-@media (max-width: 480px) {
-    header h1 {
-        font-size: 26px;
-    }
+/* Price */
+#total {
+    color: #1976d2;
+    text-align: center;
+}
 
+/* Images */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
     .card {
         margin: 15px;
         padding: 20px;
     }
 
-    .btn {
-        width: 100%;
-        box-sizing: border-box;
+    header h1 {
+        font-size: 24px;
     }
 }
