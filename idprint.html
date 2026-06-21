@@ -290,9 +290,30 @@ function saveFront(){
                     }
                 );
 
-            await uploadToAI(
-                frontBlob
-            );
+            const result =
+                await uploadToAI(
+                    frontBlob
+                );
+
+            if(result && result.success){
+
+                const response =
+                    await fetch(
+                        result.cropped_url
+                    );
+
+                const aiBlob =
+                    await response.blob();
+
+                frontBlob =
+                    new File(
+                        [aiBlob],
+                        "front.jpg",
+                        {
+                            type: "image/jpeg"
+                        }
+                    );
+            }
 
             alert(
                 "Front side saved."
@@ -300,7 +321,6 @@ function saveFront(){
         }
     );
 }
-
 function saveBack(){
 
     backCropper
@@ -317,16 +337,36 @@ function saveBack(){
                     }
                 );
 
-            await uploadToAI(
-                backBlob
-            );
+            const result =
+                await uploadToAI(
+                    backBlob
+                );
+
+            if(result && result.success){
+
+                const response =
+                    await fetch(
+                        result.cropped_url
+                    );
+
+                const aiBlob =
+                    await response.blob();
+
+                backBlob =
+                    new File(
+                        [aiBlob],
+                        "back.jpg",
+                        {
+                            type: "image/jpeg"
+                        }
+                    );
+            }
 
             alert(
                 "Back side saved."
             );
         }
     );
-
 }
 
 async function uploadToAI(file){
