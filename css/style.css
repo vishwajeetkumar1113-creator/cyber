@@ -156,5 +156,31 @@ img {
         flex: 1 1 45%;
         min-width: auto;
         font-size: 15px;
+        
     }
+}
+/* Admin Preview */
+
+.preview-img {
+    width: 120px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-bottom: 5px;
+}
+
+/* Admin Print Button */
+
+.print-btn {
+    background: #1976d2;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+    width: auto;
+}
+
+.print-btn:hover {
+    background: #125ea7;
 }
