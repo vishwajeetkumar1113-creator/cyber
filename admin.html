@@ -3,25 +3,44 @@
 <head>
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="css/style.css">
+
     <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
+        body{
+            background:#f5f5f5;
+            font-family:Arial,sans-serif;
         }
 
-        th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
+        .card{
+            padding:20px;
         }
 
-        th {
-            background: #1976d2;
-            color: white;
+        table{
+            width:100%;
+            border-collapse:collapse;
+            background:white;
         }
 
-        a {
-            color: blue;
+        th,td{
+            border:1px solid #ddd;
+            padding:10px;
+            text-align:center;
+            vertical-align:top;
+        }
+
+        th{
+            background:#1976d2;
+            color:white;
+        }
+
+        a{
+            color:blue;
+            text-decoration:none;
+        }
+
+        img{
+            max-width:120px;
+            border:1px solid #ccc;
+            margin:5px 0;
         }
     </style>
 </head>
@@ -61,11 +80,10 @@ const client = window.supabase.createClient(
 
 async function loadOrders() {
 
-    const { data, error } =
-        await client
-            .from("orders")
-            .select("*")
-            .order("id", { ascending: false });
+    const { data, error } = await client
+        .from("orders")
+        .select("*")
+        .order("id", { ascending: false });
 
     if (error) {
         alert(error.message);
@@ -75,47 +93,64 @@ async function loadOrders() {
     let html = "";
 
     data.forEach(order => {
-let fileColumn = "";
 
-if(order.print_type === "ID Card") {
+        let preview = "";
 
-    fileColumn = `
-        <div>
-            <b>Front:</b><br>
-            <img src="${order.front_url}" width="120"><br>
-            <a href="${order.front_url}" target="_blank">
-                View Front
-            </a>
+        /* ID CARD ORDER */
 
-            <br><br>
+        if (order.front_url && order.back_url) {
 
-            <b>Back:</b><br>
-            <img src="${order.back_url}" width="120"><br>
-            <a href="${order.back_url}" target="_blank">
-                View Back
-            </a>
-        </div>
-    `;
+            preview = `
+                <div>
+                    <b>Front</b><br>
+                    <img src="${order.front_url}"><br>
 
-} else {
+                    <a href="${order.front_url}" target="_blank">
+                        View Front
+                    </a>
 
-    fileColumn = `
-        <a href="${order.file_url}" target="_blank">
-            View File
-        </a>
-    `;
-}
+                    <br><br>
 
-html += `
-<tr>
-    <td>${order.customer_name}</td>
-    <td>${order.mobile}</td>
-    <td>${order.pages}</td>
-    <td>${order.print_type}</td>
-    <td>₹${order.amount}</td>
-    <td>${fileColumn}</td>
-</tr>
-`;
+                    <b>Back</b><br>
+                    <img src="${order.back_url}"><br>
+
+                    <a href="${order.back_url}" target="_blank">
+                        View Back
+                    </a>
+                </div>
+            `;
+
+        }
+
+        /* DOCUMENT ORDER */
+
+        else if (order.file_url) {
+
+            preview = `
+                <a href="${order.file_url}" target="_blank">
+                    View Document
+                </a>
+            `;
+
+        }
+
+        else {
+
+            preview = "No File";
+
+        }
+
+        html += `
+        <tr>
+            <td>${order.customer_name || ""}</td>
+            <td>${order.mobile || ""}</td>
+            <td>${order.pages || ""}</td>
+            <td>${order.print_type || ""}</td>
+            <td>₹${order.amount || 0}</td>
+            <td>${preview}</td>
+        </tr>
+        `;
+    });
 
     document.getElementById("orders").innerHTML = html;
 }
