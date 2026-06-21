@@ -36,17 +36,29 @@ href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 
 <br><br>
 
+<div class="controls">
+
 <button onclick="rotateLeft()">
-Rotate Left
+↺ Rotate
 </button>
 
 <button onclick="rotateRight()">
-Rotate Right
+↻ Rotate
+</button>
+
+<button onclick="zoomIn()">
+＋ Zoom
+</button>
+
+<button onclick="zoomOut()">
+－ Zoom
 </button>
 
 <button onclick="saveFront()">
-Save Front
+Save Front Side
 </button>
+
+</div>
 
 <hr>
 
@@ -54,7 +66,11 @@ Save Front
        id="backFile">
 
 <img id="backImage"
-     style="max-width:100%;">
+     style="
+     width:100%;
+     max-height:350px;
+     display:block;
+     margin-top:10px;">
 
 <br><br>
 
