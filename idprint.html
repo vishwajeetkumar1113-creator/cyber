@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>ID Print</title>
+
+<link rel="stylesheet"
+href="css/style.css">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<h2>ID Card Print</h2>
+
+<input type="text"
+       id="name"
+       placeholder="Customer Name">
+
+<input type="file"
+       id="frontFile">
+
+<img id="frontImage"
+     style="max-width:100%;">
+
+<br><br>
+
+<button onclick="rotateLeft()">
+Rotate Left
+</button>
+
+<button onclick="rotateRight()">
+Rotate Right
+</button>
+
+<button onclick="saveFront()">
+Save Front
+</button>
+
+<hr>
+
+<input type="file"
+       id="backFile">
+
+<img id="backImage"
+     style="max-width:100%;">
+
+<br><br>
+
+<button onclick="saveBack()">
+Save Back
+</button>
+
+<br><br>
+
+<button onclick="submitID()">
+Submit
+</button>
+
+</div>
+
+<script>
+
+let cropper;
+let frontBlob;
+let backBlob;
+
+document.getElementById(
+    "frontFile"
+).addEventListener(
+    "change",
+    function(e){
+
+    const file =
+        e.target.files[0];
+
+    const reader =
+        new FileReader();
+
+    reader.onload =
+        function(event){
+
+        const img =
+            document.getElementById(
+                "frontImage"
+            );
+
+        img.src =
+            event.target.result;
+
+        if(cropper){
+            cropper.destroy();
+        }
+
+        cropper =
+            new Cropper(
+                img,
+                {
+                    aspectRatio:1.6
+                }
+            );
+    };
+
+    reader.readAsDataURL(file);
+
+});
+
+function rotateLeft(){
+    cropper.rotate(-90);
+}
+
+function rotateRight(){
+    cropper.rotate(90);
+}
+
+function saveFront(){
+
+    cropper.getCroppedCanvas()
+    .toBlob(function(blob){
+
+        frontBlob = blob;
+
+        alert(
+            "Front saved."
+        );
+
+    });
+}
+
+function saveBack(){
+
+    alert(
+        "Back side selected."
+    );
+}
+
+function submitID(){
+
+    if(!frontBlob){
+
+        alert(
+            "Save front side first."
+        );
+
+        return;
+    }
+
+    alert(
+        "ID ready for upload."
+    );
+}
+
+</script>
+
+</body>
+</html>
