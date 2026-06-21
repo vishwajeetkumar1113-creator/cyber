@@ -40,7 +40,7 @@
                 <th>Pages</th>
                 <th>Type</th>
                 <th>Amount</th>
-                <th>File</th>
+                <th>Preview</th>
             </tr>
         </thead>
 
@@ -75,22 +75,47 @@ async function loadOrders() {
     let html = "";
 
     data.forEach(order => {
+let fileColumn = "";
 
-        html += `
-        <tr>
-            <td>${order.customer_name}</td>
-            <td>${order.mobile}</td>
-            <td>${order.pages}</td>
-            <td>${order.print_type}</td>
-            <td>₹${order.amount}</td>
-            <td>
-                <a href="${order.file_url}" target="_blank">
-                    View File
-                </a>
-            </td>
-        </tr>
-        `;
-    });
+if(order.print_type === "ID Card") {
+
+    fileColumn = `
+        <div>
+            <b>Front:</b><br>
+            <img src="${order.front_url}" width="120"><br>
+            <a href="${order.front_url}" target="_blank">
+                View Front
+            </a>
+
+            <br><br>
+
+            <b>Back:</b><br>
+            <img src="${order.back_url}" width="120"><br>
+            <a href="${order.back_url}" target="_blank">
+                View Back
+            </a>
+        </div>
+    `;
+
+} else {
+
+    fileColumn = `
+        <a href="${order.file_url}" target="_blank">
+            View File
+        </a>
+    `;
+}
+
+html += `
+<tr>
+    <td>${order.customer_name}</td>
+    <td>${order.mobile}</td>
+    <td>${order.pages}</td>
+    <td>${order.print_type}</td>
+    <td>₹${order.amount}</td>
+    <td>${fileColumn}</td>
+</tr>
+`;
 
     document.getElementById("orders").innerHTML = html;
 }
