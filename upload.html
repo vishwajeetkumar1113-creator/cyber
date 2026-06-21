@@ -2,7 +2,12 @@
 <html>
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
     <title>Upload Document</title>
+
     <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -12,13 +17,24 @@
 
     <h2>Upload Document</h2>
 
-    <input type="text" id="name" placeholder="Customer Name" required>
+    <input type="text"
+           id="name"
+           placeholder="Customer Name"
+           required>
 
-    <input type="tel" id="mobile" placeholder="Mobile Number" required>
+    <input type="tel"
+           id="mobile"
+           placeholder="Mobile Number"
+           required>
 
-    <input type="file" id="file" required>
+    <input type="file"
+           id="file"
+           required>
 
-    <input type="number" id="pages" value="1" min="1">
+    <input type="number"
+           id="pages"
+           value="1"
+           min="1">
 
     <select id="type">
         <option value="5">Black & White</option>
@@ -57,7 +73,7 @@ const SUPABASE_URL =
     "https://irqlvuphoblgjqysteto.supabase.co";
 
 const SUPABASE_KEY =
-    "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+    "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-"";
 
 const client =
     window.supabase.createClient(
@@ -68,10 +84,30 @@ const client =
 async function submitOrder() {
 
     const name =
-        document.getElementById("name").value;
+        document.getElementById("name").value.trim();
+
+    if (name === "") {
+        alert("Please enter Customer Name.");
+        document.getElementById("name").focus();
+        return;
+    }
 
     const mobile =
-        document.getElementById("mobile").value;
+        document.getElementById("mobile").value.trim();
+
+    if (mobile === "") {
+        alert("Please enter Mobile Number.");
+        document.getElementById("mobile").focus();
+        return;
+    }
+
+    const file =
+        document.getElementById("file").files[0];
+
+    if (!file) {
+        alert("Please select a document.");
+        return;
+    }
 
     const pages =
         parseInt(document.getElementById("pages").value);
@@ -81,33 +117,27 @@ async function submitOrder() {
 
     const amount = pages * type;
 
-    const file =
-        document.getElementById("file").files[0];
-
     let fileUrl = "";
 
-    if (file) {
+    const fileName =
+        Date.now() + "_" + file.name;
 
-        const fileName =
-            Date.now() + "_" + file.name;
+    const { error: uploadError } =
+        await client.storage
+            .from("documents")
+            .upload(fileName, file);
 
-        const { error: uploadError } =
-            await client.storage
-                .from("documents")
-                .upload(fileName, file);
-
-        if (uploadError) {
-            alert(uploadError.message);
-            return;
-        }
-
-        const { data } =
-            client.storage
-                .from("documents")
-                .getPublicUrl(fileName);
-
-        fileUrl = data.publicUrl;
+    if (uploadError) {
+        alert(uploadError.message);
+        return;
     }
+
+    const { data } =
+        client.storage
+            .from("documents")
+            .getPublicUrl(fileName);
+
+    fileUrl = data.publicUrl;
 
     const { error } =
         await client
@@ -124,8 +154,7 @@ async function submitOrder() {
                     amount: amount,
                     file_url: fileUrl,
                     payment_status: "Pending",
-                    payment_id: "",
-                    order_date: new Date().toLocaleString()
+                    payment_id: ""
                 }
             ]);
 
@@ -134,14 +163,24 @@ async function submitOrder() {
         console.log(error);
     } else {
 
-        localStorage.setItem("amount", amount);
-        localStorage.setItem("mobile", mobile);
+        localStorage.setItem(
+            "amount",
+            amount
+        );
+
+        localStorage.setItem(
+            "mobile",
+            mobile
+        );
 
         setTimeout(function () {
-            window.location.href = "payment.html";
+            window.location.href =
+                "payment.html";
         }, 500);
     }
 }
+
+calculate();
 
 </script>
 
