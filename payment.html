@@ -148,7 +148,15 @@ function payNow() {
                 response.razorpay_payment_id
             );
 
-            window.location.href = "success.html";
+            const printType =
+    localStorage.getItem("printType");
+
+if(printType === "id"){
+    window.location.href = "idpreview.html";
+}
+else{
+    window.location.href = "success.html";
+}
         },
 
         theme: {
