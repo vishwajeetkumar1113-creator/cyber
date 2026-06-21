@@ -428,13 +428,18 @@ if(backUpload.error){
         return;
     }
 
-    localStorage.setItem(
-        "amount",
-        20
-    );
+   localStorage.setItem(
+    "frontImage",
+    frontUrl
+);
 
-    window.location.href =
-        "payment.html";
+localStorage.setItem(
+    "backImage",
+    backUrl
+);
+
+window.location.href =
+    "idpreview.html";
 }
 
 </script>
