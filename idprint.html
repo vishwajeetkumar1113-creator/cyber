@@ -18,6 +18,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 </head>
 
 <body>
@@ -28,11 +30,13 @@ href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 
     <input type="text"
            id="name"
-           placeholder="Customer Name">
+           placeholder="Customer Name"
+           required>
 
     <input type="tel"
            id="mobile"
-           placeholder="Mobile Number">
+           placeholder="Mobile Number"
+           required>
 
     <h3>Front Side</h3>
 
@@ -124,6 +128,18 @@ href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 
 <script>
 
+const SUPABASE_URL =
+    "https://irqlvuphoblgjqysteto.supabase.co";
+
+const SUPABASE_KEY =
+    "YOUR_SUPABASE_KEY";
+
+const client =
+    window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
+
 let frontCropper;
 let backCropper;
 
@@ -165,12 +181,7 @@ document.getElementById(
                 {
                     aspectRatio:1.58,
                     viewMode:1,
-                    autoCropArea:1,
-                    movable:true,
-                    zoomable:true,
-                    rotatable:true,
-                    cropBoxResizable:true,
-                    cropBoxMovable:true
+                    autoCropArea:1
                 }
             );
     };
@@ -214,12 +225,7 @@ document.getElementById(
                 {
                     aspectRatio:1.58,
                     viewMode:1,
-                    autoCropArea:1,
-                    movable:true,
-                    zoomable:true,
-                    rotatable:true,
-                    cropBoxResizable:true,
-                    cropBoxMovable:true
+                    autoCropArea:1
                 }
             );
     };
@@ -298,7 +304,7 @@ function saveBack(){
 
 /* SUBMIT */
 
-function submitID(){
+async function submitID(){
 
     const name =
         document.getElementById(
@@ -311,48 +317,92 @@ function submitID(){
         ).value.trim();
 
     if(name === ""){
-
-        alert(
-            "Enter customer name."
-        );
-
+        alert("Enter customer name.");
         return;
     }
 
     if(mobile === ""){
-
-        alert(
-            "Enter mobile number."
-        );
-
+        alert("Enter mobile number.");
         return;
     }
 
     if(!frontBlob){
-
-        alert(
-            "Save front side first."
-        );
-
+        alert("Save front side first.");
         return;
     }
 
     if(!backBlob){
-
-        alert(
-            "Save back side first."
-        );
-
+        alert("Save back side first.");
         return;
     }
 
-    alert(
-        "ID card ready for upload."
+    const frontName =
+        Date.now() + "_front.jpg";
+
+    const backName =
+        Date.now() + "_back.jpg";
+
+    const frontUpload =
+        await client.storage
+        .from("documents")
+        .upload(frontName, frontBlob);
+
+    if(frontUpload.error){
+        alert(frontUpload.error.message);
+        return;
+    }
+
+    const backUpload =
+        await client.storage
+        .from("documents")
+        .upload(backName, backBlob);
+
+    if(backUpload.error){
+        alert(backUpload.error.message);
+        return;
+    }
+
+    const frontUrl =
+        client.storage
+        .from("documents")
+        .getPublicUrl(frontName)
+        .data.publicUrl;
+
+    const backUrl =
+        client.storage
+        .from("documents")
+        .getPublicUrl(backName)
+        .data.publicUrl;
+
+    const { error } =
+        await client
+        .from("orders")
+        .insert([
+            {
+                customer_name: name,
+                mobile: mobile,
+                print_type: "ID Card",
+                pages: 1,
+                amount: 20,
+                front_url: frontUrl,
+                back_url: backUrl,
+                payment_status: "Pending",
+                payment_id: ""
+            }
+        ]);
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    localStorage.setItem(
+        "amount",
+        20
     );
 
-    // Add Supabase upload here
-    // Add payment page redirect here
-
+    window.location.href =
+        "payment.html";
 }
 
 </script>
