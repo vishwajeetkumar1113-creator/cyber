@@ -112,9 +112,16 @@ function payNow() {
         }
     };
 
-    var rzp = new Razorpay(options);
+   var rzp = new Razorpay(options);
 
-    rzp.open();
+rzp.on('payment.failed', function (response) {
+    alert(
+        "Payment Failed\n" +
+        response.error.description
+    );
+});
+
+rzp.open();
 }
 
 </script>
