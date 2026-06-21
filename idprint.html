@@ -428,7 +428,7 @@ if(backUpload.error){
         return;
     }
 
-   localStorage.setItem(
+localStorage.setItem(
     "frontImage",
     frontUrl
 );
@@ -438,8 +438,18 @@ localStorage.setItem(
     backUrl
 );
 
+localStorage.setItem(
+    "amount",
+    5
+);
+
+localStorage.setItem(
+    "printType",
+    "id"
+);
+
 window.location.href =
-    "idpreview.html";
+    "payment.html";
 }
 
 </script>
