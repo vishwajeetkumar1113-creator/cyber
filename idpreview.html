@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<title>ID Print Preview</title>
+
+<style>
+
+body{
+    margin:0;
+    background:#ddd;
+}
+
+.a4{
+    width:210mm;
+    height:297mm;
+    background:white;
+    margin:auto;
+    position:relative;
+    padding:10mm;
+    box-sizing:border-box;
+}
+
+.front{
+    position:absolute;
+    top:15mm;
+    left:10mm;
+    width:85.6mm;
+    height:54mm;
+    border:1px solid #ccc;
+}
+
+.back{
+    position:absolute;
+    top:15mm;
+    right:10mm;
+    width:85.6mm;
+    height:54mm;
+    border:1px solid #ccc;
+}
+
+.front img,
+.back img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+}
+
+button{
+    width:100%;
+    padding:15px;
+    margin-top:20px;
+}
+
+@media print{
+    button{
+        display:none;
+    }
+
+    body{
+        background:white;
+    }
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="a4">
+
+    <div class="front">
+        <img id="front">
+    </div>
+
+    <div class="back">
+        <img id="back">
+    </div>
+
+</div>
+
+<button onclick="window.print()">
+Print A4
+</button>
+
+<script>
+
+document.getElementById("front").src =
+    localStorage.getItem("frontImage");
+
+document.getElementById("back").src =
+    localStorage.getItem("backImage");
+
+</script>
+
+</body>
+</html>
