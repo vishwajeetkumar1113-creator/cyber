@@ -3,13 +3,15 @@
 
 <head>
 
+<meta charset="UTF-8">
+
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0">
 
-<title>ID Print</title>
+<title>ID Card Print</title>
 
 <link rel="stylesheet"
-href="css/style.css">
+      href="css/style.css">
 
 <link rel="stylesheet"
 href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -22,77 +24,113 @@ href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 
 <div class="card">
 
-<h2>ID Card Print</h2>
+    <h2>ID Card Print</h2>
 
-<input type="text"
-       id="name"
-       placeholder="Customer Name">
+    <input type="text"
+           id="name"
+           placeholder="Customer Name">
 
-<h3>Front Side</h3>
+    <input type="tel"
+           id="mobile"
+           placeholder="Mobile Number">
 
-<input type="file"
-       id="frontFile">
+    <h3>Front Side</h3>
 
-<div class="crop-box">
-    <img id="frontImage">
-</div>
+    <input type="file"
+           id="frontFile"
+           accept="image/*">
 
-<br><br>
+    <div class="crop-box">
+        <img id="frontImage">
+    </div>
 
-<div class="controls">
+    <div class="controls">
 
-<button onclick="rotateLeft()">
-↺ Rotate
-</button>
+        <button type="button"
+                onclick="rotateLeft()">
+            ↺ Rotate
+        </button>
 
-<button onclick="rotateRight()">
-↻ Rotate
-</button>
+        <button type="button"
+                onclick="rotateRight()">
+            ↻ Rotate
+        </button>
 
-<button onclick="zoomIn()">
-＋ Zoom
-</button>
+        <button type="button"
+                onclick="zoomIn()">
+            ＋ Zoom
+        </button>
 
-<button onclick="zoomOut()">
-－ Zoom
-</button>
+        <button type="button"
+                onclick="zoomOut()">
+            － Zoom
+        </button>
 
-<button onclick="saveFront()">
-Save Front Side
-</button>
+        <button type="button"
+                onclick="saveFront()">
+            Save Front
+        </button>
 
-</div>
+    </div>
 
-<hr>
+    <hr>
 
-<h3>Back Side</h3>
+    <h3>Back Side</h3>
 
-<input type="file"
-       id="backFile">
+    <input type="file"
+           id="backFile"
+           accept="image/*">
 
-<div class="crop-box">
-    <img id="backImage">
-</div>
+    <div class="crop-box">
+        <img id="backImage">
+    </div>
 
-<br><br>
+    <div class="controls">
 
-<button onclick="saveBack()">
-Save Back
-</button>
+        <button type="button"
+                onclick="rotateLeftBack()">
+            ↺ Rotate
+        </button>
 
-<br><br>
+        <button type="button"
+                onclick="rotateRightBack()">
+            ↻ Rotate
+        </button>
 
-<button onclick="submitID()">
-Submit
-</button>
+        <button type="button"
+                onclick="zoomInBack()">
+            ＋ Zoom
+        </button>
+
+        <button type="button"
+                onclick="zoomOutBack()">
+            － Zoom
+        </button>
+
+        <button type="button"
+                onclick="saveBack()">
+            Save Back
+        </button>
+
+    </div>
+
+    <br>
+
+    <button onclick="submitID()">
+        Submit
+    </button>
 
 </div>
 
 <script>
 
-let cropper;
+let frontCropper;
+let backCropper;
+
 let frontBlob;
 let backBlob;
+
+/* FRONT */
 
 document.getElementById(
     "frontFile"
@@ -117,15 +155,22 @@ document.getElementById(
         img.src =
             event.target.result;
 
-        if(cropper){
-            cropper.destroy();
+        if(frontCropper){
+            frontCropper.destroy();
         }
 
-        cropper =
+        frontCropper =
             new Cropper(
                 img,
                 {
-                    aspectRatio:1.6
+                    aspectRatio:1.58,
+                    viewMode:1,
+                    autoCropArea:1,
+                    movable:true,
+                    zoomable:true,
+                    rotatable:true,
+                    cropBoxResizable:true,
+                    cropBoxMovable:true
                 }
             );
     };
@@ -134,23 +179,103 @@ document.getElementById(
 
 });
 
+/* BACK */
+
+document.getElementById(
+    "backFile"
+).addEventListener(
+    "change",
+    function(e){
+
+    const file =
+        e.target.files[0];
+
+    const reader =
+        new FileReader();
+
+    reader.onload =
+        function(event){
+
+        const img =
+            document.getElementById(
+                "backImage"
+            );
+
+        img.src =
+            event.target.result;
+
+        if(backCropper){
+            backCropper.destroy();
+        }
+
+        backCropper =
+            new Cropper(
+                img,
+                {
+                    aspectRatio:1.58,
+                    viewMode:1,
+                    autoCropArea:1,
+                    movable:true,
+                    zoomable:true,
+                    rotatable:true,
+                    cropBoxResizable:true,
+                    cropBoxMovable:true
+                }
+            );
+    };
+
+    reader.readAsDataURL(file);
+
+});
+
+/* FRONT CONTROLS */
+
 function rotateLeft(){
-    cropper.rotate(-90);
+    frontCropper.rotate(-90);
 }
 
 function rotateRight(){
-    cropper.rotate(90);
+    frontCropper.rotate(90);
 }
+
+function zoomIn(){
+    frontCropper.zoom(0.1);
+}
+
+function zoomOut(){
+    frontCropper.zoom(-0.1);
+}
+
+/* BACK CONTROLS */
+
+function rotateLeftBack(){
+    backCropper.rotate(-90);
+}
+
+function rotateRightBack(){
+    backCropper.rotate(90);
+}
+
+function zoomInBack(){
+    backCropper.zoom(0.1);
+}
+
+function zoomOutBack(){
+    backCropper.zoom(-0.1);
+}
+
+/* SAVE */
 
 function saveFront(){
 
-    cropper.getCroppedCanvas()
+    frontCropper
+    .getCroppedCanvas()
     .toBlob(function(blob){
 
         frontBlob = blob;
 
         alert(
-            "Front saved."
+            "Front side saved."
         );
 
     });
@@ -158,12 +283,50 @@ function saveFront(){
 
 function saveBack(){
 
-    alert(
-        "Back side selected."
-    );
+    backCropper
+    .getCroppedCanvas()
+    .toBlob(function(blob){
+
+        backBlob = blob;
+
+        alert(
+            "Back side saved."
+        );
+
+    });
 }
 
+/* SUBMIT */
+
 function submitID(){
+
+    const name =
+        document.getElementById(
+            "name"
+        ).value.trim();
+
+    const mobile =
+        document.getElementById(
+            "mobile"
+        ).value.trim();
+
+    if(name === ""){
+
+        alert(
+            "Enter customer name."
+        );
+
+        return;
+    }
+
+    if(mobile === ""){
+
+        alert(
+            "Enter mobile number."
+        );
+
+        return;
+    }
 
     if(!frontBlob){
 
@@ -174,9 +337,22 @@ function submitID(){
         return;
     }
 
+    if(!backBlob){
+
+        alert(
+            "Save back side first."
+        );
+
+        return;
+    }
+
     alert(
-        "ID ready for upload."
+        "ID card ready for upload."
     );
+
+    // Add Supabase upload here
+    // Add payment page redirect here
+
 }
 
 </script>
