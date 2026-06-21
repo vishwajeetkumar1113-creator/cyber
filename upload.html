@@ -1,32 +1,150 @@
-const { error } =
-    await client
-        .from("orders")
-        .insert([
-            {
-                customer_name: name,
-                mobile: mobile,
-                pages: pages,
-                print_type:
-                    type == 5
-                        ? "Black & White"
-                        : "Color",
-                amount: amount,
-                file_url: fileUrl,
-                payment_status: "Pending",
-                payment_id: "",
-                order_date: new Date().toLocaleString()
-            }
-        ]);
+<!DOCTYPE html>
+<html>
 
-if (error) {
-    alert(error.message);
-    console.log(error);
-} else {
+<head>
+    <title>Upload Document</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
 
-    localStorage.setItem("amount", amount);
-    localStorage.setItem("mobile", mobile);
+<body>
 
-    setTimeout(function () {
-        window.location.href = "payment.html";
-    }, 500);
+<div class="card">
+
+    <h2>Upload Document</h2>
+
+    <input type="text" id="name" placeholder="Customer Name" required>
+
+    <input type="tel" id="mobile" placeholder="Mobile Number" required>
+
+    <input type="file" id="file" required>
+
+    <input type="number" id="pages" value="1" min="1">
+
+    <select id="type">
+        <option value="5">Black & White</option>
+        <option value="10">Color</option>
+    </select>
+
+    <button onclick="calculate()">
+        Calculate Price
+    </button>
+
+    <h3 id="total">Total: ₹5</h3>
+
+    <button onclick="submitOrder()">
+        Submit Order
+    </button>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+
+function calculate() {
+
+    let pages =
+        document.getElementById("pages").value;
+
+    let price =
+        document.getElementById("type").value;
+
+    document.getElementById("total").innerHTML =
+        "Total: ₹" + (pages * price);
 }
+
+const SUPABASE_URL =
+    "https://irqlvuphoblgjqysteto.supabase.co";
+
+const SUPABASE_KEY =
+    "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+
+const client =
+    window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
+
+async function submitOrder() {
+
+    const name =
+        document.getElementById("name").value;
+
+    const mobile =
+        document.getElementById("mobile").value;
+
+    const pages =
+        parseInt(document.getElementById("pages").value);
+
+    const type =
+        document.getElementById("type").value;
+
+    const amount = pages * type;
+
+    const file =
+        document.getElementById("file").files[0];
+
+    let fileUrl = "";
+
+    if (file) {
+
+        const fileName =
+            Date.now() + "_" + file.name;
+
+        const { error: uploadError } =
+            await client.storage
+                .from("documents")
+                .upload(fileName, file);
+
+        if (uploadError) {
+            alert(uploadError.message);
+            return;
+        }
+
+        const { data } =
+            client.storage
+                .from("documents")
+                .getPublicUrl(fileName);
+
+        fileUrl = data.publicUrl;
+    }
+
+    const { error } =
+        await client
+            .from("orders")
+            .insert([
+                {
+                    customer_name: name,
+                    mobile: mobile,
+                    pages: pages,
+                    print_type:
+                        type == 5
+                            ? "Black & White"
+                            : "Color",
+                    amount: amount,
+                    file_url: fileUrl,
+                    payment_status: "Pending",
+                    payment_id: "",
+                    order_date: new Date().toLocaleString()
+                }
+            ]);
+
+    if (error) {
+        alert(error.message);
+        console.log(error);
+    } else {
+
+        localStorage.setItem("amount", amount);
+        localStorage.setItem("mobile", mobile);
+
+        setTimeout(function () {
+            window.location.href = "payment.html";
+        }, 500);
+    }
+}
+
+</script>
+
+</body>
+
+</html>
