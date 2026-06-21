@@ -98,12 +98,19 @@ async function loadOrders() {
 
         /* ID CARD ORDER */
 
-        if (order.front_url && order.back_url) {
+       if(order.front_url && order.back_url){
 
     preview = `
         <div>
+
             <b>Front</b><br>
-            <img src="${order.front_url}" width="120"><br>
+
+            <img
+                src="${order.front_url}"
+                class="preview-img"
+            >
+
+            <br>
 
             <a href="${order.front_url}" target="_blank">
                 View Front
@@ -112,7 +119,13 @@ async function loadOrders() {
             <br><br>
 
             <b>Back</b><br>
-            <img src="${order.back_url}" width="120"><br>
+
+            <img
+                src="${order.back_url}"
+                class="preview-img"
+            >
+
+            <br>
 
             <a href="${order.back_url}" target="_blank">
                 View Back
@@ -120,13 +133,17 @@ async function loadOrders() {
 
             <br><br>
 
-            <button onclick="
-                localStorage.setItem('frontImage','${order.front_url}');
-                localStorage.setItem('backImage','${order.back_url}');
-                window.open('idpreview.html','_blank');
-            ">
+            <button
+                class="print-btn"
+                onclick="
+                    localStorage.setItem('frontImage','${order.front_url}');
+                    localStorage.setItem('backImage','${order.back_url}');
+                    window.open('idpreview.html','_blank');
+                "
+            >
                 A4 Preview / Print
             </button>
+
         </div>
     `;
 }
