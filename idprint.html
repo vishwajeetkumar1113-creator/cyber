@@ -278,7 +278,13 @@ function saveFront(){
     .getCroppedCanvas()
     .toBlob(function(blob){
 
-        frontBlob = blob;
+        frontBlob = new File(
+    [blob],
+    "front.jpg",
+    {
+        type: "image/jpeg"
+    }
+);
 
         alert(
             "Front side saved."
@@ -293,7 +299,13 @@ function saveBack(){
     .getCroppedCanvas()
     .toBlob(function(blob){
 
-        backBlob = blob;
+        backBlob = new File(
+    [blob],
+    "back.jpg",
+    {
+        type: "image/jpeg"
+    }
+);
 
         alert(
             "Back side saved."
@@ -342,25 +354,45 @@ async function submitID(){
     const backName =
         Date.now() + "_back.jpg";
 
-    const frontUpload =
-        await client.storage
-        .from("documents")
-        .upload(frontName, frontBlob);
+   const frontUpload =
+    await client.storage
+    .from("documents")
+    .upload(
+        frontName,
+        frontBlob,
+        {
+            contentType: "image/jpeg",
+            upsert: true
+        }
+    );
 
-    if(frontUpload.error){
-        alert(frontUpload.error.message);
-        return;
-    }
+console.log(frontUpload);
+
+if(frontUpload.error){
+    alert(frontUpload.error.message);
+    console.log(frontUpload.error);
+    return;
+}
 
     const backUpload =
-        await client.storage
-        .from("documents")
-        .upload(backName, backBlob);
+    await client.storage
+    .from("documents")
+    .upload(
+        backName,
+        backBlob,
+        {
+            contentType: "image/jpeg",
+            upsert: true
+        }
+    );
 
-    if(backUpload.error){
-        alert(backUpload.error.message);
-        return;
-    }
+console.log(backUpload);
+
+if(backUpload.error){
+    alert(backUpload.error.message);
+    console.log(backUpload.error);
+    return;
+}
 
     const frontUrl =
         client.storage
