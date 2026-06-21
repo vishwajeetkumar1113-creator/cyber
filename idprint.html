@@ -331,6 +331,8 @@ function saveBack(){
 
 async function uploadToAI(file){
 
+    console.log("Uploading to AI...");
+
     const formData = new FormData();
 
     formData.append(
@@ -348,6 +350,8 @@ async function uploadToAI(file){
                     body: formData
                 }
             );
+
+        console.log(response);
 
         const result =
             await response.json();
