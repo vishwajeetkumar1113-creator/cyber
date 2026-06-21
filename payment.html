@@ -138,26 +138,27 @@ function payNow() {
 
         handler: function (response) {
 
-            localStorage.setItem(
-                "payment_id",
-                response.razorpay_payment_id
-            );
+    localStorage.setItem(
+        "payment_id",
+        response.razorpay_payment_id
+    );
 
-            alert(
-                "Payment Successful\nPayment ID: " +
-                response.razorpay_payment_id
-            );
+    const printType =
+        localStorage.getItem(
+            "printType"
+        );
 
-            const printType =
-    localStorage.getItem("printType");
+    if(printType === "id"){
 
-if(printType === "id"){
-    window.location.href = "idpreview.html";
-}
-else{
-    window.location.href = "success.html";
-}
-        },
+        window.location.href =
+            "idpreview.html";
+
+    } else {
+
+        window.location.href =
+            "success.html";
+    }
+},
 
         theme: {
             color: "#1976d2"
