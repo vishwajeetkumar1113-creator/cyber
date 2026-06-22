@@ -4,179 +4,159 @@
 <head>
     <meta charset="UTF-8">
     <title>Payment</title>
-
     <link rel="stylesheet" href="css/style.css">
-
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 15px;
+        }
 
-  <style>
+        .card {
+            width: 100%;
+            max-width: 400px;
+            margin: 20px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
 
-body {
-    font-family: Arial, sans-serif;
-    text-align: center;
-    background: #f5f5f5;
-    margin: 0;
-    padding: 15px;
-}
+        h2 {
+            font-size: 28px;
+        }
 
-.card {
-    width: 100%;
-    max-width: 400px;
-    margin: 20px auto;
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    box-sizing: border-box;
-}
+        h3 {
+            font-size: 22px;
+            word-break: break-word;
+        }
 
-h2 {
-    font-size: 28px;
-}
+        img {
+            width: 100%;
+            max-width: 250px;
+            height: auto;
+            margin: 20px 0;
+        }
 
-h3 {
-    font-size: 22px;
-    word-break: break-word;
-}
+        button {
+            width: 100%;
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 18px;
+        }
 
-img {
-    width: 100%;
-    max-width: 250px;
-    height: auto;
-    margin: 20px 0;
-}
+        button:hover {
+            background: #218838;
+        }
 
-button {
-    width: 100%;
-    background: #28a745;
-    color: white;
-    border: none;
-    padding: 15px;
-    cursor: pointer;
-    border-radius: 8px;
-    font-size: 18px;
-}
+        p {
+            font-size: 16px;
+        }
 
-button:hover {
-    background: #218838;
-}
-
-p {
-    font-size: 16px;
-}
-
-@media (max-width: 480px) {
-
-    .card {
-        padding: 15px;
-        margin: 10px auto;
-    }
-
-    h2 {
-        font-size: 24px;
-    }
-
-    h3 {
-        font-size: 20px;
-    }
-
-    button {
-        font-size: 16px;
-        padding: 14px;
-    }
-}
-
-</style>
+        @media (max-width: 480px) {
+            .card {
+                padding: 15px;
+                margin: 10px auto;
+            }
+            h2 { font-size: 24px; }
+            h3 { font-size: 20px; }
+            button { font-size: 16px; padding: 14px; }
+        }
+    </style>
 </head>
 
 <body>
 
 <div class="card">
-
     <h2>Payment</h2>
-
     <h3 id="amount">Amount: ₹0</h3>
 
-    <img src="images/upi-qr.png"
-         width="250"
-         alt="UPI QR">
+    <img src="images/upi-qr.png" width="250" alt="UPI QR">
 
     <p><strong>UPI ID:</strong></p>
-
     <h3>7992433200@sbi</h3>
 
     <p>Click below to pay online.</p>
-
-    <button onclick="payNow()">
-        Pay Now
-    </button>
-
+    <button onclick="payNow()">Pay Now</button>
 </div>
 
 <script>
+// Initialize Supabase Client to make status updates possible directly from this page
+const client = window.supabase.createClient(
+    "https://irqlvuphoblgjqysteto.supabase.co",
+    "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-"
+);
 
 const amount = localStorage.getItem("amount");
+const mobile = localStorage.getItem("mobile"); // Retrieve mobile to target the correct row
 
 if (amount) {
-    document.getElementById("amount").innerHTML =
-        "Amount: ₹" + amount;
+    document.getElementById("amount").innerHTML = "Amount: ₹" + amount;
 }
 
 function payNow() {
-
     var options = {
-
         key: "rzp_live_T49srqXpwl5lGy",
-
         amount: amount * 100,
-
         currency: "INR",
-
         name: "Vishwajeet Cyber Cafe",
-
         description: "Document Printing",
+        handler: async function (response) {
+            
+            // 1. Save payment details in browser memory
+            localStorage.setItem("payment_id", response.razorpay_payment_id);
 
-        handler: function (response) {
+            // 2. LIVE UPDATE: Update Supabase table directly using the customer's phone number
+            try {
+                const { error } = await client
+                    .from("orders")
+                    .update({ 
+                        payment_status: "Success", // Changes status to show up green in Admin Dashboard
+                        payment_id: response.razorpay_payment_id 
+                    })
+                    .eq("mobile", mobile)
+                    .order("id", { ascending: false }) // Target the most recent order submitted
+                    .limit(1);
 
-    localStorage.setItem(
-        "payment_id",
-        response.razorpay_payment_id
-    );
+                if (error) {
+                    console.error("Database status update failed:", error.message);
+                }
+            } catch (err) {
+                console.error("Network error updating database:", err);
+            }
 
-    const printType =
-        localStorage.getItem(
-            "printType"
-        );
-
-    if(printType === "id"){
-
-        window.location.href =
-            "idpreview.html";
-
-    } else {
-
-        window.location.href =
-            "success.html";
-    }
-},
-
+            // 3. Redirect based on order type
+            const printType = localStorage.getItem("printType");
+            if (printType === "id") {
+                const frontUrl = localStorage.getItem("frontImage");
+                const backUrl = localStorage.getItem("backImage");
+                window.location.href = "idpreview.html?front=" + encodeURIComponent(frontUrl) + "&back=" + encodeURIComponent(backUrl);
+            } else {
+                window.location.href = "success.html";
+            }
+        },
         theme: {
             color: "#1976d2"
         }
     };
 
-   var rzp = new Razorpay(options);
+    var rzp = new Razorpay(options);
 
-rzp.on('payment.failed', function (response) {
-    alert(
-        "Payment Failed\n" +
-        response.error.description
-    );
-});
+    rzp.on('payment.failed', function (response) {
+        alert("Payment Failed\n" + response.error.description);
+    });
 
-rzp.open();
+    rzp.open();
 }
-
 </script>
 
 </body>
