@@ -130,9 +130,16 @@
             color: #28a745;
             font-weight: bold;
         }
-        .loading-text {
-            color: #1976d2 !important;
-            font-style: italic;
+        .input-group {
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            font-size: 14px;
+            color: #555;
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -196,6 +203,23 @@
         <img id="backPreviewImg" src="" alt="Back Preview">
         <p id="backPreviewStatus">✓ Back Side Saved</p>
     </div>
+
+    <hr>
+
+    <div class="input-group">
+        <label>Number of Pages / Copies to Print:</label>
+        <input type="number" id="copies" value="1" min="1" oninput="calculatePrice()" required>
+    </div>
+
+    <div class="input-group">
+        <label>Print Type:</label>
+        <select id="type" onchange="calculatePrice()">
+            <option value="5">Black & White (₹5 / copy)</option>
+            <option value="10" selected>Color (₹10 / copy)</option>
+        </select>
+    </div>
+
+    <h3 id="totalPrice" style="color: #1976d2; text-align: center;">Total Price: ₹10</h3>
 
     <br>
     <button onclick="submitID()" style="background:#1976d2;">Submit Order</button>
@@ -261,6 +285,13 @@ function resetZoom(side) {
     engine[side].offsetX = 0;
     engine[side].offsetY = 0;
     draw(side);
+}
+
+function calculatePrice() {
+    let copies = parseInt(document.getElementById("copies").value) || 1;
+    if (copies < 1) copies = 1;
+    let baseRate = parseInt(document.getElementById("type").value); // Updated dynamically based on selection
+    document.getElementById("totalPrice").innerText = "Total Price: ₹" + (copies * baseRate);
 }
 
 async function goFullscreen(side) {
@@ -590,6 +621,8 @@ function saveSide(side) {
 async function submitID() {
     const name = document.getElementById("name").value.trim();
     const mobile = document.getElementById("mobile").value.trim();
+    const copiesInput = parseInt(document.getElementById("copies").value) || 1;
+    const typeSelect = document.getElementById("type").value;
 
     if (!name || !mobile) { alert("Enter customer details."); return; }
     if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
@@ -606,16 +639,30 @@ async function submitID() {
     const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
     const backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
 
+    let baseRate = parseInt(typeSelect); // Uses ₹5 or ₹10 dynamically based on dropdown
+    let totalAmountCalculation = copiesInput * baseRate;
+
+    // Send the structured copy summary description into the text 'print_type' field safely
+    const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
+    const trackingPrintSummaryText = `ID Card - ${baseColorType} [${copiesInput} Copies]`;
+
     const { error } = await client.from("orders").insert([{
-        customer_name: name, mobile: mobile, print_type: "ID Card", pages: 1, amount: 20,
-        front_url: frontUrl, back_url: backUrl, payment_status: "Pending", payment_id: ""
+        customer_name: name, 
+        mobile: mobile, 
+        print_type: trackingPrintSummaryText, 
+        pages: copiesInput, 
+        amount: totalAmountCalculation,
+        front_url: frontUrl, 
+        back_url: backUrl, 
+        payment_status: "Pending", 
+        payment_id: ""
     }]);
 
     if (error) { alert(error.message); return; }
 
     localStorage.setItem("frontImage", frontUrl);
     localStorage.setItem("backImage", backUrl);
-    localStorage.setItem("amount", 20);
+    localStorage.setItem("amount", totalAmountCalculation);
     localStorage.setItem("printType", "id");
 
     window.location.href = "payment.html";
