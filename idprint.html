@@ -17,6 +17,7 @@
             border: 1px solid #ccc;
             border-radius: 8px;
             overflow: hidden;
+            transition: all 0.2s ease;
         }
         canvas {
             display: block;
@@ -24,6 +25,31 @@
             height: auto;
             cursor: crosshair;
         }
+        
+        /* NEW: Fullscreen optimization rules for the active editing canvas container */
+        .canvas-container:fullscreen {
+            max-width: 100vw !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            background: #111 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: 0;
+            margin: 0;
+        }
+        
+        /* Forces canvas to maximize beautifully without losing aspect ratio constraint */
+        .canvas-container:fullscreen canvas {
+            width: auto !important;
+            height: auto !important;
+            max-width: 100% !important;
+            max-height: 85vh !important;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            border: 1px solid #333;
+        }
+
         .instructions {
             font-size: 13px;
             color: #555;
@@ -69,12 +95,13 @@
     <p class="instructions">Drag the 4 green corners to match the edges of your ID card</p>
     <input type="file" id="frontFile" accept="image/*">
     
-    <div class="canvas-container">
+    <div class="canvas-container" id="frontContainer">
         <canvas id="frontCanvas" width="400" height="260"></canvas>
     </div>
     
     <div class="controls">
         <button type="button" onclick="rotateImage('front')">↻ Rotate 90°</button>
+        <button type="button" onclick="goFullscreen('front')">⛶ Edit Fullscreen</button>
         <button type="button" onclick="saveSide('front')">Save Front</button>
     </div>
 
@@ -89,12 +116,13 @@
     <p class="instructions">Drag the 4 green corners to match the edges of your ID card</p>
     <input type="file" id="backFile" accept="image/*">
     
-    <div class="canvas-container">
+    <div class="canvas-container" id="backContainer">
         <canvas id="backCanvas" width="400" height="260"></canvas>
     </div>
     
     <div class="controls">
         <button type="button" onclick="rotateImage('back')">↻ Rotate 90°</button>
+        <button type="button" onclick="goFullscreen('back')">⛶ Edit Fullscreen</button>
         <button type="button" onclick="saveSide('back')">Save Back</button>
     </div>
 
@@ -137,6 +165,9 @@ function handleFileSelect(e, side) {
         engine[side].originalSrc = event.target.result;
         engine[side].rotation = 0; 
         loadImageData(side, event.target.result);
+        
+        // AUTO-LAUNCH: triggers fullscreen automatically as soon as image is loaded
+        setTimeout(() => goFullscreen(side), 300);
     };
     reader.readAsDataURL(file);
 }
@@ -157,6 +188,24 @@ function loadImageData(side, src) {
         draw(side);
     };
     img.src = src;
+}
+
+// NEW: Request Native Browser Fullscreen for the Canvas Wrapper Element
+async function goFullscreen(side) {
+    const container = document.getElementById(`${side}Container`);
+    if (!engine[side].img) {
+        alert("Please upload an image first.");
+        return;
+    }
+    try {
+        if (container.requestFullscreen) {
+            await container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) { // Safari Mobile
+            await container.webkitRequestFullscreen();
+        }
+    } catch (err) {
+        console.warn("Fullscreen request declined or unsupported:", err);
+    }
 }
 
 function rotateImage(side) {
@@ -224,6 +273,8 @@ function draw(side) {
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
     
+    // UPDATED: This fixed math function accurately checks screen bounding rects 
+    // to map touch pointers perfectly to green dots when zoomed to full screen layout.
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -238,13 +289,18 @@ function draw(side) {
         if(e.touches) e.preventDefault();
         const pos = getMousePos(e);
         engine[side].activeCorner = engine[side].corners.findIndex(c => 
-            Math.hypot(c.x - pos.x, c.y - pos.y) < 25 
+            Math.hypot(c.x - pos.x, c.y - pos.y) < 35 // Boosted hit box size slightly for mobile touch accessibility
         );
     }
 
     function handleMove(e) {
         if (engine[side].activeCorner === -1) return;
         const pos = getMousePos(e);
+        
+        // Restrain points inside actual internal canvas boundaries 
+        pos.x = Math.max(0, Math.min(canvas.width, pos.x));
+        pos.y = Math.max(0, Math.min(canvas.height, pos.y));
+        
         engine[side].corners[engine[side].activeCorner] = pos;
         draw(side);
     }
@@ -300,9 +356,15 @@ function saveSide(side) {
         return;
     }
 
+    // NEW: Automatically collapses fullscreen back down to normal page card layout when save is completed
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(()=>{});
+    } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+    }
+
     const resultCanvas = projectPerspective(s.img, s.corners, 856, 540);
     
-    // INSTANT: Show the regular flat crop in preview immediately to maintain high speed
     const directCropUrl = resultCanvas.toDataURL("image/jpeg");
     document.getElementById(`${side}PreviewImg`).src = directCropUrl;
     
@@ -313,12 +375,10 @@ function saveSide(side) {
     document.getElementById(`${side}PreviewContainer`).style.display = "block";
 
     resultCanvas.toBlob((baseBlob) => {
-        // Save the fallback base cropped file immediately 
         const processedFile = new File([baseBlob], `${side}.jpg`, { type: "image/jpeg" });
         if (side === 'front') frontBlob = processedFile;
         else backBlob = processedFile;
 
-        // BACKGROUND CALL: Process the cleaning filter asynchronously without blocking execution
         const formData = new FormData();
         formData.append("file", baseBlob, `${side}.jpg`);
 
@@ -331,7 +391,6 @@ function saveSide(side) {
             throw new Error("AI pipeline fallback");
         })
         .then(cleanedBlob => {
-            // Overwrite backend blobs and seamlessly hot-swap the preview image tag
             const finalFile = new File([cleanedBlob], `${side}.jpg`, { type: "image/jpeg" });
             if (side === 'front') frontBlob = finalFile;
             else backBlob = finalFile;
