@@ -238,16 +238,45 @@ engine.back.ctx = engine.back.canvas.getContext('2d');
 document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
 document.getElementById('backFile').addEventListener('change', (e) => handleFileSelect(e, 'back'));
 
+// INSTANT OPTIMIZER: Downscales massive camera files immediately upon selection
 function handleFileSelect(e, side) {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = function(event) {
-        engine[side].originalSrc = event.target.result;
-        engine[side].rotation = 0; 
-        resetZoom(side);
-        loadImageData(side, event.target.result);
+        const rawImg = new Image();
+        rawImg.onload = function() {
+            // Maximum bounding box dimension for workspace calculations
+            const maxDimension = 1200;
+            let targetWidth = rawImg.width;
+            let targetHeight = rawImg.height;
+
+            if (rawImg.width > maxDimension || rawImg.height > maxDimension) {
+                if (rawImg.width > rawImg.height) {
+                    targetWidth = maxDimension;
+                    targetHeight = Math.round((rawImg.height * maxDimension) / rawImg.width);
+                } else {
+                    targetHeight = maxDimension;
+                    targetWidth = Math.round((rawImg.width * maxDimension) / rawImg.height);
+                }
+            }
+
+            // Draw to a fast hidden canvas to instantly strip high-megapixels data load
+            const optimizationCanvas = document.createElement('canvas');
+            optimizationCanvas.width = targetWidth;
+            optimizationCanvas.height = targetHeight;
+            const optimizationCtx = optimizationCanvas.getContext('2d');
+            optimizationCtx.drawImage(rawImg, 0, 0, targetWidth, targetHeight);
+
+            const optimizedDataUrl = optimizationCanvas.toDataURL("image/jpeg", 0.85);
+            
+            engine[side].originalSrc = optimizedDataUrl;
+            engine[side].rotation = 0; 
+            resetZoom(side);
+            loadImageData(side, optimizedDataUrl);
+        };
+        rawImg.src = event.target.result;
     };
     reader.readAsDataURL(file);
 }
@@ -506,6 +535,10 @@ function draw(side) {
 });
 
 function projectPerspective(srcImg, corners, targetW, targetH) {
+    // Optimized targets to prevent mobile canvas loops from overloading memory
+    targetW = 428;
+    targetH = 270;
+
     const hiddenCanvas = document.createElement('canvas');
     hiddenCanvas.width = targetW;
     hiddenCanvas.height = targetH;
@@ -553,7 +586,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
             r = factor * (r - 128) + 128;
             g = factor * (g - 128) + 128;
-            b = factor * (g - 128) + 128;
+            b = factor * (b - 128) + 128;
 
             let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
             if (luminance > 180) { 
@@ -649,7 +682,7 @@ async function submitID() {
         back_url: backUrl, 
         payment_status: "Pending", 
         payment_id: ""
-    }]).select();
+    }]);
 
     if (error) { alert(error.message); return; }
 
