@@ -2,537 +2,263 @@
 <html>
 
 <head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
-
-<title>ID Card Print</title>
-
-<link rel="stylesheet"
-      href="css/style.css">
-
-<link rel="stylesheet"
-href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ID Card Print (Perspective Tool)</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .canvas-container {
+            position: relative;
+            margin: 15px auto;
+            max-width: 100%;
+            display: inline-block;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: #f5f5f5;
+            max-width: 100%;
+            height: auto;
+            cursor: crosshair;
+            display: block;
+        }
+        .instructions {
+            font-size: 13px;
+            color: #555;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+    </style>
 </head>
 
 <body>
 
 <div class="card">
-
     <h2>ID Card Print</h2>
 
-    <input type="text"
-           id="name"
-           placeholder="Customer Name"
-           required>
-
-    <input type="tel"
-           id="mobile"
-           placeholder="Mobile Number"
-           required>
+    <input type="text" id="name" placeholder="Customer Name" required>
+    <input type="tel" id="mobile" placeholder="Mobile Number" required>
 
     <h3>Front Side</h3>
-
-    <input type="file"
-           id="frontFile"
-           accept="image/*">
-
-    <div class="crop-box">
-        <img id="frontImage">
+    <p class="instructions">Drag the 4 green corners to match the edges of your ID card</p>
+    <input type="file" id="frontFile" accept="image/*">
+    <div class="canvas-container">
+        <canvas id="frontCanvas" width="400" height="260"></canvas>
     </div>
-
     <div class="controls">
-
-        <button type="button"
-                onclick="rotate()">
-            ↺ Rotate
-        </button>
-
-        <button type="button"
-                onclick="rotateRight()">
-            ↻ Rotate
-        </button>
-
-        <button type="button"
-                onclick="zoomIn()">
-            ＋ Zoom
-        </button>
-
-        <button type="button"
-                onclick="zoomOut()">
-            － Zoom
-        </button>
-
-        <button type="button"
-                onclick="saveFront()">
-            Save Front
-        </button>
-
+        <button type="button" onclick="saveSide('front')">Save Front</button>
     </div>
 
     <hr>
 
     <h3>Back Side</h3>
-
-    <input type="file"
-           id="backFile"
-           accept="image/*">
-
-    <div class="crop-box">
-        <img id="backImage">
+    <p class="instructions">Drag the 4 green corners to match the edges of your ID card</p>
+    <input type="file" id="backFile" accept="image/*">
+    <div class="canvas-container">
+        <canvas id="backCanvas" width="400" height="260"></canvas>
     </div>
-
     <div class="controls">
-
-        <button type="button"
-                onclick="rotateBack()">
-            ↺ Rotate
-        </button>
-
-        <button type="button"
-                onclick="rotateRightBack()">
-            ↻ Rotate
-        </button>
-
-        <button type="button"
-                onclick="zoomInBack()">
-            ＋ Zoom
-        </button>
-
-        <button type="button"
-                onclick="zoomOutBack()">
-            － Zoom
-        </button>
-
-        <button type="button"
-                onclick="saveBack()">
-            Save Back
-        </button>
-
+        <button type="button" onclick="saveSide('back')">Save Back</button>
     </div>
 
     <br>
-
-    <button onclick="submitID()">
-        Submit
-    </button>
-
+    <button onclick="submitID()" style="background:#1976d2;">Submit Order</button>
 </div>
 
 <script>
+const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const SUPABASE_URL =
-    "https://irqlvuphoblgjqysteto.supabase.co";
+let frontBlob = null;
+let backBlob = null;
 
-const SUPABASE_KEY =
-    "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+// Track data structures for perspective rendering
+const engine = {
+    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null },
+    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null }
+};
 
-const client =
-    window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_KEY
-    );
+engine.front.canvas = document.getElementById('frontCanvas');
+engine.front.ctx = engine.front.canvas.getContext('2d');
+engine.back.canvas = document.getElementById('backCanvas');
+engine.back.ctx = engine.back.canvas.getContext('2d');
 
+// Set up image upload listeners
+document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
+document.getElementById('backFile').addEventListener('change', (e) => handleFileSelect(e, 'back'));
 
+function handleFileSelect(e, side) {
+    const file = e.target.files[0];
+    if (!file) return;
 
-let frontCropper;
-let backCropper;
-
-let frontBlob;
-let backBlob;
-
-
-/* FRONT IMAGE */
-
-document.getElementById(
-    "frontFile"
-).addEventListener(
-    "change",
-    function(e){
-
-        const file =
-            e.target.files[0];
-
-        if(!file) return;
-
-        const reader =
-            new FileReader();
-
-        reader.onload =
-            function(event){
-
-                const img =
-                    document.getElementById(
-                        "frontImage"
-                    );
-
-                img.src =
-                    event.target.result;
-
-                if(frontCropper){
-                    frontCropper.destroy();
-                }
-
-                frontCropper =
-    new Cropper(
-        img,
-        {
-            aspectRatio: 85.6 / 54,
-            viewMode: 1,
-            autoCropArea: 1,
-            movable: true,
-            scalable: false,
-            zoomable: true,
-            rotatable: true,
-            dragMode: "move"
-        }
-    );
-            };
-
-        reader.readAsDataURL(file);
-
-    }
-);
-
-
-/* BACK IMAGE */
-
-document.getElementById(
-    "backFile"
-).addEventListener(
-    "change",
-    function(e){
-
-        const file =
-            e.target.files[0];
-
-        if(!file) return;
-
-        const reader =
-            new FileReader();
-
-        reader.onload =
-            function(event){
-
-                const img =
-                    document.getElementById(
-                        "backImage"
-                    );
-
-                img.src =
-                    event.target.result;
-
-                if(backCropper){
-                    backCropper.destroy();
-                }
-
-                backCropper =
-                    nfrontCropper =
-    new Cropper(
-        img,
-        {
-            aspectRatio: 85.6 / 54,
-            viewMode: 1,
-            autoCropArea: 1,
-            movable: true,
-            scalable: false,
-            zoomable: true,
-            rotatable: true,
-            dragMode: "move"
-        }
-    );
-            };
-
-        reader.readAsDataURL(file);
-
-    }
-);
-
-
-/* FRONT CONTROLS */
-
-function rotate(){
-    if(frontCropper){
-        frontCropper.rotate(-90);
-    }
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            engine[side].img = img;
+            // Initialize 4 corner positions with safe paddings
+            const w = engine[side].canvas.width;
+            const h = engine[side].canvas.height;
+            engine[side].corners = [
+                { x: 40, y: 40 },       // Top Left
+                { x: w - 40, y: 40 },   // Top Right
+                { x: w - 40, y: h - 40 },// Bottom Right
+                { x: 40, y: h - 40 }    // Bottom Left
+            ];
+            draw(side);
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
 }
 
-function rotateRight(){
-    if(frontCropper){
-        frontCropper.rotate(90);
-    }
-}
+function draw(side) {
+    const s = engine[side];
+    if (!s.img) return;
 
-function zoomIn(){
-    if(frontCropper){
-        frontCropper.zoom(0.1);
-    }
-}
+    s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
 
-function zoomOut(){
-    if(frontCropper){
-        frontCropper.zoom(-0.1);
-    }
-}
+    // Draw lines joining corners
+    s.ctx.strokeStyle = '#28a745';
+    s.ctx.lineWidth = 2;
+    s.ctx.beginPath();
+    s.ctx.moveTo(s.corners[0].x, s.corners[0].y);
+    for (let i = 1; i < 4; i++) s.ctx.lineTo(s.corners[i].x, s.corners[i].y);
+    s.ctx.closePath();
+    s.ctx.stroke();
 
-
-/* BACK CONTROLS */
-
-function rotateBack(){
-    if(backCropper){
-        backCropper.rotate(-90);
-    }
-}
-
-function rotateRightBack(){
-    if(backCropper){
-        backCropper.rotate(90);
-    }
-}
-
-function zoomInBack(){
-    if(backCropper){
-        backCropper.zoom(0.1);
-    }
-}
-
-function zoomOutBack(){
-    if(backCropper){
-        backCropper.zoom(-0.1);
-    }
-}
-
-
-/* SAVE FRONT */
-function saveFront(){
-
-    if(!frontCropper){
-        alert("Select front image.");
-        return;
-    }
-
-    frontCropper
-    .getCroppedCanvas()
-    .toBlob(function(blob){
-
-        frontBlob = new File(
-            [blob],
-            "front.jpg",
-            {
-                type: "image/jpeg"
-            }
-        );
-
-        alert("Front side saved.");
+    // Draw draggable interactive corner nodes
+    s.corners.forEach((corner) => {
+        s.ctx.fillStyle = '#28a745';
+        s.ctx.beginPath();
+        s.ctx.arc(corner.x, corner.y, 8, 0, Math.PI * 2);
+        s.ctx.fill();
+        s.ctx.strokeStyle = '#fff';
+        s.ctx.lineWidth = 2;
+        s.ctx.stroke();
     });
 }
 
-          
-
-
-/* SAVE BACK */
-
-function saveBack(){
-
-    if(!backCropper){
-        alert("Select back image.");
-        return;
+// Attach Pointer tracking logic dynamically across both canvases
+['front', 'back'].forEach((side) => {
+    const canvas = engine[side].canvas;
+    
+    function getMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left) * (canvas.width / rect.width),
+            y: (e.clientY - rect.top) * (canvas.height / rect.height)
+        };
     }
 
-    backCropper
-    .getCroppedCanvas()
-    .toBlob(function(blob){
-
-        backBlob = new File(
-            [blob],
-            "back.jpg",
-            {
-                type: "image/jpeg"
-            }
+    canvas.addEventListener('mousedown', (e) => {
+        const pos = getMousePos(e);
+        engine[side].activeCorner = engine[side].corners.findIndex(c => 
+            Math.hypot(c.x - pos.x, c.y - pos.y) < 15
         );
-
-        alert("Back side saved.");
     });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (engine[side].activeCorner === -1) return;
+        const pos = getMousePos(e);
+        engine[side].corners[engine[side].activeCorner] = pos;
+        draw(side);
+    });
+
+    window.addEventListener('mouseup', () => {
+        engine[side].activeCorner = -1;
+    });
+});
+
+// Native Perspective Transformation Processing Matrix Engine
+function projectPerspective(srcImg, corners, targetW, targetH) {
+    const hiddenCanvas = document.createElement('canvas');
+    hiddenCanvas.width = targetW;
+    hiddenCanvas.height = targetH;
+    const ctx = hiddenCanvas.getContext('2d');
+
+    // Create standard normalized output matrix variables
+    const cvsW = 400, cvsH = 260; 
+    const p1 = [corners[0].x / cvsW, corners[0].y / cvsH];
+    const p2 = [corners[1].x / cvsW, corners[1].y / cvsH];
+    const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
+    const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
+
+    // Map pixels mapping backward loops over coordinates to fix skewing gaps
+    for (let y = 0; y < targetH; y++) {
+        for (let x = 0; x < targetW; x++) {
+            let u = x / targetW;
+            let v = y / targetH;
+
+            // Bilinear map extrapolation formulas
+            let topX = p1[0] + u * (p2[0] - p1[0]);
+            let topY = p1[1] + u * (p2[1] - p1[1]);
+            let botX = p4[0] + u * (p3[0] - p4[0]);
+            let botY = p4[1] + u * (p3[1] - p4[1]);
+
+            let srcX = (topX + v * (botX - topX)) * srcImg.width;
+            let srcY = (topY + v * (botY - topY)) * srcImg.height;
+
+            ctx.drawImage(srcImg, srcX, srcY, 1, 1, x, y, 1, 1);
+        }
+    }
+    return hiddenCanvas;
 }
 
-/* AI UPLOAD */
-
-
-
-/* SUBMIT */
-
-async function submitID(){
-
-    const name =
-        document
-        .getElementById(
-            "name"
-        )
-        .value
-        .trim();
-
-    const mobile =
-        document
-        .getElementById(
-            "mobile"
-        )
-        .value
-        .trim();
-
-    if(name === ""){
-        alert(
-            "Enter customer name."
-        );
+function saveSide(side) {
+    const s = engine[side];
+    if (!s.img) {
+        alert(`Please choose an image for ${side} first.`);
         return;
     }
 
-    if(mobile === ""){
-        alert(
-            "Enter mobile number."
-        );
-        return;
-    }
-
-    if(!frontBlob){
-        alert(
-            "Save front side first."
-        );
-        return;
-    }
-
-    if(!backBlob){
-        alert(
-            "Save back side first."
-        );
-        return;
-    }
-
-    const frontName =
-        Date.now() +
-        "_front.jpg";
-
-    const backName =
-        Date.now() +
-        "_back.jpg";
-
-    const frontUpload =
-        await client.storage
-        .from("documents")
-        .upload(
-            frontName,
-            frontBlob,
-            {
-                contentType:
-                    "image/jpeg",
-                upsert: true
-            }
-        );
-
-    if(frontUpload.error){
-        alert(
-            frontUpload.error.message
-        );
-        return;
-    }
-
-    const backUpload =
-        await client.storage
-        .from("documents")
-        .upload(
-            backName,
-            backBlob,
-            {
-                contentType:
-                    "image/jpeg",
-                upsert: true
-            }
-        );
-
-    if(backUpload.error){
-        alert(
-            backUpload.error.message
-        );
-        return;
-    }
-
-    const frontUrl =
-        client.storage
-        .from("documents")
-        .getPublicUrl(
-            frontName
-        )
-        .data.publicUrl;
-
-    const backUrl =
-        client.storage
-        .from("documents")
-        .getPublicUrl(
-            backName
-        )
-        .data.publicUrl;
-
-    const { error } =
-        await client
-        .from("orders")
-        .insert([
-            {
-                customer_name:
-                    name,
-                mobile:
-                    mobile,
-                print_type:
-                    "ID Card",
-                pages: 1,
-                amount: 20,
-                front_url:
-                    frontUrl,
-                back_url:
-                    backUrl,
-                payment_status:
-                    "Pending",
-                payment_id:
-                    ""
-            }
-        ]);
-
-    if(error){
-        alert(
-            error.message
-        );
-        return;
-    }
-
-    localStorage.setItem(
-        "frontImage",
-        frontUrl
-    );
-
-    localStorage.setItem(
-        "backImage",
-        backUrl
-    );
-
-    localStorage.setItem(
-        "amount",
-        5
-    );
-
-    localStorage.setItem(
-        "printType",
-        "id"
-    );
-
-    window.location.href =
-        "payment.html";
+    // High fidelity target dimension based standard ID size ratio (856x540)
+    const resultCanvas = projectPerspective(s.img, s.corners, 856, 540);
+    
+    resultCanvas.toBlob((blob) => {
+        const processedFile = new File([blob], `${side}.jpg`, { type: "image/jpeg" });
+        if (side === 'front') frontBlob = processedFile;
+        else backBlob = processedFile;
+        alert(`${side.toUpperCase()} perspective crop saved successfully!`);
+    }, "image/jpeg", 0.90);
 }
 
+async function submitID() {
+    const name = document.getElementById("name").value.trim();
+    const mobile = document.getElementById("mobile").value.trim();
+
+    if (!name || !mobile) { alert("Enter customer details."); return; }
+    if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
+
+    const frontName = Date.now() + "_front.jpg";
+    const backName = Date.now() + "_back.jpg";
+
+    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { contentType: "image/jpeg", upsert: true });
+    if (frontUpload.error) { alert(frontUpload.error.message); return; }
+
+    const backUpload = await client.storage.from("documents").upload(backName, backBlob, { contentType: "image/jpeg", upsert: true });
+    if (backUpload.error) { alert(backUpload.error.message); return; }
+
+    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
+    const backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
+
+    const { error } = await client.from("orders").insert([{
+        customer_name: name, mobile: mobile, print_type: "ID Card", pages: 1, amount: 20,
+        front_url: frontUrl, back_url: backUrl, payment_status: "Pending", payment_id: ""
+    }]);
+
+    if (error) { alert(error.message); return; }
+
+    localStorage.setItem("frontImage", frontUrl);
+    localStorage.setItem("backImage", backUrl);
+    localStorage.setItem("amount", 20); // Corrected base calculation variable from 5 to 20
+    localStorage.setItem("printType", "id");
+
+    window.location.href = "payment.html";
+}
 </script>
 
 </body>
