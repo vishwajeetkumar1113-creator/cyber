@@ -50,6 +50,10 @@
             color: #28a745;
             font-weight: bold;
         }
+        .loading-text {
+            color: #1976d2 !important;
+            font-style: italic;
+        }
     </style>
 </head>
 
@@ -76,7 +80,7 @@
 
     <div class="side-preview" id="frontPreviewContainer">
         <img id="frontPreviewImg" src="" alt="Front Preview">
-        <p>✓ Front Side Saved & Flattened</p>
+        <p id="frontPreviewStatus">✓ Front Side Saved (AI Cleaning...)</p>
     </div>
 
     <hr>
@@ -96,7 +100,7 @@
 
     <div class="side-preview" id="backPreviewContainer">
         <img id="backPreviewImg" src="" alt="Back Preview">
-        <p>✓ Back Side Saved & Flattened</p>
+        <p id="backPreviewStatus">✓ Back Side Saved (AI Cleaning...)</p>
     </div>
 
     <br>
@@ -144,7 +148,6 @@ function loadImageData(side, src) {
         const w = engine[side].canvas.width;
         const h = engine[side].canvas.height;
         
-        // Setup corners adaptively inside the default dimension space
         engine[side].corners = [
             { x: 30, y: 30 },       
             { x: w - 30, y: 30 },   
@@ -196,11 +199,9 @@ function draw(side) {
     const s = engine[side];
     if (!s.img) return;
 
-    // Clear and draw workspace base
     s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
     s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
 
-    // Render interactive path bounds
     s.ctx.strokeStyle = '#28a745';
     s.ctx.lineWidth = 2;
     s.ctx.beginPath();
@@ -209,7 +210,6 @@ function draw(side) {
     s.ctx.closePath();
     s.ctx.stroke();
 
-    // Render handles
     s.corners.forEach((corner) => {
         s.ctx.fillStyle = '#28a745';
         s.ctx.beginPath();
@@ -221,13 +221,11 @@ function draw(side) {
     });
 }
 
-// Coordinate mappings supporting touch and mouse tracking simultaneously
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
     
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
-        // Fallback supports for mobile phone touches
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         return {
@@ -240,7 +238,7 @@ function draw(side) {
         if(e.touches) e.preventDefault();
         const pos = getMousePos(e);
         engine[side].activeCorner = engine[side].corners.findIndex(c => 
-            Math.hypot(c.x - pos.x, c.y - pos.y) < 25 // Enlarged target hit-box zone for touchscreen fingers
+            Math.hypot(c.x - pos.x, c.y - pos.y) < 25 
         );
     }
 
@@ -303,16 +301,51 @@ function saveSide(side) {
     }
 
     const resultCanvas = projectPerspective(s.img, s.corners, 856, 540);
-    const previewDataUrl = resultCanvas.toDataURL("image/jpeg");
     
-    document.getElementById(`${side}PreviewImg`).src = previewDataUrl;
+    // INSTANT: Show the regular flat crop in preview immediately to maintain high speed
+    const directCropUrl = resultCanvas.toDataURL("image/jpeg");
+    document.getElementById(`${side}PreviewImg`).src = directCropUrl;
+    
+    const statusText = document.getElementById(`${side}PreviewStatus`);
+    statusText.innerText = "✓ Saved! AI cleaning in progress...";
+    statusText.className = "loading-text";
+    
     document.getElementById(`${side}PreviewContainer`).style.display = "block";
 
-    resultCanvas.toBlob((blob) => {
-        const processedFile = new File([blob], `${side}.jpg`, { type: "image/jpeg" });
+    resultCanvas.toBlob((baseBlob) => {
+        // Save the fallback base cropped file immediately 
+        const processedFile = new File([baseBlob], `${side}.jpg`, { type: "image/jpeg" });
         if (side === 'front') frontBlob = processedFile;
         else backBlob = processedFile;
-        alert(`${side.toUpperCase()} Side Processed & Saved!`);
+
+        // BACKGROUND CALL: Process the cleaning filter asynchronously without blocking execution
+        const formData = new FormData();
+        formData.append("file", baseBlob, `${side}.jpg`);
+
+        fetch("https://ai-cleaner-e8vk.onrender.com/clean", {
+            method: "POST",
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) return response.blob();
+            throw new Error("AI pipeline fallback");
+        })
+        .then(cleanedBlob => {
+            // Overwrite backend blobs and seamlessly hot-swap the preview image tag
+            const finalFile = new File([cleanedBlob], `${side}.jpg`, { type: "image/jpeg" });
+            if (side === 'front') frontBlob = finalFile;
+            else backBlob = finalFile;
+
+            document.getElementById(`${side}PreviewImg`).src = URL.createObjectURL(cleanedBlob);
+            statusText.innerText = "✓ Cleaned by AI Successfully!";
+            statusText.className = "";
+        })
+        .catch(err => {
+            console.log("Using standard flat crop perspective layout:", err);
+            statusText.innerText = "✓ Saved (Standard Filter)";
+            statusText.className = "";
+        });
+
     }, "image/jpeg", 0.90);
 }
 
