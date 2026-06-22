@@ -26,13 +26,12 @@
             cursor: crosshair;
         }
         
-        /* Exit Button Styling (Visible only in fullscreen mode) */
         .exit-fullscreen-btn {
             display: none;
             position: absolute;
             top: 15px;
             right: 15px;
-            background: rgba(220, 53, 69, 0.9); /* Translucent Red */
+            background: rgba(220, 53, 69, 0.9);
             color: white;
             border: none;
             padding: 10px 16px;
@@ -48,7 +47,6 @@
             background: #dc3545;
         }
 
-        /* Fullscreen Controls Panel Styling */
         .fullscreen-controls {
             display: none;
             position: absolute;
@@ -73,7 +71,6 @@
             border-radius: 20px;
         }
         
-        /* Fullscreen optimization rules for the active container */
         .canvas-container:fullscreen {
             max-width: 100vw !important;
             width: 100vw !important;
@@ -87,13 +84,8 @@
             margin: 0;
         }
         
-        /* Show the buttons ONLY when the container goes into fullscreen */
-        .canvas-container:fullscreen .exit-fullscreen-btn {
-            display: block;
-        }
-        .canvas-container:fullscreen .fullscreen-controls {
-            display: flex;
-        }
+        .canvas-container:fullscreen .exit-fullscreen-btn { display: block; }
+        .canvas-container:fullscreen .fullscreen-controls { display: flex; }
         
         .canvas-container:fullscreen canvas {
             width: auto !important;
@@ -627,6 +619,8 @@ async function submitID() {
     if (!name || !mobile) { alert("Enter customer details."); return; }
     if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
 
+    alert("Saving order and setting up secure checkout... Please wait.");
+
     const frontName = Date.now() + "_front.jpg";
     const backName = Date.now() + "_back.jpg";
 
@@ -645,7 +639,7 @@ async function submitID() {
     const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
     const trackingPrintSummaryText = `ID Card - ${baseColorType} [${copiesInput} Copies]`;
 
-    const { error } = await client.from("orders").insert([{
+    const { data: insertedOrder, error } = await client.from("orders").insert([{
         customer_name: name, 
         mobile: mobile, 
         print_type: trackingPrintSummaryText, 
@@ -655,7 +649,7 @@ async function submitID() {
         back_url: backUrl, 
         payment_status: "Pending", 
         payment_id: ""
-    }]);
+    }]).select();
 
     if (error) { alert(error.message); return; }
 
@@ -663,6 +657,7 @@ async function submitID() {
     localStorage.setItem("backImage", backUrl);
     localStorage.setItem("amount", totalAmountCalculation);
     localStorage.setItem("printType", "id");
+    localStorage.setItem("current_order_id", insertedOrder[0].id); 
 
     window.location.href = "payment.html";
 }
