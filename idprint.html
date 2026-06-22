@@ -26,7 +26,7 @@
             cursor: crosshair;
         }
         
-        /* NEW: Exit Button Styling (Hidden by default in normal view) */
+        /* Exit Button Styling (Visible only in fullscreen mode) */
         .exit-fullscreen-btn {
             display: none;
             position: absolute;
@@ -62,7 +62,7 @@
             margin: 0;
         }
         
-        /* NEW: Show the exit button ONLY when the container goes into fullscreen */
+        /* Show the exit button ONLY when the container goes into fullscreen */
         .canvas-container:fullscreen .exit-fullscreen-btn {
             display: block;
         }
@@ -134,7 +134,7 @@
 
     <div class="side-preview" id="frontPreviewContainer">
         <img id="frontPreviewImg" src="" alt="Front Preview">
-        <p id="frontPreviewStatus">✓ Front Side Saved (AI Cleaning...)</p>
+        <p id="frontPreviewStatus">✓ Front Side Saved</p>
     </div>
 
     <hr>
@@ -154,4 +154,135 @@
         <button type="button" onclick="saveSide('back')">Save Back</button>
     </div>
 
-    <div class="side-preview" id
+    <div class="side-preview" id="backPreviewContainer">
+        <img id="backPreviewImg" src="" alt="Back Preview">
+        <p id="backPreviewStatus">✓ Back Side Saved</p>
+    </div>
+
+    <br>
+    <button onclick="submitID()" style="background:#1976d2;">Submit Order</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let frontBlob = null;
+let backBlob = null;
+
+const engine = {
+    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" },
+    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" }
+};
+
+engine.front.canvas = document.getElementById('frontCanvas');
+engine.front.ctx = engine.front.canvas.getContext('2d');
+engine.back.canvas = document.getElementById('backCanvas');
+engine.back.ctx = engine.back.canvas.getContext('2d');
+
+document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
+document.getElementById('backFile').addEventListener('change', (e) => handleFileSelect(e, 'back'));
+
+function handleFileSelect(e, side) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        engine[side].originalSrc = event.target.result;
+        engine[side].rotation = 0; 
+        loadImageData(side, event.target.result);
+        
+        setTimeout(() => goFullscreen(side), 300);
+    };
+    reader.readAsDataURL(file);
+}
+
+function loadImageData(side, src) {
+    const img = new Image();
+    img.onload = function() {
+        engine[side].img = img;
+        const w = engine[side].canvas.width;
+        const h = engine[side].canvas.height;
+        
+        engine[side].corners = [
+            { x: 30, y: 30 },       
+            { x: w - 30, y: 30 },   
+            { x: w - 30, y: h - 30 },
+            { x: 30, y: h - 30 }    
+        ];
+        draw(side);
+    };
+    img.src = src;
+}
+
+async function goFullscreen(side) {
+    const container = document.getElementById(`${side}Container`);
+    if (!engine[side].img) {
+        alert("Please upload an image first.");
+        return;
+    }
+    try {
+        if (container.requestFullscreen) {
+            await container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) { 
+            await container.webkitRequestFullscreen();
+        }
+    } catch (err) {
+        console.warn("Fullscreen request declined or unsupported:", err);
+    }
+}
+
+function closeFullscreen() {
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(()=>{});
+    } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+    }
+}
+
+function rotateImage(side) {
+    const s = engine[side];
+    if (!s.originalSrc) {
+        alert("Please upload an image first.");
+        return;
+    }
+
+    s.rotation = (s.rotation + 90) % 360;
+
+    const tempImg = new Image();
+    tempImg.onload = function() {
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+
+        if (s.rotation === 90 || s.rotation === 270) {
+            tempCanvas.width = tempImg.height;
+            tempCanvas.height = tempImg.width;
+        } else {
+            tempCanvas.width = tempImg.width;
+            tempCanvas.height = tempImg.height;
+        }
+
+        tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+        tempCtx.rotate((s.rotation * Math.PI) / 180);
+        tempCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
+
+        const rotatedImg = new Image();
+        rotatedImg.onload = function() {
+            s.img = rotatedImg;
+            draw(side);
+        };
+        rotatedImg.src = tempCanvas.toDataURL("image/jpeg");
+    };
+    tempImg.src = s.originalSrc;
+}
+
+function draw(side) {
+    const s = engine[side];
+    if (!s.img) return;
+
+    s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
+
+    s.ctx.strokeStyle = '#28a7
