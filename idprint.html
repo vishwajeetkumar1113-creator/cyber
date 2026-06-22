@@ -184,7 +184,6 @@ engine.back.ctx = engine.back.canvas.getContext('2d');
 document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
 document.getElementById('backFile').addEventListener('change', (e) => handleFileSelect(e, 'back'));
 
-// FIXED: Draws image instantly to box first. Fullscreen setup is now optimized and safe.
 function handleFileSelect(e, side) {
     const file = e.target.files[0];
     if (!file) return;
@@ -194,22 +193,24 @@ function handleFileSelect(e, side) {
         engine[side].originalSrc = event.target.result;
         engine[side].rotation = 0; 
         
-        // Load and draw image locally to the static box container first
+        // Load image data locally to container immediately
         loadImageData(side, event.target.result);
         
-        // Optional safe launch: Attempts to maximize if allowed by device environment.
-        // If blocked, the user can still tap the explicit "⛶ Edit Fullscreen" button safely.
+        // Attempts safe auto-fullscreen launch after window resources update
         setTimeout(() => {
             if (engine[side].img) {
                 goFullscreen(side).catch(() => {});
             }
-        }, 100);
+        }, 150);
     };
     reader.readAsDataURL(file);
 }
 
 function loadImageData(side, src) {
     const img = new Image();
+    // FIXED: Enforce cross-origin rules to stop browsers from blocking locally uploaded image pixels
+    img.crossOrigin = "anonymous";
+    
     img.onload = function() {
         engine[side].img = img;
         const w = engine[side].canvas.width;
@@ -229,17 +230,19 @@ function loadImageData(side, src) {
 async function goFullscreen(side) {
     const container = document.getElementById(`${side}Container`);
     if (!engine[side].img) {
-        alert("Please upload an image first.");
         return;
     }
     
-    if (container.requestFullscreen) {
-        await container.requestFullscreen();
-    } else if (container.webkitRequestFullscreen) { 
-        await container.webkitRequestFullscreen();
+    try {
+        if (container.requestFullscreen) {
+            await container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) { 
+            await container.webkitRequestFullscreen();
+        }
+    } catch(err) {
+        console.warn("Auto-fullscreen blocked by device policy context. User can initiate using buttons manually.");
     }
     
-    // Explicit redraw step ensures green coordinate vectors recalculate after sizing shifts
     setTimeout(() => draw(side), 100);
 }
 
@@ -258,15 +261,4 @@ function rotateImage(side) {
         return;
     }
 
-    s.rotation = (s.rotation + 90) % 360;
-
-    const tempImg = new Image();
-    tempImg.onload = function() {
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-
-        if (s.rotation === 90 || s.rotation === 270) {
-            tempCanvas.width = tempImg.height;
-            tempCanvas.height = tempImg.width;
-        } else {
-            tempCanvas.width
+    s.rotation = (s.rotation + 90) %
