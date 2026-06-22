@@ -12,6 +12,7 @@
 
         .card{
             padding:20px;
+            max-width: 90%;
         }
 
         table{
@@ -48,7 +49,6 @@
 <body>
 
 <div class="card">
-
     <h2>Admin Dashboard</h2>
 
     <table>
@@ -56,8 +56,7 @@
             <tr>
                 <th>Name</th>
                 <th>Mobile</th>
-                <th>Pages</th>
-                <th>Type</th>
+                <th>Selected Pages</th> <th>Type</th>
                 <th>Amount</th>
                 <th>Preview</th>
             </tr>
@@ -66,20 +65,17 @@
         <tbody id="orders">
         </tbody>
     </table>
-
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-
 const client = window.supabase.createClient(
     "https://irqlvuphoblgjqysteto.supabase.co",
     "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-"
 );
 
 async function loadOrders() {
-
     const { data, error } = await client
         .from("orders")
         .select("*")
@@ -93,88 +89,40 @@ async function loadOrders() {
     let html = "";
 
     data.forEach(order => {
-
         let preview = "";
 
         /* ID CARD ORDER */
-
-       if(order.front_url && order.back_url){
-
-    preview = `
-        <div>
-
-            <b>Front</b><br>
-
-            <img
-                src="${order.front_url}"
-                class="preview-img"
-            >
-
-            <br>
-
-            <a href="${order.front_url}" target="_blank">
-                View Front
-            </a>
-
-            <br><br>
-
-            <b>Back</b><br>
-
-            <img
-                src="${order.back_url}"
-                class="preview-img"
-            >
-
-            <br>
-
-            <a href="${order.back_url}" target="_blank">
-                View Back
-            </a>
-
-            <br><br>
-
-           <button
-    class="print-btn"
-    onclick="
-        window.open(
-            './idpreview.html?front=' +
-            encodeURIComponent('${order.front_url}') +
-            '&back=' +
-            encodeURIComponent('${order.back_url}'),
-            '_blank'
-        );
-    "
->
-    A4 Preview / Print
-</button>
-
-        </div>
-    `;
-}
-        /* DOCUMENT ORDER */
-
-        else if (order.file_url) {
-
+        if(order.front_url && order.back_url){
             preview = `
-                <a href="${order.file_url}" target="_blank">
-                    View Document
+                <div>
+                    <b>Front</b><br>
+                    <img src="${order.front_url}" class="preview-img"><br>
+                    <a href="${order.front_url}" target="_blank">View Front</a><br><br>
+                    <b>Back</b><br>
+                    <img src="${order.back_url}" class="preview-img"><br>
+                    <a href="${order.back_url}" target="_blank">View Back</a><br><br>
+                    <button class="print-btn" onclick="window.open('./idpreview.html?front=' + encodeURIComponent('${order.front_url}') + '&back=' + encodeURIComponent('${order.back_url}'), '_blank');">
+                        A4 Preview / Print
+                    </button>
+                </div>
+            `;
+        }
+        /* DOCUMENT ORDER */
+        else if (order.file_url) {
+            preview = `
+                <a href="${order.file_url}" target="_blank" style="font-weight:bold;color:#1976d2;">
+                    View/Print Document
                 </a>
             `;
-
-        }
-
-        else {
-
+        } else {
             preview = "No File";
-
         }
 
         html += `
         <tr>
             <td>${order.customer_name || ""}</td>
             <td>${order.mobile || ""}</td>
-            <td>${order.pages || ""}</td>
-            <td>${order.print_type || ""}</td>
+            <td style="color:#d32f2f; font-weight:bold;">${order.pages || "All"}</td> <td>${order.print_type || ""}</td>
             <td>₹${order.amount || 0}</td>
             <td>${preview}</td>
         </tr>
@@ -185,7 +133,6 @@ async function loadOrders() {
 }
 
 loadOrders();
-
 </script>
 
 </body>
