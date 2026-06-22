@@ -4,24 +4,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ID Card Print (Perspective & Rotate)</title>
+    <title>ID Card Print (Perspective Tool)</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .canvas-container {
             position: relative;
             margin: 15px auto;
-            max-width: 100%;
-            display: inline-block;
-        }
-        canvas {
+            width: 100%;
+            max-width: 400px;
+            background: #f5f5f5;
             border: 1px solid #ccc;
             border-radius: 8px;
-            background: #f5f5f5;
-            max-width: 100%;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
             height: auto;
             cursor: crosshair;
-            display: block;
         }
         .instructions {
             font-size: 13px;
@@ -110,7 +111,6 @@ const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let frontBlob = null;
 let backBlob = null;
 
-// Track data structures for perspective rendering
 const engine = {
     front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" },
     back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" }
@@ -121,7 +121,6 @@ engine.front.ctx = engine.front.canvas.getContext('2d');
 engine.back.canvas = document.getElementById('backCanvas');
 engine.back.ctx = engine.back.canvas.getContext('2d');
 
-// Set up image upload listeners
 document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
 document.getElementById('backFile').addEventListener('change', (e) => handleFileSelect(e, 'back'));
 
@@ -132,7 +131,7 @@ function handleFileSelect(e, side) {
     const reader = new FileReader();
     reader.onload = function(event) {
         engine[side].originalSrc = event.target.result;
-        engine[side].rotation = 0; // Reset rotation on new file upload
+        engine[side].rotation = 0; 
         loadImageData(side, event.target.result);
     };
     reader.readAsDataURL(file);
@@ -142,21 +141,21 @@ function loadImageData(side, src) {
     const img = new Image();
     img.onload = function() {
         engine[side].img = img;
-        // Initialize or maintain 4 corner positions
         const w = engine[side].canvas.width;
         const h = engine[side].canvas.height;
+        
+        // Setup corners adaptively inside the default dimension space
         engine[side].corners = [
-            { x: 40, y: 40 },       // Top Left
-            { x: w - 40, y: 40 },   // Top Right
-            { x: w - 40, y: h - 40 },// Bottom Right
-            { x: 40, y: h - 40 }    // Bottom Left
+            { x: 30, y: 30 },       
+            { x: w - 30, y: 30 },   
+            { x: w - 30, y: h - 30 },
+            { x: 30, y: h - 30 }    
         ];
         draw(side);
     };
     img.src = src;
 }
 
-// Function to handle 90-degree rotations cleanly on the canvas
 function rotateImage(side) {
     const s = engine[side];
     if (!s.originalSrc) {
@@ -183,7 +182,6 @@ function rotateImage(side) {
         tempCtx.rotate((s.rotation * Math.PI) / 180);
         tempCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
 
-        // Treat this rotated output canvas context generation as the new base processing source image
         const rotatedImg = new Image();
         rotatedImg.onload = function() {
             s.img = rotatedImg;
@@ -198,10 +196,11 @@ function draw(side) {
     const s = engine[side];
     if (!s.img) return;
 
+    // Clear and draw workspace base
     s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
     s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
 
-    // Draw boundary line tracking path loops
+    // Render interactive path bounds
     s.ctx.strokeStyle = '#28a745';
     s.ctx.lineWidth = 2;
     s.ctx.beginPath();
@@ -210,7 +209,7 @@ function draw(side) {
     s.ctx.closePath();
     s.ctx.stroke();
 
-    // Draw interactive tracking point anchors
+    // Render handles
     s.corners.forEach((corner) => {
         s.ctx.fillStyle = '#28a745';
         s.ctx.beginPath();
@@ -222,36 +221,135 @@ function draw(side) {
     });
 }
 
-// Coordinate relative location listener tracking maps
+// Coordinate mappings supporting touch and mouse tracking simultaneously
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
     
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
+        // Fallback supports for mobile phone touches
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         return {
-            x: (e.clientX - rect.left) * (canvas.width / rect.width),
-            y: (e.clientY - rect.top) * (canvas.height / rect.height)
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
         };
     }
 
-    canvas.addEventListener('mousedown', (e) => {
+    function handleStart(e) {
+        if(e.touches) e.preventDefault();
         const pos = getMousePos(e);
         engine[side].activeCorner = engine[side].corners.findIndex(c => 
-            Math.hypot(c.x - pos.x, c.y - pos.y) < 15
+            Math.hypot(c.x - pos.x, c.y - pos.y) < 25 // Enlarged target hit-box zone for touchscreen fingers
         );
-    });
+    }
 
-    canvas.addEventListener('mousemove', (e) => {
+    function handleMove(e) {
         if (engine[side].activeCorner === -1) return;
         const pos = getMousePos(e);
         engine[side].corners[engine[side].activeCorner] = pos;
         draw(side);
-    });
+    }
 
-    window.addEventListener('mouseup', () => {
+    function handleEnd() {
         engine[side].activeCorner = -1;
-    });
+    }
+
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+
+    canvas.addEventListener('touchstart', handleStart, { passive: false });
+    canvas.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
 });
 
-// Linear Unwarping Interpolation Matrix calculation algorithms
 function projectPerspective(srcImg, corners, targetW, targetH) {
+    const hiddenCanvas = document.createElement('canvas');
+    hiddenCanvas.width = targetW;
+    hiddenCanvas.height = targetH;
+    const ctx = hiddenCanvas.getContext('2d');
+
+    const cvsW = 400, cvsH = 260; 
+    const p1 = [corners[0].x / cvsW, corners[0].y / cvsH];
+    const p2 = [corners[1].x / cvsW, corners[1].y / cvsH];
+    const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
+    const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
+
+    for (let y = 0; y < targetH; y++) {
+        for (let x = 0; x < targetW; x++) {
+            let u = x / targetW;
+            let v = y / targetH;
+
+            let topX = p1[0] + u * (p2[0] - p1[0]);
+            let topY = p1[1] + u * (p2[1] - p1[1]);
+            let botX = p4[0] + u * (p3[0] - p4[0]);
+            let botY = p4[1] + u * (p3[1] - p4[1]);
+
+            let srcX = (topX + v * (botX - topX)) * srcImg.width;
+            let srcY = (topY + v * (botY - topY)) * srcImg.height;
+
+            ctx.drawImage(srcImg, srcX, srcY, 1, 1, x, y, 1, 1);
+        }
+    }
+    return hiddenCanvas;
+}
+
+function saveSide(side) {
+    const s = engine[side];
+    if (!s.img) {
+        alert(`Please choose an image for ${side} first.`);
+        return;
+    }
+
+    const resultCanvas = projectPerspective(s.img, s.corners, 856, 540);
+    const previewDataUrl = resultCanvas.toDataURL("image/jpeg");
+    
+    document.getElementById(`${side}PreviewImg`).src = previewDataUrl;
+    document.getElementById(`${side}PreviewContainer`).style.display = "block";
+
+    resultCanvas.toBlob((blob) => {
+        const processedFile = new File([blob], `${side}.jpg`, { type: "image/jpeg" });
+        if (side === 'front') frontBlob = processedFile;
+        else backBlob = processedFile;
+        alert(`${side.toUpperCase()} Side Processed & Saved!`);
+    }, "image/jpeg", 0.90);
+}
+
+async function submitID() {
+    const name = document.getElementById("name").value.trim();
+    const mobile = document.getElementById("mobile").value.trim();
+
+    if (!name || !mobile) { alert("Enter customer details."); return; }
+    if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
+
+    const frontName = Date.now() + "_front.jpg";
+    const backName = Date.now() + "_back.jpg";
+
+    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { contentType: "image/jpeg", upsert: true });
+    if (frontUpload.error) { alert(frontUpload.error.message); return; }
+
+    const backUpload = await client.storage.from("documents").upload(backName, backBlob, { contentType: "image/jpeg", upsert: true });
+    if (backUpload.error) { alert(backUpload.error.message); return; }
+
+    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
+    const backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
+
+    const { error } = await client.from("orders").insert([{
+        customer_name: name, mobile: mobile, print_type: "ID Card", pages: 1, amount: 20,
+        front_url: frontUrl, back_url: backUrl, payment_status: "Pending", payment_id: ""
+    }]);
+
+    if (error) { alert(error.message); return; }
+
+    localStorage.setItem("frontImage", frontUrl);
+    localStorage.setItem("backImage", backUrl);
+    localStorage.setItem("amount", 20);
+    localStorage.setItem("printType", "id");
+
+    window.location.href = "payment.html";
+}
+</script>
+
+</body>
+</html>
