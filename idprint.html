@@ -26,7 +26,29 @@
             cursor: crosshair;
         }
         
-        /* NEW: Fullscreen optimization rules for the active editing canvas container */
+        /* NEW: Exit Button Styling (Hidden by default in normal view) */
+        .exit-fullscreen-btn {
+            display: none;
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(220, 53, 69, 0.9); /* Translucent Red */
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 20px;
+            cursor: pointer;
+            z-index: 100000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .exit-fullscreen-btn:hover {
+            background: #dc3545;
+        }
+        
+        /* Fullscreen optimization rules for the active container */
         .canvas-container:fullscreen {
             max-width: 100vw !important;
             width: 100vw !important;
@@ -40,7 +62,11 @@
             margin: 0;
         }
         
-        /* Forces canvas to maximize beautifully without losing aspect ratio constraint */
+        /* NEW: Show the exit button ONLY when the container goes into fullscreen */
+        .canvas-container:fullscreen .exit-fullscreen-btn {
+            display: block;
+        }
+        
         .canvas-container:fullscreen canvas {
             width: auto !important;
             height: auto !important;
@@ -96,6 +122,7 @@
     <input type="file" id="frontFile" accept="image/*">
     
     <div class="canvas-container" id="frontContainer">
+        <button type="button" class="exit-fullscreen-btn" onclick="closeFullscreen()">✕ Exit Fullscreen</button>
         <canvas id="frontCanvas" width="400" height="260"></canvas>
     </div>
     
@@ -117,6 +144,7 @@
     <input type="file" id="backFile" accept="image/*">
     
     <div class="canvas-container" id="backContainer">
+        <button type="button" class="exit-fullscreen-btn" onclick="closeFullscreen()">✕ Exit Fullscreen</button>
         <canvas id="backCanvas" width="400" height="260"></canvas>
     </div>
     
@@ -126,322 +154,4 @@
         <button type="button" onclick="saveSide('back')">Save Back</button>
     </div>
 
-    <div class="side-preview" id="backPreviewContainer">
-        <img id="backPreviewImg" src="" alt="Back Preview">
-        <p id="backPreviewStatus">✓ Back Side Saved (AI Cleaning...)</p>
-    </div>
-
-    <br>
-    <button onclick="submitID()" style="background:#1976d2;">Submit Order</button>
-</div>
-
-<script>
-const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
-const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
-const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-let frontBlob = null;
-let backBlob = null;
-
-const engine = {
-    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" },
-    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" }
-};
-
-engine.front.canvas = document.getElementById('frontCanvas');
-engine.front.ctx = engine.front.canvas.getContext('2d');
-engine.back.canvas = document.getElementById('backCanvas');
-engine.back.ctx = engine.back.canvas.getContext('2d');
-
-document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
-document.getElementById('backFile').addEventListener('change', (e) => handleFileSelect(e, 'back'));
-
-function handleFileSelect(e, side) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        engine[side].originalSrc = event.target.result;
-        engine[side].rotation = 0; 
-        loadImageData(side, event.target.result);
-        
-        // AUTO-LAUNCH: triggers fullscreen automatically as soon as image is loaded
-        setTimeout(() => goFullscreen(side), 300);
-    };
-    reader.readAsDataURL(file);
-}
-
-function loadImageData(side, src) {
-    const img = new Image();
-    img.onload = function() {
-        engine[side].img = img;
-        const w = engine[side].canvas.width;
-        const h = engine[side].canvas.height;
-        
-        engine[side].corners = [
-            { x: 30, y: 30 },       
-            { x: w - 30, y: 30 },   
-            { x: w - 30, y: h - 30 },
-            { x: 30, y: h - 30 }    
-        ];
-        draw(side);
-    };
-    img.src = src;
-}
-
-// NEW: Request Native Browser Fullscreen for the Canvas Wrapper Element
-async function goFullscreen(side) {
-    const container = document.getElementById(`${side}Container`);
-    if (!engine[side].img) {
-        alert("Please upload an image first.");
-        return;
-    }
-    try {
-        if (container.requestFullscreen) {
-            await container.requestFullscreen();
-        } else if (container.webkitRequestFullscreen) { // Safari Mobile
-            await container.webkitRequestFullscreen();
-        }
-    } catch (err) {
-        console.warn("Fullscreen request declined or unsupported:", err);
-    }
-}
-
-function rotateImage(side) {
-    const s = engine[side];
-    if (!s.originalSrc) {
-        alert("Please upload an image first.");
-        return;
-    }
-
-    s.rotation = (s.rotation + 90) % 360;
-
-    const tempImg = new Image();
-    tempImg.onload = function() {
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-
-        if (s.rotation === 90 || s.rotation === 270) {
-            tempCanvas.width = tempImg.height;
-            tempCanvas.height = tempImg.width;
-        } else {
-            tempCanvas.width = tempImg.width;
-            tempCanvas.height = tempImg.height;
-        }
-
-        tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-        tempCtx.rotate((s.rotation * Math.PI) / 180);
-        tempCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
-
-        const rotatedImg = new Image();
-        rotatedImg.onload = function() {
-            s.img = rotatedImg;
-            draw(side);
-        };
-        rotatedImg.src = tempCanvas.toDataURL("image/jpeg");
-    };
-    tempImg.src = s.originalSrc;
-}
-
-function draw(side) {
-    const s = engine[side];
-    if (!s.img) return;
-
-    s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
-    s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
-
-    s.ctx.strokeStyle = '#28a745';
-    s.ctx.lineWidth = 2;
-    s.ctx.beginPath();
-    s.ctx.moveTo(s.corners[0].x, s.corners[0].y);
-    for (let i = 1; i < 4; i++) s.ctx.lineTo(s.corners[i].x, s.corners[i].y);
-    s.ctx.closePath();
-    s.ctx.stroke();
-
-    s.corners.forEach((corner) => {
-        s.ctx.fillStyle = '#28a745';
-        s.ctx.beginPath();
-        s.ctx.arc(corner.x, corner.y, 8, 0, Math.PI * 2);
-        s.ctx.fill();
-        s.ctx.strokeStyle = '#fff';
-        s.ctx.lineWidth = 2;
-        s.ctx.stroke();
-    });
-}
-
-['front', 'back'].forEach((side) => {
-    const canvas = engine[side].canvas;
-    
-    // UPDATED: This fixed math function accurately checks screen bounding rects 
-    // to map touch pointers perfectly to green dots when zoomed to full screen layout.
-    function getMousePos(e) {
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return {
-            x: (clientX - rect.left) * (canvas.width / rect.width),
-            y: (clientY - rect.top) * (canvas.height / rect.height)
-        };
-    }
-
-    function handleStart(e) {
-        if(e.touches) e.preventDefault();
-        const pos = getMousePos(e);
-        engine[side].activeCorner = engine[side].corners.findIndex(c => 
-            Math.hypot(c.x - pos.x, c.y - pos.y) < 35 // Boosted hit box size slightly for mobile touch accessibility
-        );
-    }
-
-    function handleMove(e) {
-        if (engine[side].activeCorner === -1) return;
-        const pos = getMousePos(e);
-        
-        // Restrain points inside actual internal canvas boundaries 
-        pos.x = Math.max(0, Math.min(canvas.width, pos.x));
-        pos.y = Math.max(0, Math.min(canvas.height, pos.y));
-        
-        engine[side].corners[engine[side].activeCorner] = pos;
-        draw(side);
-    }
-
-    function handleEnd() {
-        engine[side].activeCorner = -1;
-    }
-
-    canvas.addEventListener('mousedown', handleStart);
-    canvas.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleEnd);
-
-    canvas.addEventListener('touchstart', handleStart, { passive: false });
-    canvas.addEventListener('touchmove', handleMove, { passive: false });
-    window.addEventListener('touchend', handleEnd);
-});
-
-function projectPerspective(srcImg, corners, targetW, targetH) {
-    const hiddenCanvas = document.createElement('canvas');
-    hiddenCanvas.width = targetW;
-    hiddenCanvas.height = targetH;
-    const ctx = hiddenCanvas.getContext('2d');
-
-    const cvsW = 400, cvsH = 260; 
-    const p1 = [corners[0].x / cvsW, corners[0].y / cvsH];
-    const p2 = [corners[1].x / cvsW, corners[1].y / cvsH];
-    const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
-    const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
-
-    for (let y = 0; y < targetH; y++) {
-        for (let x = 0; x < targetW; x++) {
-            let u = x / targetW;
-            let v = y / targetH;
-
-            let topX = p1[0] + u * (p2[0] - p1[0]);
-            let topY = p1[1] + u * (p2[1] - p1[1]);
-            let botX = p4[0] + u * (p3[0] - p4[0]);
-            let botY = p4[1] + u * (p3[1] - p4[1]);
-
-            let srcX = (topX + v * (botX - topX)) * srcImg.width;
-            let srcY = (topY + v * (botY - topY)) * srcImg.height;
-
-            ctx.drawImage(srcImg, srcX, srcY, 1, 1, x, y, 1, 1);
-        }
-    }
-    return hiddenCanvas;
-}
-
-function saveSide(side) {
-    const s = engine[side];
-    if (!s.img) {
-        alert(`Please choose an image for ${side} first.`);
-        return;
-    }
-
-    // NEW: Automatically collapses fullscreen back down to normal page card layout when save is completed
-    if (document.fullscreenElement) {
-        document.exitFullscreen().catch(()=>{});
-    } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-    }
-
-    const resultCanvas = projectPerspective(s.img, s.corners, 856, 540);
-    
-    const directCropUrl = resultCanvas.toDataURL("image/jpeg");
-    document.getElementById(`${side}PreviewImg`).src = directCropUrl;
-    
-    const statusText = document.getElementById(`${side}PreviewStatus`);
-    statusText.innerText = "✓ Saved! AI cleaning in progress...";
-    statusText.className = "loading-text";
-    
-    document.getElementById(`${side}PreviewContainer`).style.display = "block";
-
-    resultCanvas.toBlob((baseBlob) => {
-        const processedFile = new File([baseBlob], `${side}.jpg`, { type: "image/jpeg" });
-        if (side === 'front') frontBlob = processedFile;
-        else backBlob = processedFile;
-
-        const formData = new FormData();
-        formData.append("file", baseBlob, `${side}.jpg`);
-
-        fetch("https://ai-cleaner-e8vk.onrender.com/clean", {
-            method: "POST",
-            body: formData
-        })
-        .then(response => {
-            if (response.ok) return response.blob();
-            throw new Error("AI pipeline fallback");
-        })
-        .then(cleanedBlob => {
-            const finalFile = new File([cleanedBlob], `${side}.jpg`, { type: "image/jpeg" });
-            if (side === 'front') frontBlob = finalFile;
-            else backBlob = finalFile;
-
-            document.getElementById(`${side}PreviewImg`).src = URL.createObjectURL(cleanedBlob);
-            statusText.innerText = "✓ Cleaned by AI Successfully!";
-            statusText.className = "";
-        })
-        .catch(err => {
-            console.log("Using standard flat crop perspective layout:", err);
-            statusText.innerText = "✓ Saved (Standard Filter)";
-            statusText.className = "";
-        });
-
-    }, "image/jpeg", 0.90);
-}
-
-async function submitID() {
-    const name = document.getElementById("name").value.trim();
-    const mobile = document.getElementById("mobile").value.trim();
-
-    if (!name || !mobile) { alert("Enter customer details."); return; }
-    if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
-
-    const frontName = Date.now() + "_front.jpg";
-    const backName = Date.now() + "_back.jpg";
-
-    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { contentType: "image/jpeg", upsert: true });
-    if (frontUpload.error) { alert(frontUpload.error.message); return; }
-
-    const backUpload = await client.storage.from("documents").upload(backName, backBlob, { contentType: "image/jpeg", upsert: true });
-    if (backUpload.error) { alert(backUpload.error.message); return; }
-
-    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
-    const backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
-
-    const { error } = await client.from("orders").insert([{
-        customer_name: name, mobile: mobile, print_type: "ID Card", pages: 1, amount: 20,
-        front_url: frontUrl, back_url: backUrl, payment_status: "Pending", payment_id: ""
-    }]);
-
-    if (error) { alert(error.message); return; }
-
-    localStorage.setItem("frontImage", frontUrl);
-    localStorage.setItem("backImage", backUrl);
-    localStorage.setItem("amount", 20);
-    localStorage.setItem("printType", "id");
-
-    window.location.href = "payment.html";
-}
-</script>
-
-</body>
-</html>
+    <div class="side-preview" id
