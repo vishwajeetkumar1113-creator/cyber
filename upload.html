@@ -7,7 +7,8 @@
     <title>Upload Document</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        .preview-box {
+        /* Outer mask wrapper hiding overflow edge pixels */
+        .preview-wrapper {
             width: 100%;
             max-width: 400px;
             height: 250px;
@@ -15,12 +16,24 @@
             border: 2px dashed #1976d2;
             border-radius: 8px;
             background: #f8f9fa;
+            overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+        }
+        
+        /* Central rendering view area zoomed down to an 80% view scale */
+        .preview-box {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: #777;
             font-size: 14px;
+            transform: scale(0.80); /* Force strict 80% scale visibility matrix */
+            transform-origin: center center;
+            box-sizing: border-box;
         }
         .preview-box img {
             width: 100%;
@@ -28,8 +41,8 @@
             object-fit: contain;
         }
         .preview-box iframe {
-            width: 100%;
-            height: 100%;
+            width: 125%; /* Expand width slightly to offset structural inner frame scaling boundaries */
+            height: 125%; 
             border: none;
         }
         .input-group {
@@ -58,8 +71,10 @@
         <input type="file" id="file" accept="image/*,application/pdf" onchange="previewDocument()" required>
     </div>
 
-    <div class="preview-box" id="docPreview">
-        <span>No file selected yet for preview</span>
+    <div class="preview-wrapper">
+        <div class="preview-box" id="docPreview">
+            <span>No file selected yet for preview</span>
+        </div>
     </div>
 
     <div class="input-group">
@@ -90,7 +105,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-// Dynamic file layout preview logic container
 function previewDocument() {
     const previewContainer = document.getElementById("docPreview");
     const file = document.getElementById("file").files[0];
@@ -119,7 +133,6 @@ function calculate() {
 
     if (copies < 1) copies = 1;
 
-    // Estimate page calculations
     if (pageInput !== "all" && pageInput !== "") {
         let parts = pageInput.split(",");
         totalPages = 0;
@@ -136,7 +149,6 @@ function calculate() {
         if (totalPages === 0) totalPages = 1;
     }
 
-    // Multiply total pages by copies count selection parameters
     let finalAmount = totalPages * price * copies;
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
 }
@@ -189,15 +201,13 @@ async function submitOrder() {
     if (uploadError) { alert(uploadError.message); return; }
 
     const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
-
-    // Concat pages text range along with selection multiplier notes
     const pageStringSummary = `${pages} (${copies} Copies)`;
 
     const { error } = await client.from("orders").insert([
         {
             customer_name: name,
             mobile: mobile,
-            pages: pageStringSummary, // Forwards summary note like: "1, 3-5 (2 Copies)"
+            pages: pageStringSummary, 
             print_type: type == 5 ? "Black & White" : "Color",
             amount: amount,
             file_url: fileUrl,
