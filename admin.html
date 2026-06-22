@@ -12,7 +12,8 @@
 
         .card{
             padding:20px;
-            max-width: 90%;
+            max-width: 95%;
+            margin: 30px auto;
         }
 
         table{
@@ -43,12 +44,58 @@
             border:1px solid #ccc;
             margin:5px 0;
         }
+
+        /* Status Badge Colors */
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .status-completed {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-pending {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Action Buttons */
+        .print-btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: auto;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        .print-btn:hover {
+            background: #125ea7;
+        }
+
+        .doc-btn {
+            background: #28a745;
+        }
+        .doc-btn:hover {
+            background: #218838;
+        }
     </style>
 </head>
 
 <body>
 
 <div class="card">
+
     <h2>Admin Dashboard</h2>
 
     <table>
@@ -56,26 +103,31 @@
             <tr>
                 <th>Name</th>
                 <th>Mobile</th>
-                <th>Selected Pages</th> <th>Type</th>
+                <th>Pages</th>
+                <th>Type / Instructions</th>
                 <th>Amount</th>
-                <th>Preview</th>
+                <th>Payment Status</th>
+                <th>Preview / Actions</th>
             </tr>
         </thead>
 
         <tbody id="orders">
         </tbody>
     </table>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+
 const client = window.supabase.createClient(
     "https://irqlvuphoblgjqysteto.supabase.co",
     "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-"
 );
 
 async function loadOrders() {
+
     const { data, error } = await client
         .from("orders")
         .select("*")
@@ -89,6 +141,7 @@ async function loadOrders() {
     let html = "";
 
     data.forEach(order => {
+
         let preview = "";
 
         /* ID CARD ORDER */
@@ -102,7 +155,7 @@ async function loadOrders() {
                     <img src="${order.back_url}" class="preview-img"><br>
                     <a href="${order.back_url}" target="_blank">View Back</a><br><br>
                     <button class="print-btn" onclick="window.open('./idpreview.html?front=' + encodeURIComponent('${order.front_url}') + '&back=' + encodeURIComponent('${order.back_url}'), '_blank');">
-                        A4 Preview / Print
+                         printer A4 Preview / Print
                     </button>
                 </div>
             `;
@@ -110,20 +163,31 @@ async function loadOrders() {
         /* DOCUMENT ORDER */
         else if (order.file_url) {
             preview = `
-                <a href="${order.file_url}" target="_blank" style="font-weight:bold;color:#1976d2;">
-                    View/Print Document
-                </a>
+                <div>
+                    <a href="${order.file_url}" target="_blank" style="font-weight:bold;color:#1976d2;display:block;margin-bottom:8px;">
+                        Open Original File
+                    </a>
+                    <button class="print-btn doc-btn" onclick="printDirectDocument('${order.file_url}')">
+                        🖨️ Print Document
+                    </button>
+                </div>
             `;
         } else {
             preview = "No File";
         }
 
+        let status = (order.payment_status || "Pending").trim();
+        let isPaid = status.toLowerCase() === "completed" || status.toLowerCase() === "success";
+        let statusBadgeHTML = `<span class="status-badge ${isPaid ? 'status-completed' : 'status-pending'}">${status}</span>`;
+
         html += `
         <tr>
             <td>${order.customer_name || ""}</td>
             <td>${order.mobile || ""}</td>
-            <td style="color:#d32f2f; font-weight:bold;">${order.pages || "All"}</td> <td>${order.print_type || ""}</td>
-            <td>₹${order.amount || 0}</td>
+            <td>${order.pages || "1"}</td>
+            <td>${order.print_type || ""}</td>
+            <td style="font-weight:bold;color:#1976d2;">₹${order.amount || 0}</td>
+            <td>${statusBadgeHTML}</td>
             <td>${preview}</td>
         </tr>
         `;
@@ -132,7 +196,16 @@ async function loadOrders() {
     document.getElementById("orders").innerHTML = html;
 }
 
+// Helper function to easily print images or PDFs directly within a hidden background frame
+function printDirectDocument(url) {
+    const printWindow = window.open(url, '_blank');
+    printWindow.focus();
+    // Triggers native print dialog once loaded if supported by file type
+    printWindow.print();
+}
+
 loadOrders();
+
 </script>
 
 </body>
