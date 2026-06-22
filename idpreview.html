@@ -89,16 +89,17 @@ Print A4
 
 <script>
 
-const params = new URLSearchParams(
-    window.location.search
-);
+const params =
+    new URLSearchParams(
+        window.location.search
+    );
 
 document.getElementById("front").src =
     params.get("front");
 
 document.getElementById("back").src =
     params.get("back");
-</script>
 
+</script>
 </body>
 </html>
