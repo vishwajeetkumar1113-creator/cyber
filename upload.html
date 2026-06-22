@@ -150,7 +150,6 @@ function previewDocument() {
     }
 }
 
-// Helper function to turn customer text ranges (like "1, 3-5") into a clean array of page index integers
 function parsePageSelection(pageInput) {
     let cleanInput = pageInput.replace(/\s+/g, '').toLowerCase();
     if (cleanInput === "all" || cleanInput === "") return null;
@@ -215,12 +214,13 @@ async function submitOrder() {
     let amount = parseInt(displayPriceText.replace("Total: ₹", ""));
 
     let sourceFileBlob = file;
+    let calculatedIntegerPages = 1;
 
-    // CRITICAL: Slice and omit unselected pages locally if document is a multi-page PDF
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
         if (pageNumbersList !== null && pageNumbersList.length > 0) {
+            calculatedIntegerPages = pageNumbersList.length;
             try {
                 alert("Extracting selected pages only. Leaving behind remaining data...");
                 
@@ -230,7 +230,6 @@ async function submitOrder() {
                 
                 let totalDocPagesCount = srcPdf.getPageCount();
                 
-                // Convert human numbers (1-based) into programming indexes (0-based) safely
                 let dynamicIndicesToKeep = pageNumbersList
                     .map(p => p - 1)
                     .filter(idx => idx >= 0 && idx < totalDocPagesCount);
@@ -250,7 +249,6 @@ async function submitOrder() {
 
     let finalFileToUpload = sourceFileBlob;
 
-    // AI Enhancer API Call Block
     try {
         alert("Please wait while AI cleans your document...");
         const formData = new FormData();
@@ -265,7 +263,7 @@ async function submitOrder() {
             finalFileToUpload = await response.blob();
         }
     } catch (error) {
-        console.log("AI Cleaner unreachable, uploading sliced document standard:", error);
+        console.log("AI Cleaner unreachable:", error);
     }
 
     const fileName = Date.now() + "_" + file.name;
@@ -274,14 +272,17 @@ async function submitOrder() {
     if (uploadError) { alert(uploadError.message); return; }
 
     const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
-    const pageStringSummary = `${pages} (${copies} Copies)`;
+
+    // FIX: Bundle the detailed range and copy configurations into the string-based 'print_type' column
+    const baseType = (type == 5 ? "Black & White" : "Color");
+    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
 
     const { error } = await client.from("orders").insert([
         {
             customer_name: name,
             mobile: mobile,
-            pages: pageStringSummary, 
-            print_type: type == 5 ? "Black & White" : "Color",
+            pages: calculatedIntegerPages, // FIX: Submitting a valid pure Integer here to satisfy Supabase
+            print_type: detailedPrintSummary, // Admin dashboard will read this descriptive summary text safely
             amount: amount,
             file_url: fileUrl,
             payment_status: "Pending",
