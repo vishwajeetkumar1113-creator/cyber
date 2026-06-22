@@ -140,8 +140,7 @@ const client =
         SUPABASE_KEY
     );
 
-const AI_API =
-    "https://ai-cleaner-e8vk.onrender.com/upload";
+
 
 let frontCropper;
 let backCropper;
@@ -309,7 +308,6 @@ function zoomOutBack(){
 
 
 /* SAVE FRONT */
-
 function saveFront(){
 
     if(!frontCropper){
@@ -319,49 +317,21 @@ function saveFront(){
 
     frontCropper
     .getCroppedCanvas()
-    .toBlob(
-        async function(blob){
+    .toBlob(function(blob){
 
-            frontBlob =
-                new File(
-                    [blob],
-                    "front.jpg",
-                    {
-                        type: "image/jpeg"
-                    }
-                );
-
-            const result =
-                await uploadToAI(
-                    frontBlob
-                );
-
-            if(result && result.success){
-
-                const response =
-                    await fetch(
-                        result.cropped_url
-                    );
-
-                const aiBlob =
-                    await response.blob();
-
-                frontBlob =
-                    new File(
-                        [aiBlob],
-                        "front.jpg",
-                        {
-                            type: "image/jpeg"
-                        }
-                    );
+        frontBlob = new File(
+            [blob],
+            "front.jpg",
+            {
+                type: "image/jpeg"
             }
+        );
 
-            alert(
-                "Front side saved."
-            );
-        }
-    );
+        alert("Front side saved.");
+    });
 }
+
+          
 
 
 /* SAVE BACK */
@@ -375,90 +345,22 @@ function saveBack(){
 
     backCropper
     .getCroppedCanvas()
-    .toBlob(
-        async function(blob){
+    .toBlob(function(blob){
 
-            backBlob =
-                new File(
-                    [blob],
-                    "back.jpg",
-                    {
-                        type: "image/jpeg"
-                    }
-                );
-
-            const result =
-                await uploadToAI(
-                    backBlob
-                );
-
-            if(result && result.success){
-
-                const response =
-                    await fetch(
-                        result.cropped_url
-                    );
-
-                const aiBlob =
-                    await response.blob();
-
-                backBlob =
-                    new File(
-                        [aiBlob],
-                        "back.jpg",
-                        {
-                            type: "image/jpeg"
-                        }
-                    );
+        backBlob = new File(
+            [blob],
+            "back.jpg",
+            {
+                type: "image/jpeg"
             }
+        );
 
-            alert(
-                "Back side saved."
-            );
-        }
-    );
+        alert("Back side saved.");
+    });
 }
-
 
 /* AI UPLOAD */
 
-async function uploadToAI(file){
-
-    const formData =
-        new FormData();
-
-    formData.append(
-        "image",
-        file
-    );
-
-    try{
-
-        const response =
-            await fetch(
-                AI_API,
-                {
-                    method: "POST",
-                    body: formData
-                }
-            );
-
-        const result =
-            await response.json();
-
-        return result;
-
-    }catch(error){
-
-        console.log(error);
-
-        alert(
-            "AI server not responding."
-        );
-
-        return null;
-    }
-}
 
 
 /* SUBMIT */
