@@ -181,18 +181,19 @@ document.getElementById(
                 }
 
                 frontCropper =
-                    new Cropper(
-                        img,
-                        {
-                            aspectRatio: NaN,
-                            viewMode: 1,
-                            autoCropArea: 0.9,
-                            movable: true,
-                            scalable: true,
-                            zoomable: true,
-                            rotatable: true
-                        }
-                    );
+    new Cropper(
+        img,
+        {
+            aspectRatio: 85.6 / 54,
+            viewMode: 1,
+            autoCropArea: 1,
+            movable: true,
+            scalable: false,
+            zoomable: true,
+            rotatable: true,
+            dragMode: "move"
+        }
+    );
             };
 
         reader.readAsDataURL(file);
@@ -233,18 +234,20 @@ document.getElementById(
                 }
 
                 backCropper =
-                    new Cropper(
-                        img,
-                        {
-                            aspectRatio: NaN,
-                            viewMode: 1,
-                            autoCropArea: 0.9,
-                            movable: true,
-                            scalable: true,
-                            zoomable: true,
-                            rotatable: true
-                        }
-                    );
+                    nfrontCropper =
+    new Cropper(
+        img,
+        {
+            aspectRatio: 85.6 / 54,
+            viewMode: 1,
+            autoCropArea: 1,
+            movable: true,
+            scalable: false,
+            zoomable: true,
+            rotatable: true,
+            dragMode: "move"
+        }
+    );
             };
 
         reader.readAsDataURL(file);
