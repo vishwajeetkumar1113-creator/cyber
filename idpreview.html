@@ -89,12 +89,15 @@ Print A4
 
 <script>
 
+const params = new URLSearchParams(
+    window.location.search
+);
+
 document.getElementById("front").src =
-    localStorage.getItem("frontImage");
+    params.get("front");
 
 document.getElementById("back").src =
-    localStorage.getItem("backImage");
-
+    params.get("back");
 </script>
 
 </body>
