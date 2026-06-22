@@ -90,24 +90,34 @@ button:hover,
     text-align: center;
 }
 
-/* Images */
+/* Images and Canvas Global Setup */
 
-img {
+img, canvas {
     max-width: 100%;
     height: auto;
 }
 
-/* ID Crop Area */
+/* ID Crop Area Container - Updated for Canvas Stability */
 
-.crop-box {
-    width: 280px;
-    height: 180px;
+.canvas-container {
+    width: 100%;
+    max-width: 400px;
     margin: 15px auto;
     border: 1px solid #ccc;
     border-radius: 8px;
     overflow: hidden;
     background: #f5f5f5;
+    box-sizing: border-box;
 }
+
+#frontCanvas,
+#backCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* Legacy Image Viewports for compatibility */
 
 #frontImage,
 #backImage {
@@ -133,54 +143,9 @@ img {
     font-size: 14px;
 }
 
-/* Mobile */
+/* Mobile responsive adjustments */
 
 @media (max-width: 480px) {
 
     .card {
-        margin: 15px;
-        padding: 20px;
-    }
-
-    header h1 {
-        font-size: 24px;
-    }
-
-    .crop-box {
-        width: 100%;
-        max-width: 280px;
-        height: 180px;
-    }
-
-    .controls button {
-        flex: 1 1 45%;
-        min-width: auto;
-        font-size: 15px;
-        
-    }
-}
-/* Admin Preview */
-
-.preview-img {
-    width: 120px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    margin-bottom: 5px;
-}
-
-/* Admin Print Button */
-
-.print-btn {
-    background: #1976d2;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-top: 10px;
-    width: auto;
-}
-
-.print-btn:hover {
-    background: #125ea7;
-}
+        margin: 15px
