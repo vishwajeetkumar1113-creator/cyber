@@ -134,15 +134,19 @@ async function loadOrders() {
             <br><br>
 
             <button
-                class="print-btn"
-                onclick="
-                    localStorage.setItem('frontImage','${order.front_url}');
-                    localStorage.setItem('backImage','${order.back_url}');
-                    window.open('./idpreview.html','_blank');
-                "
-            >
-                A4 Preview / Print
-            </button>
+    class="print-btn"
+    onclick="
+        window.open(
+            './idpreview.html?front=' +
+            encodeURIComponent('${order.front_url}') +
+            '&back=' +
+            encodeURIComponent('${order.back_url}'),
+            '_blank'
+        );
+    "
+>
+    A4 Preview / Print
+</button>
 
         </div>
     `;
