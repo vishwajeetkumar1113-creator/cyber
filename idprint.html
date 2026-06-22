@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ID Card Print (Perspective Tool)</title>
+    <title>ID Card Print (Perspective & Rotate)</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -29,6 +29,26 @@
             text-align: center;
             margin-bottom: 5px;
         }
+        .side-preview {
+            margin: 15px auto;
+            text-align: center;
+            display: none;
+        }
+        .side-preview img {
+            width: 180px;
+            height: 114px;
+            object-fit: contain;
+            border: 2px dashed #28a745;
+            border-radius: 6px;
+            background: #fff;
+            padding: 2px;
+        }
+        .side-preview p {
+            margin: 5px 0 0 0;
+            font-size: 12px;
+            color: #28a745;
+            font-weight: bold;
+        }
     </style>
 </head>
 
@@ -43,11 +63,19 @@
     <h3>Front Side</h3>
     <p class="instructions">Drag the 4 green corners to match the edges of your ID card</p>
     <input type="file" id="frontFile" accept="image/*">
+    
     <div class="canvas-container">
         <canvas id="frontCanvas" width="400" height="260"></canvas>
     </div>
+    
     <div class="controls">
+        <button type="button" onclick="rotateImage('front')">↻ Rotate 90°</button>
         <button type="button" onclick="saveSide('front')">Save Front</button>
+    </div>
+
+    <div class="side-preview" id="frontPreviewContainer">
+        <img id="frontPreviewImg" src="" alt="Front Preview">
+        <p>✓ Front Side Saved & Flattened</p>
     </div>
 
     <hr>
@@ -55,11 +83,19 @@
     <h3>Back Side</h3>
     <p class="instructions">Drag the 4 green corners to match the edges of your ID card</p>
     <input type="file" id="backFile" accept="image/*">
+    
     <div class="canvas-container">
         <canvas id="backCanvas" width="400" height="260"></canvas>
     </div>
+    
     <div class="controls">
+        <button type="button" onclick="rotateImage('back')">↻ Rotate 90°</button>
         <button type="button" onclick="saveSide('back')">Save Back</button>
+    </div>
+
+    <div class="side-preview" id="backPreviewContainer">
+        <img id="backPreviewImg" src="" alt="Back Preview">
+        <p>✓ Back Side Saved & Flattened</p>
     </div>
 
     <br>
@@ -76,8 +112,8 @@ let backBlob = null;
 
 // Track data structures for perspective rendering
 const engine = {
-    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null },
-    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null }
+    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" },
+    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" }
 };
 
 engine.front.canvas = document.getElementById('frontCanvas');
@@ -95,23 +131,67 @@ function handleFileSelect(e, side) {
 
     const reader = new FileReader();
     reader.onload = function(event) {
-        const img = new Image();
-        img.onload = function() {
-            engine[side].img = img;
-            // Initialize 4 corner positions with safe paddings
-            const w = engine[side].canvas.width;
-            const h = engine[side].canvas.height;
-            engine[side].corners = [
-                { x: 40, y: 40 },       // Top Left
-                { x: w - 40, y: 40 },   // Top Right
-                { x: w - 40, y: h - 40 },// Bottom Right
-                { x: 40, y: h - 40 }    // Bottom Left
-            ];
-            draw(side);
-        };
-        img.src = event.target.result;
+        engine[side].originalSrc = event.target.result;
+        engine[side].rotation = 0; // Reset rotation on new file upload
+        loadImageData(side, event.target.result);
     };
     reader.readAsDataURL(file);
+}
+
+function loadImageData(side, src) {
+    const img = new Image();
+    img.onload = function() {
+        engine[side].img = img;
+        // Initialize or maintain 4 corner positions
+        const w = engine[side].canvas.width;
+        const h = engine[side].canvas.height;
+        engine[side].corners = [
+            { x: 40, y: 40 },       // Top Left
+            { x: w - 40, y: 40 },   // Top Right
+            { x: w - 40, y: h - 40 },// Bottom Right
+            { x: 40, y: h - 40 }    // Bottom Left
+        ];
+        draw(side);
+    };
+    img.src = src;
+}
+
+// Function to handle 90-degree rotations cleanly on the canvas
+function rotateImage(side) {
+    const s = engine[side];
+    if (!s.originalSrc) {
+        alert("Please upload an image first.");
+        return;
+    }
+
+    s.rotation = (s.rotation + 90) % 360;
+
+    const tempImg = new Image();
+    tempImg.onload = function() {
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+
+        if (s.rotation === 90 || s.rotation === 270) {
+            tempCanvas.width = tempImg.height;
+            tempCanvas.height = tempImg.width;
+        } else {
+            tempCanvas.width = tempImg.width;
+            tempCanvas.height = tempImg.height;
+        }
+
+        tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+        tempCtx.rotate((s.rotation * Math.PI) / 180);
+        tempCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
+
+        // Treat this rotated output canvas context generation as the new base processing source image
+        const rotatedImg = new Image();
+        rotatedImg.onload = function() {
+            s.img = rotatedImg;
+            draw(side);
+        };
+        rotatedImg.src = tempCanvas.toDataURL("image/jpeg");
+    };
+    tempImg.src = s.originalSrc;
 }
 
 function draw(side) {
@@ -121,7 +201,7 @@ function draw(side) {
     s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
     s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
 
-    // Draw lines joining corners
+    // Draw boundary line tracking path loops
     s.ctx.strokeStyle = '#28a745';
     s.ctx.lineWidth = 2;
     s.ctx.beginPath();
@@ -130,7 +210,7 @@ function draw(side) {
     s.ctx.closePath();
     s.ctx.stroke();
 
-    // Draw draggable interactive corner nodes
+    // Draw interactive tracking point anchors
     s.corners.forEach((corner) => {
         s.ctx.fillStyle = '#28a745';
         s.ctx.beginPath();
@@ -142,7 +222,7 @@ function draw(side) {
     });
 }
 
-// Attach Pointer tracking logic dynamically across both canvases
+// Coordinate relative location listener tracking maps
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
     
@@ -173,93 +253,5 @@ function draw(side) {
     });
 });
 
-// Native Perspective Transformation Processing Matrix Engine
+// Linear Unwarping Interpolation Matrix calculation algorithms
 function projectPerspective(srcImg, corners, targetW, targetH) {
-    const hiddenCanvas = document.createElement('canvas');
-    hiddenCanvas.width = targetW;
-    hiddenCanvas.height = targetH;
-    const ctx = hiddenCanvas.getContext('2d');
-
-    // Create standard normalized output matrix variables
-    const cvsW = 400, cvsH = 260; 
-    const p1 = [corners[0].x / cvsW, corners[0].y / cvsH];
-    const p2 = [corners[1].x / cvsW, corners[1].y / cvsH];
-    const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
-    const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
-
-    // Map pixels mapping backward loops over coordinates to fix skewing gaps
-    for (let y = 0; y < targetH; y++) {
-        for (let x = 0; x < targetW; x++) {
-            let u = x / targetW;
-            let v = y / targetH;
-
-            // Bilinear map extrapolation formulas
-            let topX = p1[0] + u * (p2[0] - p1[0]);
-            let topY = p1[1] + u * (p2[1] - p1[1]);
-            let botX = p4[0] + u * (p3[0] - p4[0]);
-            let botY = p4[1] + u * (p3[1] - p4[1]);
-
-            let srcX = (topX + v * (botX - topX)) * srcImg.width;
-            let srcY = (topY + v * (botY - topY)) * srcImg.height;
-
-            ctx.drawImage(srcImg, srcX, srcY, 1, 1, x, y, 1, 1);
-        }
-    }
-    return hiddenCanvas;
-}
-
-function saveSide(side) {
-    const s = engine[side];
-    if (!s.img) {
-        alert(`Please choose an image for ${side} first.`);
-        return;
-    }
-
-    // High fidelity target dimension based standard ID size ratio (856x540)
-    const resultCanvas = projectPerspective(s.img, s.corners, 856, 540);
-    
-    resultCanvas.toBlob((blob) => {
-        const processedFile = new File([blob], `${side}.jpg`, { type: "image/jpeg" });
-        if (side === 'front') frontBlob = processedFile;
-        else backBlob = processedFile;
-        alert(`${side.toUpperCase()} perspective crop saved successfully!`);
-    }, "image/jpeg", 0.90);
-}
-
-async function submitID() {
-    const name = document.getElementById("name").value.trim();
-    const mobile = document.getElementById("mobile").value.trim();
-
-    if (!name || !mobile) { alert("Enter customer details."); return; }
-    if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
-
-    const frontName = Date.now() + "_front.jpg";
-    const backName = Date.now() + "_back.jpg";
-
-    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { contentType: "image/jpeg", upsert: true });
-    if (frontUpload.error) { alert(frontUpload.error.message); return; }
-
-    const backUpload = await client.storage.from("documents").upload(backName, backBlob, { contentType: "image/jpeg", upsert: true });
-    if (backUpload.error) { alert(backUpload.error.message); return; }
-
-    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
-    const backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
-
-    const { error } = await client.from("orders").insert([{
-        customer_name: name, mobile: mobile, print_type: "ID Card", pages: 1, amount: 20,
-        front_url: frontUrl, back_url: backUrl, payment_status: "Pending", payment_id: ""
-    }]);
-
-    if (error) { alert(error.message); return; }
-
-    localStorage.setItem("frontImage", frontUrl);
-    localStorage.setItem("backImage", backUrl);
-    localStorage.setItem("amount", 20); // Corrected base calculation variable from 5 to 20
-    localStorage.setItem("printType", "id");
-
-    window.location.href = "payment.html";
-}
-</script>
-
-</body>
-</html>
