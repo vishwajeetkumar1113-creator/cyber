@@ -118,7 +118,7 @@
     <input type="tel" id="mobile" placeholder="Mobile Number" required>
 
     <h3>Front Side</h3>
-    <p class="instructions">Drag the 4 green corners to match the edges of your ID card</p>
+    <p class="instructions">Use mouse wheel or pinch to zoom. Drag corners to crop.</p>
     <input type="file" id="frontFile" accept="image/*">
     
     <div class="canvas-container" id="frontContainer">
@@ -129,6 +129,7 @@
     <div class="controls">
         <button type="button" onclick="rotateImage('front')">↻ Rotate 90°</button>
         <button type="button" onclick="goFullscreen('front')">⛶ Edit Fullscreen</button>
+        <button type="button" onclick="resetZoom('front')">Reset Zoom</button>
         <button type="button" onclick="saveSide('front')">Save Front</button>
     </div>
 
@@ -140,7 +141,7 @@
     <hr>
 
     <h3>Back Side</h3>
-    <p class="instructions">Drag the 4 green corners to match the edges of your ID card</p>
+    <p class="instructions">Use mouse wheel or pinch to zoom. Drag corners to crop.</p>
     <input type="file" id="backFile" accept="image/*">
     
     <div class="canvas-container" id="backContainer">
@@ -151,6 +152,7 @@
     <div class="controls">
         <button type="button" onclick="rotateImage('back')">↻ Rotate 90°</button>
         <button type="button" onclick="goFullscreen('back')">⛶ Edit Fullscreen</button>
+        <button type="button" onclick="resetZoom('back')">Reset Zoom</button>
         <button type="button" onclick="saveSide('back')">Save Back</button>
     </div>
 
@@ -171,9 +173,10 @@ const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let frontBlob = null;
 let backBlob = null;
 
+// ADDED: zoom, scale, offset tracking configuration parameters for high resolution viewport adjustments
 const engine = {
-    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" },
-    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "" }
+    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0 },
+    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0 }
 };
 
 engine.front.canvas = document.getElementById('frontCanvas');
@@ -192,11 +195,10 @@ function handleFileSelect(e, side) {
     reader.onload = function(event) {
         engine[side].originalSrc = event.target.result;
         engine[side].rotation = 0; 
+        resetZoom(side);
         
-        // Load image data locally to container immediately
         loadImageData(side, event.target.result);
         
-        // Attempts safe auto-fullscreen launch after window resources update
         setTimeout(() => {
             if (engine[side].img) {
                 goFullscreen(side).catch(() => {});
@@ -208,7 +210,6 @@ function handleFileSelect(e, side) {
 
 function loadImageData(side, src) {
     const img = new Image();
-    // FIXED: Enforce cross-origin rules to stop browsers from blocking locally uploaded image pixels
     img.crossOrigin = "anonymous";
     
     img.onload = function() {
@@ -227,11 +228,16 @@ function loadImageData(side, src) {
     img.src = src;
 }
 
+function resetZoom(side) {
+    engine[side].zoom = 1;
+    engine[side].offsetX = 0;
+    engine[side].offsetY = 0;
+    draw(side);
+}
+
 async function goFullscreen(side) {
     const container = document.getElementById(`${side}Container`);
-    if (!engine[side].img) {
-        return;
-    }
+    if (!engine[side].img) return;
     
     try {
         if (container.requestFullscreen) {
@@ -240,7 +246,7 @@ async function goFullscreen(side) {
             await container.webkitRequestFullscreen();
         }
     } catch(err) {
-        console.warn("Auto-fullscreen blocked by device policy context. User can initiate using buttons manually.");
+        console.warn("Auto-fullscreen blocked.");
     }
     
     setTimeout(() => draw(side), 100);
@@ -297,8 +303,16 @@ function draw(side) {
     if (!s.img) return;
 
     s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    
+    s.ctx.save();
+    // Apply zooming transformations dynamically to the canvas context matrix before rendering
+    s.ctx.translate(s.offsetX, s.offsetY);
+    s.ctx.scale(s.zoom, s.zoom);
+    
     s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
+    s.ctx.restore();
 
+    // Draw connecting crop box lines
     s.ctx.strokeStyle = '#28a745';
     s.ctx.lineWidth = 2;
     s.ctx.beginPath();
@@ -307,6 +321,7 @@ function draw(side) {
     s.ctx.closePath();
     s.ctx.stroke();
 
+    // Draw crop vectors anchors (Interactive handle vectors stay structural relative to coordinate map)
     s.corners.forEach((corner) => {
         s.ctx.fillStyle = '#28a745';
         s.ctx.beginPath();
@@ -320,6 +335,8 @@ function draw(side) {
 
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
+    let lastX = 0;
+    let lastY = 0;
     
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
@@ -331,29 +348,109 @@ function draw(side) {
         };
     }
 
+    // DESKTOP: Wheel Event configuration listener handles clean matrix zooming maps
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const s = engine[side];
+        if (!s.img) return;
+
+        const mouse = getMousePos(e);
+        const zoomFactor = 1.1;
+        let newZoom = e.deltaY < 0 ? s.zoom * zoomFactor : s.zoom / zoomFactor;
+        
+        // Pin limits on scalar matrix adjustments
+        newZoom = Math.max(1, Math.min(8, newZoom));
+
+        // Adjust coordinates relative to cursor target focus positioning
+        s.offsetX = mouse.x - (mouse.x - s.offsetX) * (newZoom / s.zoom);
+        s.offsetY = mouse.y - (mouse.y - s.offsetY) * (newZoom / s.zoom);
+        s.zoom = newZoom;
+
+        // Contain boundaries to protect image layout visibility limits
+        if(s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
+
+        draw(side);
+    }, { passive: false });
+
     function handleStart(e) {
         if (e.target.classList.contains('exit-fullscreen-btn')) return;
+        const s = engine[side];
+        if (!s.img) return;
 
-        if(e.touches) e.preventDefault();
         const pos = getMousePos(e);
-        engine[side].activeCorner = engine[side].corners.findIndex(c => 
+
+        // Check if the cursor selects an operational target corner anchor loop
+        s.activeCorner = s.corners.findIndex(c => 
             Math.hypot(c.x - pos.x, c.y - pos.y) < 35 
         );
+
+        // Mobile dual point gesture checks handler configuration paths
+        if (e.touches && e.touches.length === 2) {
+            e.preventDefault();
+            s.activeCorner = -1; // Skip single modifications during dynamic multi-finger zooming
+            s.lastTouchDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+        } else if (s.activeCorner === -1 && s.zoom > 1) {
+            // Initiate translation engine state maps if no corners selected
+            s.isPanning = true;
+            lastX = e.touches ? e.touches[0].clientX : e.clientX;
+            lastY = e.touches ? e.touches[0].clientY : e.clientY;
+        }
     }
 
     function handleMove(e) {
-        if (engine[side].activeCorner === -1) return;
-        const pos = getMousePos(e);
-        
-        pos.x = Math.max(0, Math.min(canvas.width, pos.x));
-        pos.y = Math.max(0, Math.min(canvas.height, pos.y));
-        
-        engine[side].corners[engine[side].activeCorner] = pos;
-        draw(side);
+        const s = engine[side];
+        if (!s.img) return;
+
+        // Mobile dual point calculations logic configuration parameters hook
+        if (e.touches && e.touches.length === 2) {
+            e.preventDefault();
+            const dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            
+            const zoomFactor = dist / s.lastTouchDist;
+            let newZoom = Math.max(1, Math.min(8, s.zoom * zoomFactor));
+
+            const midX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - canvas.getBoundingClientRect().left) * (canvas.width / canvas.getBoundingClientRect().width);
+            const midY = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - canvas.getBoundingClientRect().top) * (canvas.height / canvas.getBoundingClientRect().height);
+
+            s.offsetX = midX - (midX - s.offsetX) * (newZoom / s.zoom);
+            s.offsetY = midY - (midY - s.offsetY) * (newZoom / s.zoom);
+            s.zoom = newZoom;
+            s.lastTouchDist = dist;
+
+            if (s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
+            draw(side);
+            return;
+        }
+
+        if (s.activeCorner !== -1) {
+            if (e.touches) e.preventDefault();
+            const pos = getMousePos(e);
+            pos.x = Math.max(0, Math.min(canvas.width, pos.x));
+            pos.y = Math.max(0, Math.min(canvas.height, pos.y));
+            s.corners[s.activeCorner] = pos;
+            draw(side);
+        } else if (s.isPanning) {
+            if (e.touches) e.preventDefault();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            s.offsetX += (clientX - lastX);
+            s.offsetY += (clientY - lastY);
+            lastX = clientX;
+            lastY = clientY;
+            draw(side);
+        }
     }
 
     function handleEnd() {
         engine[side].activeCorner = -1;
+        engine[side].isPanning = false;
     }
 
     canvas.addEventListener('mousedown', handleStart);
@@ -365,6 +462,7 @@ function draw(side) {
     window.addEventListener('touchend', handleEnd);
 });
 
+// Converts warped coordinates backwards relative to zoom level matrix offset transforms inside mapping context loop
 function projectPerspective(srcImg, corners, targetW, targetH) {
     const hiddenCanvas = document.createElement('canvas');
     hiddenCanvas.width = targetW;
@@ -413,7 +511,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
             r = factor * (r - 128) + 128;
             g = factor * (g - 128) + 128;
-            b = factor * (b - 128) + 128;
+            b = factor * (g - 128) + 128;
 
             let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
             if (luminance > 180) { 
@@ -442,9 +540,17 @@ function saveSide(side) {
         return;
     }
 
+    // Map corner arrays back dynamically from transformed zoom space matrix properties before perspective execution logic loops
+    const mappedCorners = s.corners.map(c => {
+        return {
+            x: (c.x - s.offsetX) / s.zoom,
+            y: (c.y - s.offsetY) / s.zoom
+        };
+    });
+
     closeFullscreen();
 
-    const resultCanvas = projectPerspective(s.img, s.corners, 856, 540);
+    const resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
     
     const directCropUrl = resultCanvas.toDataURL("image/jpeg");
     document.getElementById(`${side}PreviewImg`).src = directCropUrl;
