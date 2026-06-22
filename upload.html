@@ -106,7 +106,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-// Configure pdfjs worker source manually to map libraries securely across mobile connections
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
 let currentlyLoadedFileURL = null;
@@ -153,7 +152,6 @@ async function previewDocument() {
             }
         }
 
-        // MOBILE DETECTOR: If mobile touch boundaries exist, render via Canvas vectors instead of frames
         const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
         if (isMobileDevice) {
@@ -163,7 +161,6 @@ async function previewDocument() {
                 const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
                 const pdf = await loadingTask.promise;
                 
-                // Keep parameters inside valid boundaries
                 if (targetPage < 1) targetPage = 1;
                 if (targetPage > pdf.numPages) targetPage = pdf.numPages;
 
@@ -189,7 +186,6 @@ async function previewDocument() {
                 previewContainer.innerHTML = "<span>Preview ready (Document Loaded)</span>";
             }
         } else {
-            // If on desktop, use the native speed of iframes
             previewContainer.innerHTML = `<iframe src="${currentlyLoadedFileURL}#page=${targetPage}&view=FitH"></iframe>`;
         }
     } else {
@@ -260,7 +256,7 @@ async function submitOrder() {
     let displayPriceText = document.getElementById("total").innerHTML;
     let amount = parseInt(displayPriceText.replace("Total: ₹", ""));
 
-    let sourceFileBlob = file;
+    let finalFileToUpload = file;
     let calculatedIntegerPages = 1;
 
     if (file.type === "application/pdf") {
@@ -269,7 +265,7 @@ async function submitOrder() {
         if (pageNumbersList !== null && pageNumbersList.length > 0) {
             calculatedIntegerPages = pageNumbersList.length;
             try {
-                alert("Extracting selected pages only. Leaving behind remaining data...");
+                alert("Extracting selected pages only...");
                 
                 const fileArrayBuffer = await file.arrayBuffer();
                 const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -286,32 +282,15 @@ async function submitOrder() {
                     copiedPages.forEach((page) => extractedPdf.addPage(page));
                     
                     const savedPdfBytes = await extractedPdf.save();
-                    sourceFileBlob = new Blob([savedPdfBytes], { type: "application/pdf" });
+                    finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
                 }
             } catch (pdfError) {
-                console.error("PDF-LIB processing breakdown, uploading original instead:", pdfError);
+                console.error("PDF-LIB extraction failed, processing fallback standard:", pdfError);
             }
         }
     }
 
-    let finalFileToUpload = sourceFileBlob;
-
-    try {
-        alert("Please wait while AI cleans your document...");
-        const formData = new FormData();
-        formData.append("file", sourceFileBlob, file.name);
-
-        const response = await fetch("https://ai-cleaner-e8vk.onrender.com/clean", {
-            method: "POST",
-            body: formData
-        });
-
-        if (response.ok) {
-            finalFileToUpload = await response.blob();
-        }
-    } catch (error) {
-        console.log("AI Cleaner unreachable:", error);
-    }
+    alert("Uploading document directly to server... Please wait.");
 
     const fileName = Date.now() + "_" + file.name;
     const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
@@ -323,7 +302,7 @@ async function submitOrder() {
     const baseType = (type == 5 ? "Black & White" : "Color");
     const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
 
-    const { error } = await client.from("orders").insert([
+    const { data: insertedOrder, error } = await client.from("orders").insert([
         {
             customer_name: name,
             mobile: mobile,
@@ -331,10 +310,10 @@ async function submitOrder() {
             print_type: detailedPrintSummary, 
             amount: amount,
             file_url: fileUrl,
-            payment_status: "Pending",
+            payment_status: "Pending", 
             payment_id: ""
         }
-    ]);
+    ]).select();
 
     if (error) {
         alert(error.message);
@@ -342,7 +321,8 @@ async function submitOrder() {
         localStorage.setItem("amount", amount);
         localStorage.setItem("mobile", mobile);
         localStorage.setItem("printType", "document");
-        window.location.href = "success.html";
+        localStorage.setItem("current_order_id", insertedOrder[0].id); 
+        window.location.href = "payment.html";
     }
 }
 </script>
