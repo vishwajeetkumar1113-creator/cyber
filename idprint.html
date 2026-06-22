@@ -214,12 +214,12 @@
     <div class="input-group">
         <label>Print Type:</label>
         <select id="type" onchange="calculatePrice()">
-            <option value="5">Black & White (₹5 / copy)</option>
-            <option value="10" selected>Color (₹10 / copy)</option>
+            <option value="5" selected>Black & White (₹5 / copy)</option>
+            <option value="10">Color (₹10 / copy)</option>
         </select>
     </div>
 
-    <h3 id="totalPrice" style="color: #1976d2; text-align: center;">Total Price: ₹10</h3>
+    <h3 id="totalPrice" style="color: #1976d2; text-align: center;">Total Price: ₹5</h3>
 
     <br>
     <button onclick="submitID()" style="background:#1976d2;">Submit Order</button>
@@ -290,7 +290,7 @@ function resetZoom(side) {
 function calculatePrice() {
     let copies = parseInt(document.getElementById("copies").value) || 1;
     if (copies < 1) copies = 1;
-    let baseRate = parseInt(document.getElementById("type").value); // Updated dynamically based on selection
+    let baseRate = parseInt(document.getElementById("type").value); 
     document.getElementById("totalPrice").innerText = "Total Price: ₹" + (copies * baseRate);
 }
 
@@ -561,7 +561,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
             r = factor * (r - 128) + 128;
             g = factor * (g - 128) + 128;
-            b = factor * (b - 128) + 128;
+            b = factor * (g - 128) + 128;
 
             let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
             if (luminance > 180) { 
@@ -639,10 +639,9 @@ async function submitID() {
     const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
     const backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
 
-    let baseRate = parseInt(typeSelect); // Uses ₹5 or ₹10 dynamically based on dropdown
+    let baseRate = parseInt(typeSelect); 
     let totalAmountCalculation = copiesInput * baseRate;
 
-    // Send the structured copy summary description into the text 'print_type' field safely
     const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
     const trackingPrintSummaryText = `ID Card - ${baseColorType} [${copiesInput} Copies]`;
 
