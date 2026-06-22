@@ -261,4 +261,242 @@ function rotateImage(side) {
         return;
     }
 
-    s.rotation = (s.rotation + 90) %
+    s.rotation = (s.rotation + 90) % 360;
+
+    const tempImg = new Image();
+    tempImg.crossOrigin = "anonymous";
+    tempImg.onload = function() {
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+
+        if (s.rotation === 90 || s.rotation === 270) {
+            tempCanvas.width = tempImg.height;
+            tempCanvas.height = tempImg.width;
+        } else {
+            tempCanvas.width = tempImg.width;
+            tempCanvas.height = tempImg.height;
+        }
+
+        tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+        tempCtx.rotate((s.rotation * Math.PI) / 180);
+        tempCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
+
+        const rotatedImg = new Image();
+        rotatedImg.crossOrigin = "anonymous";
+        rotatedImg.onload = function() {
+            s.img = rotatedImg;
+            draw(side);
+        };
+        rotatedImg.src = tempCanvas.toDataURL("image/jpeg");
+    };
+    tempImg.src = s.originalSrc;
+}
+
+function draw(side) {
+    const s = engine[side];
+    if (!s.img) return;
+
+    s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
+
+    s.ctx.strokeStyle = '#28a745';
+    s.ctx.lineWidth = 2;
+    s.ctx.beginPath();
+    s.ctx.moveTo(s.corners[0].x, s.corners[0].y);
+    for (let i = 1; i < 4; i++) s.ctx.lineTo(s.corners[i].x, s.corners[i].y);
+    s.ctx.closePath();
+    s.ctx.stroke();
+
+    s.corners.forEach((corner) => {
+        s.ctx.fillStyle = '#28a745';
+        s.ctx.beginPath();
+        s.ctx.arc(corner.x, corner.y, 8, 0, Math.PI * 2);
+        s.ctx.fill();
+        s.ctx.strokeStyle = '#fff';
+        s.ctx.lineWidth = 2;
+        s.ctx.stroke();
+    });
+}
+
+['front', 'back'].forEach((side) => {
+    const canvas = engine[side].canvas;
+    
+    function getMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+
+    function handleStart(e) {
+        if (e.target.classList.contains('exit-fullscreen-btn')) return;
+
+        if(e.touches) e.preventDefault();
+        const pos = getMousePos(e);
+        engine[side].activeCorner = engine[side].corners.findIndex(c => 
+            Math.hypot(c.x - pos.x, c.y - pos.y) < 35 
+        );
+    }
+
+    function handleMove(e) {
+        if (engine[side].activeCorner === -1) return;
+        const pos = getMousePos(e);
+        
+        pos.x = Math.max(0, Math.min(canvas.width, pos.x));
+        pos.y = Math.max(0, Math.min(canvas.height, pos.y));
+        
+        engine[side].corners[engine[side].activeCorner] = pos;
+        draw(side);
+    }
+
+    function handleEnd() {
+        engine[side].activeCorner = -1;
+    }
+
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+
+    canvas.addEventListener('touchstart', handleStart, { passive: false });
+    canvas.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+});
+
+function projectPerspective(srcImg, corners, targetW, targetH) {
+    const hiddenCanvas = document.createElement('canvas');
+    hiddenCanvas.width = targetW;
+    hiddenCanvas.height = targetH;
+    const ctx = hiddenCanvas.getContext('2d');
+
+    const cvsW = 400, cvsH = 260; 
+    const p1 = [corners[0].x / cvsW, corners[0].y / cvsH];
+    const p2 = [corners[1].x / cvsW, corners[1].y / cvsH];
+    const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
+    const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
+
+    for (let y = 0; y < targetH; y++) {
+        for (let x = 0; x < targetW; x++) {
+            let u = x / targetW;
+            let v = y / targetH;
+
+            let topX = p1[0] + u * (p2[0] - p1[0]);
+            let topY = p1[1] + u * (p2[1] - p1[1]);
+            let botX = p4[0] + u * (p3[0] - p4[0]);
+            let botY = p4[1] + u * (p3[1] - p4[1]);
+
+            let srcX = (topX + v * (botX - topX)) * srcImg.width;
+            let srcY = (topY + v * (botY - topY)) * srcImg.height;
+
+            ctx.drawImage(srcImg, srcX, srcY, 1, 1, x, y, 1, 1);
+        }
+    }
+
+    try {
+        const imgData = ctx.getImageData(0, 0, targetW, targetH);
+        const data = imgData.data;
+
+        const contrast = 35; 
+        const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+        const brightnessOffset = 20; 
+
+        for (let i = 0; i < data.length; i += 4) {
+            let r = data[i];
+            let g = data[i + 1];
+            let b = data[i + 2];
+
+            r += brightnessOffset;
+            g += brightnessOffset;
+            b += brightnessOffset;
+
+            r = factor * (r - 128) + 128;
+            g = factor * (g - 128) + 128;
+            b = factor * (b - 128) + 128;
+
+            let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            if (luminance > 180) { 
+                r = Math.min(255, r + 25);
+                g = Math.min(255, g + 25);
+                b = Math.min(255, b + 25);
+            }
+
+            data[i]     = Math.max(0, Math.min(255, r));
+            data[i + 1] = Math.max(0, Math.min(255, g));
+            data[i + 2] = Math.max(0, Math.min(255, b));
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+    } catch (e) {
+        console.warn("Local image filter execution failed:", e);
+    }
+
+    return hiddenCanvas;
+}
+
+function saveSide(side) {
+    const s = engine[side];
+    if (!s.img) {
+        alert(`Please choose an image for ${side} first.`);
+        return;
+    }
+
+    closeFullscreen();
+
+    const resultCanvas = projectPerspective(s.img, s.corners, 856, 540);
+    
+    const directCropUrl = resultCanvas.toDataURL("image/jpeg");
+    document.getElementById(`${side}PreviewImg`).src = directCropUrl;
+    
+    const statusText = document.getElementById(`${side}PreviewStatus`);
+    statusText.innerText = "✓ Image Enhanced for Printing Successfully!";
+    statusText.className = "";
+    
+    document.getElementById(`${side}PreviewContainer`).style.display = "block";
+
+    resultCanvas.toBlob((baseBlob) => {
+        const processedFile = new File([baseBlob], `${side}.jpg`, { type: "image/jpeg" });
+        if (side === 'front') frontBlob = processedFile;
+        else backBlob = processedFile;
+
+    }, "image/jpeg", 0.75);
+}
+
+async function submitID() {
+    const name = document.getElementById("name").value.trim();
+    const mobile = document.getElementById("mobile").value.trim();
+
+    if (!name || !mobile) { alert("Enter customer details."); return; }
+    if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
+
+    const frontName = Date.now() + "_front.jpg";
+    const backName = Date.now() + "_back.jpg";
+
+    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { contentType: "image/jpeg", upsert: true });
+    if (frontUpload.error) { alert(frontUpload.error.message); return; }
+
+    const backUpload = await client.storage.from("documents").upload(backName, backBlob, { contentType: "image/jpeg", upsert: true });
+    if (backUpload.error) { alert(backUpload.error.message); return; }
+
+    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
+    const backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
+
+    const { error } = await client.from("orders").insert([{
+        customer_name: name, mobile: mobile, print_type: "ID Card", pages: 1, amount: 20,
+        front_url: frontUrl, back_url: backUrl, payment_status: "Pending", payment_id: ""
+    }]);
+
+    if (error) { alert(error.message); return; }
+
+    localStorage.setItem("frontImage", frontUrl);
+    localStorage.setItem("backImage", backUrl);
+    localStorage.setItem("amount", 20);
+    localStorage.setItem("printType", "id");
+
+    window.location.href = "payment.html";
+}
+</script>
+
+</body>
+</html>
