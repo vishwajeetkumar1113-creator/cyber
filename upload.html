@@ -35,6 +35,7 @@
             gap: 12px;
         }
         
+        /* Enforces that the canvas element scales strictly inside standard A4 container thresholds */
         .preview-box img, .preview-box canvas {
             max-width: 100%;
             height: auto;
@@ -170,7 +171,6 @@ async function previewDocument() {
             let pagesToRender = [];
             let targetPagesList = parsePageSelection(pageInput);
 
-            // Adaptive calculation checks
             if (targetPagesList === null || targetPagesList.length === 0 || pageInput.toLowerCase() === "all") {
                 for (let i = 1; i <= pdf.numPages; i++) {
                     pagesToRender.push(i);
@@ -186,7 +186,7 @@ async function previewDocument() {
                 return;
             }
 
-            // Dynamic rendering loop optimized for orientation metrics
+            // Fixed rendering process mapping elements cleanly onto the forced A4 bounding context
             for (let i = 0; i < pagesToRender.length; i++) {
                 const pageNum = pagesToRender[i];
                 const page = await pdf.getPage(pageNum);
@@ -194,19 +194,16 @@ async function previewDocument() {
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 
-                // 🌟 FIX: Automatically adapt viewport scale parameters depending on landscape detection metrics
-                const rawViewport = page.getViewport({ scale: 1.0 });
-                let scaleFactor = 1.2;
+                // 🌟 FIX: Force standard A4 layout rendering properties by normalizing viewport parameters
+                const targetA4Width = 595; // Standard architectural point calculation matching A4 dimensions
+                const initialViewport = page.getViewport({ scale: 1.0 });
                 
-                // If width is greater than height, it is landscape. Reduce scale slightly to fit perfectly inside the 400px view box framework.
-                if (rawViewport.width > rawViewport.height) {
-                    scaleFactor = 0.9; 
-                }
-                
-                const viewport = page.getViewport({ scale: scaleFactor });
+                // Dynamically scale the page so it is exactly fitted inside an A4 bounding box framework
+                const computedScale = targetA4Width / initialViewport.width;
+                const viewport = page.getViewport({ scale: computedScale });
 
-                canvas.height = viewport.height;
                 canvas.width = viewport.width;
+                canvas.height = viewport.height;
 
                 const renderContext = {
                     canvasContext: context,
@@ -217,7 +214,7 @@ async function previewDocument() {
                 await page.render(renderContext).promise;
             }
         } catch (err) {
-            console.error("Error generating adaptive landscape PDF preview:", err);
+            console.error("Error forcing standard A4 rendering layout parameters:", err);
             previewContainer.innerHTML = "<span>Failed to load preview</span>";
         }
     } else {
