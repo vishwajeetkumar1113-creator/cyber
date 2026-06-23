@@ -285,12 +285,12 @@ async function submitOrder() {
                     finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
                 }
             } catch (pdfError) {
-                console.error("PDF-LIB extraction failed, processing fallback standard:", pdfError);
+                console.error("PDF-LIB extraction failed:", pdfError);
             }
         }
     }
 
-    alert("Uploading document directly to server... Please wait.");
+    alert("Uploading document... Please wait.");
 
     const fileName = Date.now() + "_" + file.name;
     const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
@@ -302,7 +302,7 @@ async function submitOrder() {
     const baseType = (type == 5 ? "Black & White" : "Color");
     const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
 
-    // ADDED .select() to retrieve the unique order primary key returned from database insertion
+    // FIX: Capturing returned data directly via .select()
     const { data: insertedOrder, error } = await client.from("orders").insert([
         {
             customer_name: name,
@@ -322,8 +322,11 @@ async function submitOrder() {
         localStorage.setItem("amount", amount);
         localStorage.setItem("mobile", mobile);
         localStorage.setItem("printType", "document");
-        // Save unique row order ID for the payment engine sync tracking
-        localStorage.setItem("current_order_id", insertedOrder[0].id); 
+        
+        // FIX: Extract new ID reference properties safely
+        if (insertedOrder && insertedOrder.length > 0) {
+            localStorage.setItem("current_order_id", insertedOrder[0].id); 
+        }
         window.location.href = "payment.html";
     }
 }
