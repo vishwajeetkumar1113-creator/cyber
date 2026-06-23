@@ -12,15 +12,14 @@
         .preview-wrapper {
             width: 100%;
             max-width: 400px;
-            height: 300px; /* थोड़ा हाइट बढ़ा दिया ताकि देखने में आसानी हो */
+            height: 350px; /* हाइट थोड़ी और बढ़ा दी ताकि पूरा स्क्रॉल व्यू अच्छे से दिखे */
             margin: 15px auto;
             border: 2px dashed #1976d2;
             border-radius: 8px;
             background: #f8f9fa;
-            /* FIX: स्क्रॉलिंग इनेबल करने के लिए overflow को auto किया */
             overflow: auto; 
             box-sizing: border-box;
-            padding: 5px;
+            padding: 10px;
         }
         
         .preview-box {
@@ -29,25 +28,21 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start; /* टॉप से अलाइन किया ताकि स्क्रॉल सही से हो */
+            justify-content: flex-start;
             color: #777;
             font-size: 14px;
             box-sizing: border-box;
+            gap: 12px; /* हर पेज के बीच में थोड़ा गैप रहेगा */
         }
         
-        /* इमेज और कैनवास दोनों को ओरिजिनल प्रोपोर्शन में स्क्रॉल होने देगा */
+        /* इमेज और हर एक पेज के कैनवास का स्टाइल */
         .preview-box img, .preview-box canvas {
             max-width: 100%;
             height: auto;
             display: block;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin-bottom: 5px;
-        }
-        
-        .preview-box iframe {
-            width: 100%; 
-            height: 290px; 
-            border: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
         
         .input-group {
@@ -82,13 +77,13 @@
 
     <div class="preview-wrapper" id="previewWrapperFrame">
         <div class="preview-box" id="docPreview">
-            <span style="margin-top: 130px;">No file selected yet for preview</span>
+            <span style="margin-top: 150px;">No file selected yet for preview</span>
         </div>
     </div>
 
     <div class="input-group">
         <label>Pages to Print:</label>
-        <input type="text" id="pages" placeholder="e.g., All, 1, 3-5" value="All" oninput="calculate(); previewDocument();" required>
+        <input type="text" id="pages" placeholder="e.g., All, 1, 3-5" value="All" oninput="calculate();" required>
     </div>
 
     <div class="input-group">
@@ -152,10 +147,9 @@ function resetFileCache() {
 async function previewDocument() {
     const previewContainer = document.getElementById("docPreview");
     const fileInput = document.getElementById("file").files[0];
-    let pageInput = document.getElementById("pages").value.trim();
 
     if (!fileInput) {
-        previewContainer.innerHTML = '<span style="margin-top: 130px;">No file selected yet for preview</span>';
+        previewContainer.innerHTML = '<span style="margin-top: 150px;">No file selected yet for preview</span>';
         return;
     }
 
@@ -168,48 +162,39 @@ async function previewDocument() {
     if (currentFileType.startsWith("image/")) {
         previewContainer.innerHTML = `<img src="${currentlyLoadedFileURL}" alt="Document Preview">`;
     } else if (currentFileType === "application/pdf") {
-        let targetPage = 1;
-        let cleanInput = pageInput.replace(/\s+/g, '').toLowerCase();
-
-        if (cleanInput !== "all" && cleanInput !== "") {
-            let firstSegment = cleanInput.split(",")[0];
-            if (firstSegment.includes("-")) {
-                targetPage = parseInt(firstSegment.split("-")[0]) || 1;
-            } else {
-                targetPage = parseInt(firstSegment) || 1;
-            }
-        }
-
-        if (targetPage < 1) targetPage = 1;
-        if (targetPage > totalDetectedPDFPages) targetPage = totalDetectedPDFPages;
-
+        previewContainer.innerHTML = "<span>Loading full document preview...</span>";
+        
         try {
             const fileArrayBuffer = await cachedFileObject.arrayBuffer();
             const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
             const pdf = await loadingTask.promise;
             
-            const page = await pdf.getPage(targetPage);
-            
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            
-            // स्केल को 1.3 रखा ताकि मोबाइल स्क्रीन पर टेक्स्ट बिल्कुल साफ और बड़ा दिखे
-            const viewport = page.getViewport({ scale: 1.3 }); 
+            previewContainer.innerHTML = ""; // पुराना मैसेज क्लियर करें
 
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
+            // FIX: लूप चलाकर एक-एक करके सारे पेजेस को रेंडर करना
+            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                const page = await pdf.getPage(pageNum);
+                
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                
+                // स्केल को 1.2 रखा ताकि टेक्स्ट बिल्कुल साफ दिखे और लोड होने में भी ज़्यादा समय न लगे
+                const viewport = page.getViewport({ scale: 1.2 }); 
 
-            const renderContext = {
-                canvasContext: context,
-                viewport: viewport
-            };
-            
-            previewContainer.innerHTML = "";
-            previewContainer.appendChild(canvas);
-            await page.render(renderContext).promise;
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                
+                previewContainer.appendChild(canvas);
+                await page.render(renderContext).promise;
+            }
         } catch (err) {
-            console.error("Rendering dynamic target error:", err);
-            previewContainer.innerHTML = "<span>Preview Generation Exception</span>";
+            console.error("Error generating full PDF preview:", err);
+            previewContainer.innerHTML = "<span>Failed to load full preview</span>";
         }
     } else {
         previewContainer.innerHTML = "<span>Preview not supported for this file type</span>";
