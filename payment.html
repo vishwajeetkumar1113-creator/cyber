@@ -15,7 +15,6 @@
             margin: 0;
             padding: 15px;
         }
-
         .card {
             width: 100%;
             max-width: 400px;
@@ -26,47 +25,14 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
             box-sizing: border-box;
         }
-
-        h2 {
-            font-size: 28px;
-        }
-
-        h3 {
-            font-size: 22px;
-            word-break: break-word;
-        }
-
-        img {
-            width: 100%;
-            max-width: 250px;
-            height: auto;
-            margin: 20px 0;
-        }
-
-        button {
-            width: 100%;
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 15px;
-            cursor: pointer;
-            border-radius: 8px;
-            font-size: 18px;
-        }
-
-        button:hover {
-            background: #218838;
-        }
-
-        p {
-            font-size: 16px;
-        }
-
+        h2 { font-size: 28px; }
+        h3 { font-size: 22px; word-break: break-word; }
+        img { width: 100%; max-width: 250px; height: auto; margin: 20px 0; }
+        button { width: 100%; background: #28a745; color: white; border: none; padding: 15px; cursor: pointer; border-radius: 8px; font-size: 18px; }
+        button:hover { background: #218838; }
+        p { font-size: 16px; }
         @media (max-width: 480px) {
-            .card {
-                padding: 15px;
-                margin: 10px auto;
-            }
+            .card { padding: 15px; margin: 10px auto; }
             h2 { font-size: 24px; }
             h3 { font-size: 20px; }
             button { font-size: 16px; padding: 14px; }
@@ -90,14 +56,13 @@
 </div>
 
 <script>
-// Initialize Supabase Client to make status updates possible directly from this page
 const client = window.supabase.createClient(
     "https://irqlvuphoblgjqysteto.supabase.co",
     "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-"
 );
 
 const amount = localStorage.getItem("amount");
-const mobile = localStorage.getItem("mobile"); // Retrieve mobile to target the correct row
+const orderId = localStorage.getItem("current_order_id"); // Pull precise order ID matching current transaction row
 
 if (amount) {
     document.getElementById("amount").innerHTML = "Amount: ₹" + amount;
@@ -112,29 +77,27 @@ function payNow() {
         description: "Document Printing",
         handler: async function (response) {
             
-            // 1. Save payment details in browser memory
             localStorage.setItem("payment_id", response.razorpay_payment_id);
 
-            // 2. LIVE UPDATE: Update Supabase table directly using the customer's phone number
-            try {
-                const { error } = await client
-                    .from("orders")
-                    .update({ 
-                        payment_status: "Success", // Changes status to show up green in Admin Dashboard
-                        payment_id: response.razorpay_payment_id 
-                    })
-                    .eq("mobile", mobile)
-                    .order("id", { ascending: false }) // Target the most recent order submitted
-                    .limit(1);
+            // UNIQUE REDIRECT UPDATE: Targets the precise database entry row to completely bypass duplicates
+            if (orderId) {
+                try {
+                    const { error } = await client
+                        .from("orders")
+                        .update({ 
+                            payment_status: "Success", 
+                            payment_id: response.razorpay_payment_id 
+                        })
+                        .eq("id", orderId); 
 
-                if (error) {
-                    console.error("Database status update failed:", error.message);
+                    if (error) {
+                        console.error("Database update sync error:", error.message);
+                    }
+                } catch (err) {
+                    console.error("Network interface error updating database:", err);
                 }
-            } catch (err) {
-                console.error("Network error updating database:", err);
             }
 
-            // 3. Redirect based on order type
             const printType = localStorage.getItem("printType");
             if (printType === "id") {
                 const frontUrl = localStorage.getItem("frontImage");
@@ -144,17 +107,13 @@ function payNow() {
                 window.location.href = "success.html";
             }
         },
-        theme: {
-            color: "#1976d2"
-        }
+        theme: { color: "#1976d2" }
     };
 
     var rzp = new Razorpay(options);
-
     rzp.on('payment.failed', function (response) {
         alert("Payment Failed\n" + response.error.description);
     });
-
     rzp.open();
 }
 </script>
