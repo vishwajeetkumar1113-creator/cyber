@@ -20,7 +20,7 @@
         }
 
         .dashboard-container {
-            max-width: 1200px;
+            max-width: 1300px; /* Widened slightly to accommodate the extra column */
             margin: 0 auto;
             background: #ffffff;
             padding: 30px;
@@ -97,8 +97,11 @@
             text-align: center;
         }
 
+        /* Status Colors */
         .badge-pending { background-color: #ffe699; color: #806000; }
         .badge-completed { background-color: #c6efce; color: #006100; }
+        .badge-unpaid { background-color: #f8d7da; color: #721c24; }
+        .badge-paid { background-color: #d1ecf1; color: #0c5460; }
 
         .action-btn {
             padding: 6px 12px;
@@ -148,12 +151,13 @@
                     <th>Pages / Copies</th>
                     <th>Amount</th>
                     <th>Payment Status</th>
+                    <th>Print Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="ordersTableBody">
                 <tr>
-                    <td colspan="8" class="no-orders">Loading print queue dataset...</td>
+                    <td colspan="9" class="no-orders">Loading print queue dataset...</td>
                 </tr>
             </tbody>
         </table>
@@ -179,12 +183,12 @@
 
         if (error) {
             console.error("Error retrieving dashboard logs:", error);
-            tableBody.innerHTML = `<tr><td colspan="8" class="no-orders" style="color:red;">Error loading orders: ${error.message}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="9" class="no-orders" style="color:red;">Error loading orders: ${error.message}</td></tr>`;
             return;
         }
 
         if (!orders || orders.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="8" class="no-orders">No print job records found in database queue queue matrix.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="9" class="no-orders">No print job records found in database queue matrix.</td></tr>`;
             return;
         }
 
@@ -193,9 +197,14 @@
         orders.forEach(order => {
             const row = document.createElement("tr");
             const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : "N/A";
-            const statusClass = order.payment_status === "Completed" ? "badge-completed" : "badge-pending";
+            
+            // 🌟 Separate Column Tracking Logic
+            const payStatus = order.payment_status || 'Pending';
+            const payBadgeClass = payStatus === "Completed" || payStatus === "Paid" ? "badge-paid" : "badge-unpaid";
 
-            // Identify whether it is an Aadhaar/PAN order or a document print order
+            const prntStatus = order.print_status || order.order_status || 'Pending';
+            const prntBadgeClass = prntStatus === "Completed" ? "badge-completed" : "badge-pending";
+
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
@@ -203,25 +212,22 @@
 
             if (trueTargetRawSourceUrl) {
                 if (isIdCardOrder) {
-                    // 🌟 URL PARAMETER ENCODING SECURE MATCH
                     const encFront = encodeURIComponent(order.front_url || '');
                     const encBack = encodeURIComponent(order.back_url || '');
                     const encSummary = encodeURIComponent(order.print_type || '');
 
-                    // Passes variables cleanly into the target preview layout logic
                     const a4LinkUrl = `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`;
                     
                     actionsHtml += `<a href="${a4LinkUrl}" target="_blank" class="action-btn preview-btn">👁️ A4 Preview</a>`;
                 } else {
-                    // Falls back to direct documentation files presentation link logic
                     actionsHtml += `<a href="${trueTargetRawSourceUrl}" target="_blank" class="action-btn preview-btn">👁️ View Doc</a>`;
                 }
                 
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
-            if (order.payment_status !== "Completed") {
-                actionsHtml += `<button onclick="markAsCompleted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
+            if (prntStatus !== "Completed") {
+                actionsHtml += `<button onclick="markAsPrinted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
             }
 
             row.innerHTML = `
@@ -231,7 +237,8 @@
                 <td><span style="font-size:12px; color:#555;">${escapeHtml(order.print_type || 'Document Print')}</span></td>
                 <td>${order.pages || 1}</td>
                 <td><strong>₹${order.amount || 0}</strong></td>
-                <td><span class="badge ${statusClass}">${escapeHtml(order.payment_status || 'Pending')}</span></td>
+                <td><span class="badge ${payBadgeClass}">${escapeHtml(payStatus)}</span></td>
+                <td><span class="badge ${prntBadgeClass}">${escapeHtml(prntStatus)}</span></td>
                 <td>${actionsHtml}</td>
             `;
 
@@ -239,20 +246,38 @@
         });
     }
 
-    async function markAsCompleted(orderId) {
-        if (!confirm("Are you sure you want to mark this print order task complete?")) return;
+    // 🌟 SEPARATED STATUS UPDATE ENGINE
+    async function markAsPrinted(orderId) {
+        if (!confirm("Are you sure you want to mark this document as printed?")) return;
+
+        // Explicitly targets the printing column arrays to keep them away from raw payment keys
+        const updateData = { 
+            print_status: "Completed",
+            order_status: "Completed"
+        };
 
         const { error } = await client
             .from("orders")
-            .update({ payment_status: "Completed" })
+            .update(updateData)
             .eq("id", orderId);
 
         if (error) {
-            alert("Update operation failed: " + error.message);
-        } else {
-            alert("Order marked completed successfully!");
-            fetchOrders(); 
+            console.error("Primary column target error, running precision printing patch query...", error);
+            
+            // System safety loop fallback inside schema properties
+            const { error: fallbackError } = await client
+                .from("orders")
+                .update({ order_status: "Completed" })
+                .eq("id", orderId);
+
+            if (fallbackError) {
+                alert("Failed to update status. Ensure you have 'print_status' or 'order_status' columns configured in your orders table: " + fallbackError.message);
+                return;
+            }
         }
+
+        alert("Order marked printed successfully!");
+        fetchOrders(); 
     }
 
     function escapeHtml(str) {
@@ -262,7 +287,7 @@
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039 bridge;");
+            .replace(/'/g, "&#039;");
     }
 </script>
 
