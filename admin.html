@@ -1,55 +1,68 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="css/style.css">
-
     <style>
-        body{
-            background:#f5f5f5;
-            font-family:Arial,sans-serif;
+        body {
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
         }
 
-        .card{
-            padding:20px;
+        .card {
+            padding: 20px;
             max-width: 95%;
             margin: 30px auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
 
-        table{
-            width:100%;
-            border-collapse:collapse;
-            background:white;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            margin-top: 20px;
         }
 
-        th,td{
-            border:1px solid #ddd;
-            padding:10px;
-            text-align:center;
-            vertical-align:top;
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px 10px;
+            text-align: center;
+            vertical-align: top;
         }
 
-        th{
-            background:#1976d2;
-            color:white;
+        th {
+            background: #1976d2;
+            color: white;
+            font-weight: bold;
         }
 
-        a{
-            color:blue;
-            text-decoration:none;
+        a {
+            color: #1976d2;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
         }
 
-        img{
-            max-width:120px;
-            border:1px solid #ccc;
-            margin:5px 0;
+        img.preview-img {
+            max-width: 120px;
+            height: auto;
+            border: 1px solid #ccc;
+            margin: 5px 0;
+            border-radius: 4px;
+            display: inline-block;
         }
 
-        /* Status Badge Colors */
         .status-badge {
             display: inline-block;
-            padding: 5px 10px;
-            font-size: 13px;
+            padding: 6px 12px;
+            font-size: 12px;
             font-weight: bold;
             border-radius: 4px;
             text-transform: uppercase;
@@ -65,20 +78,18 @@
             border: 1px solid #f5c6cb;
         }
 
-        /* Action Buttons */
         .print-btn {
             background: #1976d2;
             color: white;
             border: none;
-            padding: 8px 12px;
+            padding: 8px 14px;
             border-radius: 5px;
             cursor: pointer;
             margin-top: 10px;
-            width: auto;
             font-weight: bold;
             display: inline-block;
+            transition: background 0.2s;
         }
-
         .print-btn:hover {
             background: #125ea7;
         }
@@ -89,13 +100,17 @@
         .doc-btn:hover {
             background: #218838;
         }
+        
+        .preview-box-container {
+            text-align: center;
+            padding: 5px;
+        }
     </style>
 </head>
 
 <body>
 
 <div class="card">
-
     <h2>Admin Dashboard</h2>
 
     <table>
@@ -110,11 +125,12 @@
                 <th>Preview / Actions</th>
             </tr>
         </thead>
-
         <tbody id="orders">
+            <tr>
+                <td colspan="7">Loading records from database...</td>
+            </tr>
         </tbody>
     </table>
-
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -132,7 +148,7 @@ async function loadOrders() {
         .order("id", { ascending: false });
 
     if (error) {
-        alert(error.message);
+        console.error("Dashboard error:", error.message);
         return;
     }
 
@@ -141,27 +157,42 @@ async function loadOrders() {
     data.forEach(order => {
         let preview = "";
 
-        /* ID CARD ORDER */
-        if(order.front_url && order.back_url){
+        /* CARD PRINT LAYOUT CONDITION (Aadhaar or PAN) */
+        if (order.front_url) {
+            let isSingleSided = !order.back_url || order.back_url.trim() === "";
+            let targetPrintUrl = "";
+
+            if (isSingleSided) {
+                // Route PAN card to A4 layout matching top-center parameters
+                targetPrintUrl = `./idpreview.html?front=${encodeURIComponent(order.front_url)}&layout=top-center`;
+            } else {
+                // Route standard Aadhaar card layout parameters
+                targetPrintUrl = `./idpreview.html?front=${encodeURIComponent(order.front_url)}&back=${encodeURIComponent(order.back_url)}`;
+            }
+
             preview = `
-                <div>
-                    <b>Front</b><br>
+                <div class="preview-box-container">
+                    <b>Front View</b><br>
                     <img src="${order.front_url}" class="preview-img"><br>
-                    <a href="${order.front_url}" target="_blank">View Front</a><br><br>
-                    <b>Back</b><br>
-                    <img src="${order.back_url}" class="preview-img"><br>
-                    <a href="${order.back_url}" target="_blank">View Back</a><br><br>
-                    <button class="print-btn" onclick="window.open('./idpreview.html?front=' + encodeURIComponent('${order.front_url}') + '&back=' + encodeURIComponent('${order.back_url}'), '_blank');">
+                    <a href="${order.front_url}" target="_blank">Open Image</a><br><br>
+                    
+                    ${!isSingleSided ? `
+                        <b>Back View</b><br>
+                        <img src="${order.back_url}" class="preview-img"><br>
+                        <a href="${order.back_url}" target="_blank">Open Image</a><br><br>
+                    ` : ''}
+                    
+                    <button class="print-btn" onclick="window.open('${targetPrintUrl}', '_blank');">
                         🖨️ A4 Preview / Print
                     </button>
                 </div>
             `;
         }
-        /* DOCUMENT ORDER */
+        /* DOCUMENT SYSTEM CONDITION */
         else if (order.file_url) {
             preview = `
-                <div>
-                    <a href="${order.file_url}" target="_blank" style="font-weight:bold;color:#1976d2;display:block;margin-bottom:8px;">
+                <div class="preview-box-container">
+                    <a href="${order.file_url}" target="_blank" style="display:block; margin-bottom:10px;">
                         Open Original File
                     </a>
                     <button class="print-btn doc-btn" onclick="printDirectDocument('${order.file_url}')">
@@ -170,7 +201,7 @@ async function loadOrders() {
                 </div>
             `;
         } else {
-            preview = "No File";
+            preview = "No Files Attached";
         }
 
         let status = (order.payment_status || "Pending").trim();
@@ -179,29 +210,30 @@ async function loadOrders() {
 
         html += `
         <tr>
-            <td>${order.customer_name || ""}</td>
-            <td>${order.mobile || ""}</td>
+            <td>${order.customer_name || "N/A"}</td>
+            <td>${order.mobile || "N/A"}</td>
             <td>${order.pages || "1"}</td>
-            <td>${order.print_type || ""}</td>
-            <td style="font-weight:bold;color:#1976d2;">₹${order.amount || 0}</td>
+            <td>${order.print_type || "N/A"}</td>
+            <td style="font-weight:bold; color:#1976d2;">₹${order.amount || 0}</td>
             <td>${statusBadgeHTML}</td>
             <td>${preview}</td>
         </tr>
         `;
     });
 
-    document.getElementById("orders").innerHTML = html;
+    document.getElementById("orders").innerHTML = html || `<tr><td colspan="7">No orders found.</td></tr>`;
 }
 
 function printDirectDocument(url) {
     const printWindow = window.open(url, '_blank');
-    printWindow.focus();
-    printWindow.print();
+    if (printWindow) {
+        printWindow.focus();
+        printWindow.print();
+    }
 }
 
-// Polling interval to auto-refresh the dashboard tracking entries every 10 seconds automatically
+// Automatically check database logs every 10 seconds for real-time order tracking updates
 setInterval(loadOrders, 10000);
-
 loadOrders();
 </script>
 
