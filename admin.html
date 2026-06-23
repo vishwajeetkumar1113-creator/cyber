@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Print Shop Auto-Print Dashboard</title>
+    <title>Print Shop Admin Auto-Print Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
@@ -20,7 +20,7 @@
         }
 
         .dashboard-container {
-            max-width: 1300px;
+            max-width: 1350px;
             margin: 0 auto;
             background: #ffffff;
             padding: 30px;
@@ -113,13 +113,15 @@
             margin-right: 5px;
             text-decoration: none;
             display: inline-block;
+            color: white;
         }
 
-        .preview-btn { background-color: #28a745; color: white; }
-        .download-btn { background-color: #17a2b8; color: white; }
+        .preview-btn { background-color: #28a745; }
+        .download-btn { background-color: #17a2b8; }
+        .pay-btn { background-color: #007bff; }
+        .complete-btn { background-color: #ffc107; color: #212529; }
         .no-orders { text-align: center; padding: 40px; color: #777; }
         
-        /* 🌟 HIDDEN SILENT PRINT IFRAME: Kept completely hidden from visual view */
         #silentPrintFrame {
             position: absolute;
             width: 0;
@@ -135,7 +137,7 @@
     <div class="header">
         <div>
             <h1>Print Shop Admin Control Panel</h1>
-            <p style="font-size:12px; color:#666; margin-top:4px;">Auto-scanning for successful payments every 5 seconds...</p>
+            <p style="font-size:12px; color:#666; margin-top:4px;">Auto-scanning for updates every 5 seconds...</p>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
             <span class="auto-print-badge">🟢 AUTO-PRINT ACTIVE</span>
@@ -174,11 +176,10 @@
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let isProcessingPrintJob = false; // Mutex flag locks to stop double-triggering collisions
+    let isProcessingPrintJob = false; 
 
     window.onload = function() {
         fetchOrders();
-        // 🌟 START BACKGROUND AUTO-SCAN ENGINE: Polls the datastore loop every 5 seconds
         setInterval(fetchOrders, 5000);
     };
 
@@ -222,8 +223,6 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            // 🌟 REAL-TIME TRIGGER INTERCEPTOR:
-            // If payment is SUCCESS and print_status is STILL PENDING, instantly launch hardware automation
             if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
                 triggerAutomaticHardwarePrint(order);
             }
@@ -238,8 +237,17 @@
                     ? `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`
                     : trueTargetRawSourceUrl;
                 
-                actionsHtml += `<a href="${previewUrl}" target="_blank" class="action-btn preview-btn">👁️ Preview / Print</a>`;
+                actionsHtml += `<a href="${previewUrl}" target="_blank" class="action-btn preview-btn">👁️ Preview</a>`;
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
+            }
+
+            // 🌟 ADDED MANUAL PAYMENT BUTTON: Shows up only if payment status is NOT successful
+            if (!isPaidSuccess) {
+                actionsHtml += `<button onclick="markAsPaid('${order.id}')" class="action-btn pay-btn">💰 Mark Paid</button>`;
+            }
+
+            if (prntStatus !== "Completed") {
+                actionsHtml += `<button onclick="markAsPrinted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
             }
 
             row.innerHTML = `
@@ -258,7 +266,24 @@
         });
     }
 
-    // 🌟 AUTOMATIC SILENT HARDWARE PRINTER CONDUIT ROUTINE
+    // 🌟 MANUAL PAYMENT MANIPULATION FUNCTION
+    async function markAsPaid(orderId) {
+        if (!confirm("Confirm manual cash/offline payment collection for this order?")) return;
+
+        const { error } = await client
+            .from("orders")
+            .update({ payment_status: "Paid" })
+            .eq("id", orderId);
+
+        if (error) {
+            alert("Payment update failed: " + error.message);
+            return;
+        }
+
+        alert("Order verified as Paid! The system will handle the printing queue immediately if active.");
+        fetchOrders();
+    }
+
     async function triggerAutomaticHardwarePrint(order) {
         isProcessingPrintJob = true; 
         console.log("Auto-Print Triggered for Order ID:", order.id);
@@ -269,25 +294,18 @@
         const encBack = encodeURIComponent(order.back_url || '');
         const encSummary = encodeURIComponent(order.print_type || '');
 
-        // Determine correct template mapping dynamically
         const isIdCard = order.front_url && order.front_url !== "";
         const targetPrintLayoutUrl = isIdCard 
             ? `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`
             : order.file_url;
 
-        // Load the payload layout inside the invisible background window layer
         iframe.src = targetPrintLayoutUrl;
 
-        // Wait for frame assets to map completely, then dump directly to printer channels
         iframe.onload = async function() {
             try {
-                // Focus container layout and shoot print signal
                 iframe.contentWindow.focus();
                 iframe.contentWindow.print();
                 
-                console.log("Print signal broadcast successful. Synchronizing database state changes...");
-
-                // 🌟 UPDATE PRINT STATUS TO COMPLETED IN BACKEND IMMEDIATELY
                 const { error } = await client
                     .from("orders")
                     .update({ 
@@ -299,13 +317,32 @@
                 if (error) console.error("Auto-status update sync error:", error);
 
             } catch (err) {
-                console.error("Hardware printing connection loop failure context:", err);
+                console.error("Hardware printing engine routine failure:", err);
             } finally {
-                // Release lock channel safely so next order can print cleanly
                 isProcessingPrintJob = false;
-                fetchOrders(); // Instantly refresh row styles visually
+                fetchOrders(); 
             }
         };
+    }
+
+    async function markAsPrinted(orderId) {
+        if (!confirm("Are you sure you want to mark this document as printed manually?")) return;
+
+        const { error } = await client
+            .from("orders")
+            .update({ 
+                print_status: "Completed",
+                printed: true
+            })
+            .eq("id", orderId);
+
+        if (error) {
+            alert("Error updating print status: " + error.message);
+            return;
+        }
+
+        alert("Order marked printed successfully!");
+        fetchOrders(); 
     }
 
     function escapeHtml(str) {
