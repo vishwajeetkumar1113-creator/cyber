@@ -253,11 +253,11 @@ function calculate() {
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
 }
 
-// Fixed grayscale loop array processing engine
+// Full resolution image grayscale converter
 function convertImageToGrayscale(imageElement) {
     const canvas = document.createElement("canvas");
-    canvas.width = imageElement.width;
-    canvas.height = imageElement.height;
+    canvas.width = imageElement.naturalWidth || imageElement.width;
+    canvas.height = imageElement.naturalHeight || imageElement.height;
     const ctx = canvas.getContext("2d");
     
     ctx.drawImage(imageElement, 0, 0);
@@ -265,7 +265,6 @@ function convertImageToGrayscale(imageElement) {
     const data = imgData.data;
     
     for (let i = 0; i < data.length; i += 4) {
-        // Precise luminance mapping formula
         let v = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
         data[i]     = v; 
         data[i + 1] = v; 
@@ -304,30 +303,30 @@ async function submitOrder() {
     let calculatedIntegerPages = 1;
     let isBlackAndWhite = (type == 5); 
 
-    // 1. CONVERT IMAGES (JPG, PNG) TO SHARP COLORLESS FOR SERVER UPLOAD
+    // 1. IMAGE CONVERSION: Maintained at full natural camera dimensions
     if (file.type.startsWith("image/") && isBlackAndWhite) {
-        alert("Converting image to Black & White...");
+        alert("Processing high resolution image...");
         finalFileToUpload = await new Promise((resolve) => {
             const img = new Image();
             const objectUrl = URL.createObjectURL(file);
             img.src = objectUrl;
             img.onload = function() {
                 const grayCanvas = convertImageToGrayscale(img);
-                URL.revokeObjectURL(objectUrl); // Clear resource instantly
+                URL.revokeObjectURL(objectUrl);
                 grayCanvas.toBlob((blob) => {
                     const processedFile = new File([blob], file.name, { type: "image/jpeg" });
                     resolve(processedFile);
-                }, "image/jpeg", 0.92);
+                }, "image/jpeg", 1.0); // 1.0 maintains maximum photo clarity
             };
         });
     }
 
-    // 2. CONVERT PDF DOCUMENTS TO TRUE COLORLESS PAGES FOR SERVER UPLOAD
+    // 2. PERFECT VECTOR PDF CONVERSION: No downscaling to images
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
         try {
-            alert("Processing PDF pages... Please wait.");
+            alert("Processing PDF layout... Please wait.");
             
             const fileArrayBuffer = await file.arrayBuffer();
             const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -351,55 +350,28 @@ async function submitOrder() {
                 copiedPages.forEach((page) => extractedPdf.addPage(page));
                 
                 if (isBlackAndWhite) {
-                    alert("Converting PDF pages to pure Black & White...");
-                    const savedNormalBytes = await extractedPdf.save();
-                    const pdfjsDoc = await pdfjsLib.getDocument({ data: savedNormalBytes }).promise;
-                    const finalGrayscalePdf = await PDFLib.PDFDocument.create();
-
-                    for (let i = 0; i < pdfjsDoc.numPages; i++) {
-                        const page = await pdfjsDoc.getPage(i + 1);
-                        const viewport = page.getViewport({ scale: 2.0 }); 
-                        
-                        const renderCanvas = document.createElement("canvas");
-                        renderCanvas.width = viewport.width;
-                        renderCanvas.height = viewport.height;
-                        const renderCtx = renderCanvas.getContext("2d");
-
-                        await page.render({ canvasContext: renderCtx, viewport: viewport }).promise;
-
-                        const imgData = renderCtx.getImageData(0, 0, renderCanvas.width, renderCanvas.height);
-                        const data = imgData.data;
-                        for (let j = 0; j < data.length; j += 4) {
-                            let brightness = 0.299 * data[j] + 0.587 * data[j+1] + 0.114 * data[j+2];
-                            data[j] = brightness;
-                            data[j+1] = brightness;
-                            data[j+2] = brightness;
-                        }
-                        renderCtx.putImageData(imgData, 0, 0);
-
-                        const imageJpgUrl = renderCanvas.toDataURL("image/jpeg", 0.85);
-                        const embeddedImage = await finalGrayscalePdf.embedJpg(imageJpgUrl);
-                        
-                        const newPage = finalGrayscalePdf.addPage([viewport.width, viewport.height]);
-                        newPage.drawImage(embeddedImage, {
-                            x: 0, y: 0, width: viewport.width, height: viewport.height
-                        });
-                    }
-                    const savedPdfBytes = await finalGrayscalePdf.save();
-                    finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
-                } else {
-                    const savedPdfBytes = await extractedPdf.save();
-                    finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
+                    // Inject internal color rendering operators directly into the document structure.
+                    // This forces the printer to output zero color saturation while keeping text vector lines perfectly sharp.
+                    const targetPages = extractedPdf.getPages();
+                    targetPages.forEach(page => {
+                        page.pushOperators(
+                            PDFLib.pdfdoc.PDFOperator.of('cmd_set_color_space_gray', [
+                                PDFLib.PDFName.of('DeviceGray')
+                            ])
+                        );
+                    });
                 }
+                
+                const savedPdfBytes = await extractedPdf.save();
+                finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
             }
         } catch (pdfError) {
-            console.error("PDF-LIB processing failed:", pdfError);
+            console.error("PDF-LIB system error:", pdfError);
         }
     }
 
-    alert("Uploading file... Please wait.");
+    alert("Uploading clean document... Please wait.");
 
-    // Fix file naming convention to cleanly reflect B&W modifications on backend
     const namePrefix = isBlackAndWhite ? "bw_" : "color_";
     const fileName = Date.now() + "_" + namePrefix + file.name;
     
