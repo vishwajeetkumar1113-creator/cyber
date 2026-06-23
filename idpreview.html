@@ -25,18 +25,20 @@
             position: relative;
         }
 
-        /* Container layout for card elements */
+        /* 🌟 FIX: कन्टेंट को एक लाइन में रखने के लिए Row लेआउट बनाया और टॉप-मार्जिन सेट किया */
         .print-container {
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            padding-top: 40mm; 
+            flex-direction: row;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 10mm; /* दोनों कार्ड्स के बीच का गैप */
+            padding-top: 20mm; /* टॉप से दूरी */
+            padding-left: 15mm; /* लेफ्ट से मार्जिन ताकि लेफ्ट अलाइन सही रहे */
             width: 100%;
             box-sizing: border-box;
         }
 
-        /* 🌟 FIX: यहाँ से सारे फालतू फिल्टर्स हटा दिए गए हैं ताकि इमेज का ब्राइटनेस लेवल एकदम ओरिजिनल और सही दिखे */
+        /* कार्ड का स्टैण्डर्ड प्रिंट साइज */
         .card-img {
             width: 85.6mm;
             height: 54mm;
@@ -82,6 +84,12 @@
                 height: auto !important;
                 min-height: 135vw !important;
                 padding: 10px !important;
+            }
+            .print-container {
+                flex-direction: column !important;
+                align-items: center !important;
+                padding-left: 0 !important;
+                gap: 15px !important;
             }
             .card-img {
                 width: 80vw !important;
@@ -146,11 +154,9 @@
         backImgEl.style.display = "block";
     }
 
+    // अगर केवल सिंगल साइड है या बैक यूआरएल खाली है
     if (layoutMode === 'top-center' || !backUrl || backUrl === "null" || backUrl.trim() === "") {
-        printContainer.style.display = "flex";
-        printContainer.style.justifyContent = "center";
-        printContainer.style.alignItems = "center";
-        printContainer.style.paddingTop = "25mm"; 
+        printContainer.style.justifyContent = "flex-start";
         backImgEl.style.display = "none";
     }
 </script>
