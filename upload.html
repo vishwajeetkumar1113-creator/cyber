@@ -12,40 +12,44 @@
         .preview-wrapper {
             width: 100%;
             max-width: 400px;
-            height: 250px;
+            height: 300px; /* थोड़ा हाइट बढ़ा दिया ताकि देखने में आसानी हो */
             margin: 15px auto;
             border: 2px dashed #1976d2;
             border-radius: 8px;
             background: #f8f9fa;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            /* FIX: स्क्रॉलिंग इनेबल करने के लिए overflow को auto किया */
+            overflow: auto; 
+            box-sizing: border-box;
+            padding: 5px;
         }
         
         .preview-box {
             width: 100%;
-            height: 100%;
+            min-height: 100%;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start; /* टॉप से अलाइन किया ताकि स्क्रॉल सही से हो */
             color: #777;
             font-size: 14px;
-            transform: scale(0.80);
-            transform-origin: center center;
             box-sizing: border-box;
         }
-        .preview-box img, .preview-box canvas, .preview-box iframe {
+        
+        /* इमेज और कैनवास दोनों को ओरिजिनल प्रोपोर्शन में स्क्रॉल होने देगा */
+        .preview-box img, .preview-box canvas {
             max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
+            height: auto;
             display: block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 5px;
         }
+        
         .preview-box iframe {
-            width: 125%; 
-            height: 125%; 
+            width: 100%; 
+            height: 290px; 
             border: none;
         }
+        
         .input-group {
             margin-bottom: 15px;
         }
@@ -78,7 +82,7 @@
 
     <div class="preview-wrapper" id="previewWrapperFrame">
         <div class="preview-box" id="docPreview">
-            <span>No file selected yet for preview</span>
+            <span style="margin-top: 130px;">No file selected yet for preview</span>
         </div>
     </div>
 
@@ -151,7 +155,7 @@ async function previewDocument() {
     let pageInput = document.getElementById("pages").value.trim();
 
     if (!fileInput) {
-        previewContainer.innerHTML = "<span>No file selected yet for preview</span>";
+        previewContainer.innerHTML = '<span style="margin-top: 130px;">No file selected yet for preview</span>';
         return;
     }
 
@@ -167,7 +171,6 @@ async function previewDocument() {
         let targetPage = 1;
         let cleanInput = pageInput.replace(/\s+/g, '').toLowerCase();
 
-        // Dynamic targeting calculation based on custom page layout arrays
         if (cleanInput !== "all" && cleanInput !== "") {
             let firstSegment = cleanInput.split(",")[0];
             if (firstSegment.includes("-")) {
@@ -177,11 +180,9 @@ async function previewDocument() {
             }
         }
 
-        // Enforce boundary parameters dynamically across rendering processes
         if (targetPage < 1) targetPage = 1;
         if (targetPage > totalDetectedPDFPages) targetPage = totalDetectedPDFPages;
 
-        // Force both mobile canvas engines and standard desktop views to track the dynamic targets
         try {
             const fileArrayBuffer = await cachedFileObject.arrayBuffer();
             const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
@@ -191,7 +192,9 @@ async function previewDocument() {
             
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
-            const viewport = page.getViewport({ scale: 1.2 }); // Balanced rendering scale to protect device performance
+            
+            // स्केल को 1.3 रखा ताकि मोबाइल स्क्रीन पर टेक्स्ट बिल्कुल साफ और बड़ा दिखे
+            const viewport = page.getViewport({ scale: 1.3 }); 
 
             canvas.height = viewport.height;
             canvas.width = viewport.width;
@@ -311,4 +314,116 @@ async function submitOrder() {
     const type = document.getElementById("type").value;
     
     let displayPriceText = document.getElementById("total").innerHTML;
-    let amount = parseInt(displayPriceText.replace("Total: ₹", "
+    let amount = parseInt(displayPriceText.replace("Total: ₹", ""));
+
+    let finalFileToUpload = file;
+    let calculatedIntegerPages = totalDetectedPDFPages;
+    let isBlackAndWhite = (type == 5); 
+
+    if (file.type.startsWith("image/") && isBlackAndWhite) {
+        alert("Processing high resolution image...");
+        finalFileToUpload = await new Promise((resolve) => {
+            const img = new Image();
+            const objectUrl = URL.createObjectURL(file);
+            img.src = objectUrl;
+            img.onload = function() {
+                const grayCanvas = convertImageToGrayscale(img);
+                URL.revokeObjectURL(objectUrl);
+                grayCanvas.toBlob((blob) => {
+                    const processedFile = new File([blob], file.name, { type: "image/jpeg" });
+                    resolve(processedFile);
+                }, "image/jpeg", 1.0);
+            };
+        });
+    }
+
+    if (file.type === "application/pdf") {
+        let pageNumbersList = parsePageSelection(pages);
+        
+        try {
+            alert("Processing PDF layout... Please wait.");
+            
+            const fileArrayBuffer = await file.arrayBuffer();
+            const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
+            const extractedPdf = await PDFLib.PDFDocument.create();
+            
+            let totalDocPagesCount = srcPdf.getPageCount();
+            let dynamicIndicesToKeep = [];
+
+            if (pageNumbersList !== null && pageNumbersList.length > 0) {
+                calculatedIntegerPages = pageNumbersList.length;
+                dynamicIndicesToKeep = pageNumbersList
+                    .map(p => p - 1)
+                    .filter(idx => idx >= 0 && idx < totalDocPagesCount);
+            } else {
+                calculatedIntegerPages = totalDocPagesCount;
+                for (let i = 0; i < totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
+            }
+
+            if (dynamicIndicesToKeep.length > 0) {
+                const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
+                copiedPages.forEach((page) => extractedPdf.addPage(page));
+                
+                if (isBlackAndWhite) {
+                    const targetPages = extractedPdf.getPages();
+                    targetPages.forEach(page => {
+                        page.pushOperators(
+                            PDFLib.pdfdoc.PDFOperator.of('cmd_set_color_space_gray', [
+                                PDFLib.PDFName.of('DeviceGray')
+                            ])
+                        );
+                    });
+                }
+                
+                const savedPdfBytes = await extractedPdf.save();
+                finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
+            }
+        } catch (pdfError) {
+            console.error("PDF-LIB system error:", pdfError);
+        }
+    }
+
+    alert("Uploading clean document... Please wait.");
+
+    const namePrefix = isBlackAndWhite ? "bw_" : "color_";
+    const fileName = Date.now() + "_" + namePrefix + file.name;
+    
+    const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
+
+    if (uploadError) { alert(uploadError.message); return; }
+
+    const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
+
+    const baseType = (isBlackAndWhite ? "Black & White" : "Color");
+    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
+
+    const { data: insertedOrder, error } = await client.from("orders").insert([
+        {
+            customer_name: name,
+            mobile: mobile,
+            pages: calculatedIntegerPages, 
+            print_type: detailedPrintSummary, 
+            amount: amount,
+            file_url: fileUrl,
+            payment_status: "Pending", 
+            payment_id: ""
+        }
+    ]).select();
+
+    if (error) {
+        alert(error.message);
+    } else {
+        localStorage.setItem("amount", amount);
+        localStorage.setItem("mobile", mobile);
+        localStorage.setItem("printType", "document");
+        
+        if (insertedOrder && insertedOrder.length > 0) {
+            localStorage.setItem("current_order_id", insertedOrder[0].id); 
+        }
+        window.location.href = "payment.html";
+    }
+}
+</script>
+
+</body>
+</html>
