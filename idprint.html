@@ -417,7 +417,6 @@ function draw(side) {
     let lastX = 0;
     let lastY = 0;
     
-    
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -534,7 +533,7 @@ function draw(side) {
     window.addEventListener('touchend', handleEnd);
 });
 
-// FIX: सॉफ्ट एडैप्टिव एन्हांसर — टेक्स्ट को बिना उड़ाए साफ़ और विज़िबल रखेगा
+// 🌟 FIX: स्मार्ट ट्यूनर जो केवल कम ब्राइटनेस वाली (डार्क) इमेज को सही करेगा, अच्छी इमेज को नहीं छुएगा
 function projectPerspective(srcImg, corners, targetW, targetH) {
     targetW = 856; 
     targetH = 540;
@@ -571,52 +570,61 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
 
-        // सॉफ्ट कंट्रास्ट और बैलेंस्ड ब्राइटनेस वेरिएबल्स
-        let contrastValue = 28; // हल्का कंट्रास्ट ताकि बारकोड सॉलिड ब्लॉक न बने
-        let contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
-        let brightnessOffset = 18; // सॉफ्ट ब्राइटनेस ताकि हल्का टेक्स्ट न उड़े
+        // स्टेप 1: क्रॉप्ड एरिया का एवरेज ब्राइटनेस लेवल नापें
+        let totalBrightness = 0;
+        const totalPixels = data.length / 4;
 
         for (let i = 0; i < data.length; i += 4) {
-            let r = data[i];
-            let g = data[i + 1];
-            let b = data[i + 2];
+            let luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            totalBrightness += luma;
+        }
 
-            let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const avgBrightness = totalBrightness / totalPixels;
+        console.log("Current Crop Brightness Level:", avgBrightness);
 
-            // अगर पिक्सेल बहुत ब्राइटर साइड में है (यानी मटमैला बैकग्राउंड)
-            if (luma > 155) {
-                // उसे धीरे से प्योर व्हाइट की तरफ पुश करें (एकदम से 255 नहीं करेंगे)
-                r = Math.min(255, r + 35);
-                g = Math.min(255, g + 35);
-                b = Math.min(255, b + 35);
-            } 
-            // अगर पिक्सेल डार्क/मिडटोन है (यानी टेक्स्ट या धुंधले अक्षर)
-            else {
-                // सॉफ्ट ब्राइटनेस बैलेंस लागू करें
+        // 🎯 टारगेट लिमिट: आपकी भेजी गई सही इमेज का लेवल लगभग 185 है। 
+        // अगर अपलोड की गई इमेज का लेवल 180 से कम है, केवल तभी उसे ठीक करेंगे!
+        if (avgBrightness < 180) {
+            console.log("Image is dark. Tuning to target standard level...");
+            
+            let brightnessOffset = 25; 
+            let contrastValue = 35; 
+            let contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
+
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i];
+                let g = data[i + 1];
+                let b = data[i + 2];
+
+                // ब्राइटनेस और कंट्रास्ट बढ़ाएं
                 r += brightnessOffset;
                 g += brightnessOffset;
                 b += brightnessOffset;
 
-                // सॉफ्ट कंट्रास्ट फ़ॉर्मूला ताकि अक्षर साफ़ और गहरे दिखें
                 r = contrastFactor * (r - 128) + 128;
                 g = contrastFactor * (g - 128) + 128;
                 b = contrastFactor * (b - 128) + 128;
-            }
 
-            // डबल चेक: एक्सट्रीम वाइटनिंग फिक्सर (आधार कार्ड की बॉडी को साफ़ करने के लिए)
-            let newLuma = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (newLuma > 210) {
-                r = 255; g = 255; b = 255;
-            }
+                // मटमैलापन साफ करने का नियम
+                let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                if (luminance > 175) { 
+                    r = Math.min(255, r + 20);
+                    g = Math.min(255, g + 20);
+                    b = Math.min(255, b + 20);
+                }
 
-            data[i]     = Math.max(0, Math.min(255, r));
-            data[i + 1] = Math.max(0, Math.min(255, g));
-            data[i + 2] = Math.max(0, Math.min(255, b));
+                data[i]     = Math.max(0, Math.min(255, r));
+                data[i + 1] = Math.max(0, Math.min(255, g));
+                data[i + 2] = Math.max(0, Math.min(255, b));
+            }
+            ctx.putImageData(imgData, 0, 0);
+        } else {
+            // अगर इमेज का ब्राइटनेस लेवल पहले से सही (180 से ज्यादा) है, तो चोर दो (Do nothing)
+            console.log("Brightness is perfectly matching the standard template. Left untouched.");
         }
 
-        ctx.putImageData(imgData, 0, 0);
     } catch (e) {
-        console.error("Selective balancing skipped:", e);
+        console.warn("Smart check logic execution skipped:", e);
     }
 
     return hiddenCanvas;
@@ -644,7 +652,7 @@ function saveSide(side) {
     document.getElementById(`${side}PreviewImg`).src = directCropUrl;
     
     const statusText = document.getElementById(`${side}PreviewStatus`);
-    statusText.innerText = "✓ Image Enhanced for Printing Successfully!";
+    statusText.innerText = "✓ Image Processed Successfully!";
     statusText.className = "";
     
     document.getElementById(`${side}PreviewContainer`).style.display = "block";
