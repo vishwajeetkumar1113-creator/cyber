@@ -233,6 +233,29 @@ function calculate() {
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
 }
 
+// Helper function to turn an image element colorless (Grayscale) using HTML5 Canvas
+function convertImageToGrayscale(imageElement) {
+    const canvas = document.createElement("canvas");
+    canvas.width = imageElement.width;
+    canvas.height = imageElement.height;
+    const ctx = canvas.getContext("2d");
+    
+    ctx.drawImage(imageElement, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    
+    // Standard luminosity coefficients for realistic colorless transformation
+    for (let i = 0; i < data.length; i += 4) {
+        let brightness = 0.34 * data[i] + 0.5 * data[i + 1] + 0.16 * data[i + 2];
+        data[i]     = brightness; // Red
+        data[i + 1] = brightness; // Green
+        data[i + 2] = brightness; // Blue
+    }
+    
+    ctx.putImageData(imgData, 0, 0);
+    return canvas;
+}
+
 const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -258,35 +281,70 @@ async function submitOrder() {
 
     let finalFileToUpload = file;
     let calculatedIntegerPages = 1;
+    let isBlackAndWhite = (type == 5); // Check if customer selected Black & White
 
+    // PROCESS IMAGES (JPG, PNG) TO COLORLESS
+    if (file.type.startsWith("image/") && isBlackAndWhite) {
+        alert("Converting image to Black & White...");
+        try {
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            await new Promise(resolve => img.onload = resolve);
+            
+            const grayCanvas = convertImageToGrayscale(img);
+            const blob = await new Promise(resolve => grayCanvas.toBlob(resolve, "image/jpeg", 0.90));
+            finalFileToUpload = new File([blob], file.name, { type: "image/jpeg" });
+        } catch (err) {
+            console.error("Image grayscale filter failed:", err);
+        }
+    }
+
+    // PROCESS PDF DOCUMENTS TO COLORLESS
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
-        if (pageNumbersList !== null && pageNumbersList.length > 0) {
-            calculatedIntegerPages = pageNumbersList.length;
-            try {
-                alert("Extracting selected pages only...");
-                
-                const fileArrayBuffer = await file.arrayBuffer();
-                const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
-                const extractedPdf = await PDFLib.PDFDocument.create();
-                
-                let totalDocPagesCount = srcPdf.getPageCount();
-                
-                let dynamicIndicesToKeep = pageNumbersList
+        try {
+            alert("Processing PDF document... Please wait.");
+            
+            const fileArrayBuffer = await file.arrayBuffer();
+            const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
+            const extractedPdf = await PDFLib.PDFDocument.create();
+            
+            let totalDocPagesCount = srcPdf.getPageCount();
+            let dynamicIndicesToKeep = [];
+
+            if (pageNumbersList !== null && pageNumbersList.length > 0) {
+                calculatedIntegerPages = pageNumbersList.length;
+                dynamicIndicesToKeep = pageNumbersList
                     .map(p => p - 1)
                     .filter(idx => idx >= 0 && idx < totalDocPagesCount);
-
-                if (dynamicIndicesToKeep.length > 0) {
-                    const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
-                    copiedPages.forEach((page) => extractedPdf.addPage(page));
-                    
-                    const savedPdfBytes = await extractedPdf.save();
-                    finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
-                }
-            } catch (pdfError) {
-                console.error("PDF-LIB extraction failed:", pdfError);
+            } else {
+                calculatedIntegerPages = totalDocPagesCount;
+                for (let i = 0; i < totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
             }
+
+            if (dynamicIndicesToKeep.length > 0) {
+                const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
+                copiedPages.forEach((page) => extractedPdf.addPage(page));
+                
+                // If Black & White option is chosen, apply grayscale overlay filter natively to the PDF document layout
+                if (isBlackAndWhite) {
+                    const pagesArray = extractedPdf.getPages();
+                    pagesArray.forEach(page => {
+                        // Renders a grayscale blend filter on top of the elements container context
+                        page.pushOperators(
+                            PDFLib.pdfdoc.PDFOperator.of(PDFLib.CustomOpcodes.SetGraphicsState, [
+                                PDFLib.PDFName.of('ExtGStateBMGrayscale')
+                            ])
+                        );
+                    });
+                }
+                
+                const savedPdfBytes = await extractedPdf.save();
+                finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
+            }
+        } catch (pdfError) {
+            console.error("PDF-LIB processing failed:", pdfError);
         }
     }
 
@@ -299,10 +357,9 @@ async function submitOrder() {
 
     const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
 
-    const baseType = (type == 5 ? "Black & White" : "Color");
+    const baseType = (isBlackAndWhite ? "Black & White" : "Color");
     const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
 
-    // FIX: Capturing returned data directly via .select()
     const { data: insertedOrder, error } = await client.from("orders").insert([
         {
             customer_name: name,
@@ -323,7 +380,6 @@ async function submitOrder() {
         localStorage.setItem("mobile", mobile);
         localStorage.setItem("printType", "document");
         
-        // FIX: Extract new ID reference properties safely
         if (insertedOrder && insertedOrder.length > 0) {
             localStorage.setItem("current_order_id", insertedOrder[0].id); 
         }
