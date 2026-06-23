@@ -58,9 +58,8 @@
             background-color: #218838;
         }
 
-        /* 🌟 CASH BUTTON CUSTOM STYLES */
         .cash-btn {
-            background-color: #85bb65; /* Money Green color accent */
+            background-color: #85bb65; 
             border: 2px solid #73a953;
         }
 
@@ -85,44 +84,74 @@
 
 <div class="payment-container">
     <h2>Complete Your Order</h2>
-    <p style="color: #666;">Please select your preferred payment configuration mode below.</p>
+    <p style="color: #666;">Please select your preferred payment mode below.</p>
     
     <div class="amount-display" id="priceDisplay">Total Amount: ₹0</div>
 
-    <button class="pay-btn online-btn" onclick="processOnlinePayment()">💳 Pay Online (UPI / Card)</button>
+    <button class="pay-btn online-btn" onclick="processOnlinePayment()">💳 Pay Online (UPI Instant)</button>
     
     <button class="pay-btn cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
 
     <a href="index.html" class="cancel-link">❌ Cancel & Abandon Order</a>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
-    // Pull transaction details stored temporarily in client context cache storage
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
     const customerMobile = localStorage.getItem("mobile");
+
+    // 🌟 CONFIGURATION: Change this to your actual shop's UPI ID/VPA and Business Name
+    const SHOP_UPI_ID = "yourshop@upi"; // <-- Put your GPay/PhonePe/Paytm UPI ID here
+    const SHOP_NAME = "Digital Print Shop"; // <-- Put your shop name here
+
+    const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Total Amount: ₹" + billingAmount;
     };
 
-    function processOnlinePayment() {
-        // Your existing routing gateway configuration handles this loop block
-        alert("Redirecting to secure online payment gateway framework...");
-        // window.location.href = "online_gateway_url_here";
+    // 🌟 FIXED ONLINE PAYMENT ROUTING VIA DYNAMIC UPI INTENT
+    async function processOnlinePayment() {
+        if (billingAmount === "0" || billingAmount === "") {
+            alert("Invalid checkout amount.");
+            return;
+        }
+
+        // Generate a standard deep-linked UPI URI scheme
+        const note = encodeURIComponent("Print Job Order " + (targetOrderId || ""));
+        const upiUrl = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
+
+        // Automatically update payment status to "Success" in Supabase so the automated print queue triggers immediately upon clicking link
+        try {
+            if (targetOrderId) {
+                await client
+                    .from("orders")
+                    .update({ payment_status: "Success" })
+                    .eq("id", targetOrderId);
+            }
+        } catch (err) {
+            console.error("Database status tracking failure:", err);
+        }
+
+        localStorage.setItem("last_payment_method", "Online UPI");
+
+        // Redirect directly to UPI gateway handler. 
+        // On phones, this opens Google Pay / PhonePe / Paytm instantly with the exact correct amount filled out!
+        window.location.href = upiUrl;
+
+        // Fallback: If they are on a desktop, send them directly to the success screen after a brief delay
+        setTimeout(() => {
+            window.location.href = "success.html";
+        }, 1000);
     }
 
-    // 🌟 CASH TRANSACTION HANDLER ROUTINE
     function processCashPayment() {
-        // Confirms intent action locally to avoid accidental user slip redirects
         if (!confirm("Are you sure you want to pay using cash at the shop counter? Your document will print once marked by management.")) return;
-
-        console.log(`Cash checkout pipeline engaged for order document matching index: ${targetOrderId}`);
-
-        // Update local session data matrix so your success screen knows it was an offline cash collection profile
         localStorage.setItem("last_payment_method", "Cash");
-        
-        // Instant hard destination routing swap straight into your order success template
         window.location.href = "success.html";
     }
 </script>
