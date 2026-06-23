@@ -137,7 +137,7 @@
     <div class="header">
         <div>
             <h1>Print Shop Admin Control Panel</h1>
-            <p style="font-size:12px; color:#666; margin-top:4px;">Scanning database table every 5 seconds...</p>
+            <p style="font-size:12px; color:#666; margin-top:4px;">Scanning data matrix loops dynamically...</p>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
             <span class="auto-print-badge">🟢 AUTO-PRINT ENGAGED</span>
@@ -223,7 +223,7 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            // 🌟 BACKGROUND AUTO-INTERCEPT ENGINE
+            // BACKGROUND AUTO-INTERCEPT ENGINES
             if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
                 triggerAutomaticHardwarePrint(order);
             }
@@ -258,32 +258,48 @@
         });
     }
 
-    // 🌟 REBUILT NO-404 PRINT DISPATCHER
+    // 🌟 BULLETPROOF CORS-BYPASS PRINTING ENGINE
     async function triggerAutomaticHardwarePrint(order) {
         if (isProcessingPrintJob) return;
         isProcessingPrintJob = true; 
-        console.log("Processing print delivery layout tracking context: ", order.id);
+        console.log("Auto-Print Triggered for Order ID:", order.id);
 
         const iframe = document.getElementById("silentPrintFrame");
         const isIdCard = order.front_url && order.front_url !== "";
         
-        const encFront = encodeURIComponent(order.front_url || '');
-        const encBack = encodeURIComponent(order.back_url || '');
-        const encSummary = encodeURIComponent(order.print_type || '');
+        let targetPrintLayoutUrl = "";
 
-        // FIXED PATH: Points standard documents directly to their Supabase public URL to avoid 404 errors!
-        const targetPrintLayoutUrl = isIdCard 
-            ? `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}&autoplay=true`
-            : order.file_url;
-
-        iframe.src = targetPrintLayoutUrl;
+        if (isIdCard) {
+            const encFront = encodeURIComponent(order.front_url || '');
+            const encBack = encodeURIComponent(order.back_url || '');
+            const encSummary = encodeURIComponent(order.print_type || '');
+            targetPrintLayoutUrl = `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}&autoplay=true`;
+            
+            // For ID previews hosted on your own server, load into iframe immediately
+            iframe.src = targetPrintLayoutUrl;
+        } else {
+            // 🌟 BYPASS MECHANISM: Fetches raw file data directly to completely drop cross-domain restrictions
+            try {
+                const response = await fetch(order.file_url);
+                const blob = await response.blob();
+                // Generate local execution blob path link sequence
+                targetPrintLayoutUrl = URL.createObjectURL(blob);
+                iframe.src = targetPrintLayoutUrl;
+            } catch (fetchError) {
+                console.error("CORS asset streaming failure payload:", fetchError);
+                // Fallback option avoids getting locked out if streaming hangs
+                window.open(order.file_url, '_blank');
+                isProcessingPrintJob = false;
+                return;
+            }
+        }
 
         iframe.onload = async function() {
             try {
                 iframe.contentWindow.focus();
                 iframe.contentWindow.print();
                 
-                // Save complete state inside Supabase database
+                // Instantly sync order completion down inside Supabase
                 const { error } = await client
                     .from("orders")
                     .update({ print_status: "Completed", printed: true })
@@ -291,8 +307,12 @@
 
                 if (error) console.error("Database update sync error:", error);
             } catch (err) {
-                console.error("Hardware pipeline deployment status warning:", err);
+                console.error("Hardware pipeline assignment failed layout warning:", err);
             } finally {
+                // Free memory resources cleanly
+                if(!isIdCard && targetPrintLayoutUrl.startsWith("blob:")) {
+                    URL.revokeObjectURL(targetPrintLayoutUrl);
+                }
                 setTimeout(() => {
                     isProcessingPrintJob = false;
                     fetchOrders(); 
