@@ -133,8 +133,6 @@ let currentlyLoadedFileURL = null;
 let currentFileType = "";
 let cachedFileObject = null;
 let totalDetectedPDFPages = 1; 
-
-// 🌟 FIX: Global counter token to instantly kill overlapping async background render thread operations
 let activeRenderTaskId = 0; 
 
 async function handleFileSelectionChange() {
@@ -166,9 +164,7 @@ function resetFileCache() {
 }
 
 async function previewDocument() {
-    // Increment task ID instantly to signify an older sequence must terminate immediately
     const currentTaskId = ++activeRenderTaskId; 
-    
     const previewContainer = document.getElementById("docPreview");
     const fileInput = document.getElementById("file").files[0];
     let pageInput = document.getElementById("pages").value.trim();
@@ -196,7 +192,6 @@ async function previewDocument() {
             const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
             const pdf = await loadingTask.promise;
             
-            // Check if input changed during file read initialization stage
             if (currentTaskId !== activeRenderTaskId) return;
 
             let pagesToRender = [];
@@ -218,7 +213,6 @@ async function previewDocument() {
             }
 
             for (let i = 0; i < pagesToRender.length; i++) {
-                // Break mid-loop if user edits selection range values continuously
                 if (currentTaskId !== activeRenderTaskId) return;
 
                 const pageNum = pagesToRender[i];
@@ -234,10 +228,9 @@ async function previewDocument() {
                 let computedScale = 1.0;
                 let layoutModeText = "Portrait";
 
-                // Secure calculations checking aspect metrics safely
                 if (initialViewport.width > initialViewport.height) {
                     layoutModeText = "Landscape";
-                    computedScale = 380 / initialViewport.width; // Fixed bounding cap inside target elements box
+                    computedScale = 380 / initialViewport.width; 
                 } else {
                     computedScale = 380 / initialViewport.width; 
                 }
@@ -263,7 +256,7 @@ async function previewDocument() {
                 await page.render(renderContext).promise;
             }
         } catch (err) {
-            console.error("Error processing customized structural PDF context ranges:", err);
+            console.error("Error processing preview layouts:", err);
             if (currentTaskId === activeRenderTaskId) {
                 previewContainer.innerHTML = "<span>Failed to load preview</span>";
             }
@@ -377,28 +370,32 @@ async function submitOrder() {
     let calculatedIntegerPages = totalDetectedPDFPages;
     let isBlackAndWhite = (type == 5); 
 
-    if (file.type.startsWith("image/") && isBlackAndWhite) {
-        alert("Processing high resolution image...");
-        finalFileToUpload = await new Promise((resolve) => {
-            const img = new Image();
-            const objectUrl = URL.createObjectURL(file);
-            img.src = objectUrl;
-            img.onload = function() {
-                const grayCanvas = convertImageToGrayscale(img);
-                URL.revokeObjectURL(objectUrl);
-                grayCanvas.toBlob((blob) => {
-                    const processedFile = new File([blob], file.name, { type: "image/jpeg" });
-                    resolve(processedFile);
-                }, "image/jpeg", 1.0);
-            };
-        });
+    if (file.type.startsWith("image/")) {
+        calculatedIntegerPages = 1;
+        if (isBlackAndWhite) {
+            alert("Processing image filters...");
+            finalFileToUpload = await new Promise((resolve) => {
+                const img = new Image();
+                const objectUrl = URL.createObjectURL(file);
+                img.src = objectUrl;
+                img.onload = function() {
+                    const grayCanvas = convertImageToGrayscale(img);
+                    URL.revokeObjectURL(objectUrl);
+                    grayCanvas.toBlob((blob) => {
+                        const processedFile = new File([blob], file.name, { type: "image/jpeg" });
+                        resolve(processedFile);
+                    }, "image/jpeg", 1.0);
+                };
+            });
+        }
     }
 
+    // 🌟 FIX: Strict PDF Slicing Engine ensuring only selected pages get bundled and uploaded
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
         try {
-            alert("Processing PDF layout... Please wait.");
+            alert("Slicing requested pages... Please wait.");
             
             const fileArrayBuffer = await file.arrayBuffer();
             const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -408,16 +405,21 @@ async function submitOrder() {
             let dynamicIndicesToKeep = [];
 
             if (pageNumbersList !== null && pageNumbersList.length > 0) {
-                calculatedIntegerPages = pageNumbersList.length;
+                // Keep only valid indices matching the user's custom choice range selection
                 dynamicIndicesToKeep = pageNumbersList
                     .map(p => p - 1)
                     .filter(idx => idx >= 0 && idx < totalDocPagesCount);
+                
+                // Drop duplicates to ensure accurate final tracking metrics
+                dynamicIndicesToKeep = [...new Set(dynamicIndicesToKeep)];
+                calculatedIntegerPages = dynamicIndicesToKeep.length;
             } else {
                 calculatedIntegerPages = totalDocPagesCount;
                 for (let i = 0; i < totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
             }
 
             if (dynamicIndicesToKeep.length > 0) {
+                // Extract only the chosen pages into a clean, standalone binary block
                 const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
                 copiedPages.forEach((page) => extractedPdf.addPage(page));
                 
@@ -433,10 +435,16 @@ async function submitOrder() {
                 }
                 
                 const savedPdfBytes = await extractedPdf.save();
+                // Override the local file variable so the upload script only sends the sliced PDF block
                 finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
+            } else {
+                alert("Invalid page selection range.");
+                return;
             }
         } catch (pdfError) {
-            console.error("PDF-LIB system error:", pdfError);
+            console.error("PDF-LIB processing failure:", pdfError);
+            alert("Error isolating pages. Upload aborted.");
+            return;
         }
     }
 
@@ -445,7 +453,9 @@ async function submitOrder() {
     const namePrefix = isBlackAndWhite ? "bw_" : "color_";
     const fileName = Date.now() + "_" + namePrefix + file.name;
     
-    const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
+    const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload, {
+        contentType: file.type
+    });
 
     if (uploadError) { alert(uploadError.message); return; }
 
