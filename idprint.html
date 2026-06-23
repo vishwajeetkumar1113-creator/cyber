@@ -246,8 +246,8 @@ function handleFileSelect(e, side) {
     reader.onload = function(event) {
         const rawImg = new Image();
         rawImg.onload = function() {
-            // HIGHLY OMITTED OPTIMIZER: Cap resolution dimensions to a max of 800px for immediate mobile acceleration
-            const maxDimension = 800;
+            // OPTIMIZED FOR QUALITY: Increased boundary resolution limit to 1200px for sharper documents
+            const maxDimension = 1200;
             let targetWidth = rawImg.width;
             let targetHeight = rawImg.height;
 
@@ -267,8 +267,8 @@ function handleFileSelect(e, side) {
             const optimizationCtx = optimizationCanvas.getContext('2d');
             optimizationCtx.drawImage(rawImg, 0, 0, targetWidth, targetHeight);
 
-            // Output compressed layout down to a smooth, low-latency target data tier
-            const optimizedDataUrl = optimizationCanvas.toDataURL("image/jpeg", 0.80);
+            // OPTIMIZED FOR QUALITY: Increased JPEG quality setting to 0.92 for crystal clear text fields
+            const optimizedDataUrl = optimizationCanvas.toDataURL("image/jpeg", 0.92);
             
             engine[side].originalSrc = optimizedDataUrl;
             engine[side].rotation = 0; 
@@ -584,7 +584,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
             r = factor * (r - 128) + 128;
             g = factor * (g - 128) + 128;
-            b = factor * (b - 128) + 128;
+            b = factor * (g - 128) + 128;
 
             let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
             if (luminance > 180) { 
