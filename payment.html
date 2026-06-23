@@ -62,7 +62,8 @@ const client = window.supabase.createClient(
 );
 
 const amount = localStorage.getItem("amount");
-const orderId = localStorage.getItem("current_order_id"); // Pull precise order ID row
+const mobile = localStorage.getItem("mobile");
+const orderId = localStorage.getItem("current_order_id"); 
 
 if (amount) {
     document.getElementById("amount").innerHTML = "Amount: ₹" + amount;
@@ -78,9 +79,35 @@ function payNow() {
         handler: async function (response) {
             
             localStorage.setItem("payment_id", response.razorpay_payment_id);
+            alert("Payment Successful! Syncing with Admin Dashboard...");
 
-            // PERFECT SYNC: Target the specific row matching the captured order ID
+            let updatedSuccessfully = false;
+
+            // STRATEGY 1: Update using the unique Order ID (Most accurate)
             if (orderId && orderId !== "undefined") {
+                try {
+                    const { data, error } = await client
+                        .from("orders")
+                        .update({ 
+                            payment_status: "Success", 
+                            payment_id: response.razorpay_payment_id 
+                        })
+                        .eq("id", orderId)
+                        .select(); 
+
+                    if (!error && data && data.length > 0) {
+                        updatedSuccessfully = true;
+                        console.log("Sync achieved via unique Order ID.");
+                    } else if (error) {
+                        console.error("ID Update Error Details:", error.message);
+                    }
+                } catch (err) {
+                    console.error("Network error during unique ID update:", err);
+                }
+            }
+
+            // STRATEGY 2: Backup Fallback (If ID matching fails, target the latest order matching the mobile number)
+            if (!updatedSuccessfully && mobile) {
                 try {
                     const { error } = await client
                         .from("orders")
@@ -88,26 +115,36 @@ function payNow() {
                             payment_status: "Success", 
                             payment_id: response.razorpay_payment_id 
                         })
-                        .eq("id", orderId); 
+                        .eq("mobile", mobile)
+                        .order("id", { ascending: false })
+                        .limit(1);
 
-                    if (error) {
-                        console.error("Database update sync error:", error.message);
+                    if (!error) {
+                        updatedSuccessfully = true;
+                        console.log("Sync achieved via mobile number fallback.");
+                    } else {
+                        alert("Database sync failed: " + error.message);
                     }
                 } catch (err) {
-                    console.error("Network interface error updating database:", err);
+                    console.error("Network error during mobile fallback update:", err);
                 }
-            } else {
-                console.warn("Sync warning: current_order_id was missing in memory.");
             }
 
-            const printType = localStorage.getItem("printType");
-            if (printType === "id") {
-                const frontUrl = localStorage.getItem("frontImage");
-                const backUrl = localStorage.getItem("backImage");
-                window.location.href = "idpreview.html?front=" + encodeURIComponent(frontUrl) + "&back=" + encodeURIComponent(backUrl);
-            } else {
-                window.location.href = "success.html";
+            if (!updatedSuccessfully) {
+                alert("Warning: Could not update status automatically. Please show payment receipt to counter.");
             }
+
+            // Execute redirect smoothly after database transaction cycle finishes
+            setTimeout(function() {
+                const printType = localStorage.getItem("printType");
+                if (printType === "id") {
+                    const frontUrl = localStorage.getItem("frontImage");
+                    const backUrl = localStorage.getItem("backImage");
+                    window.location.href = "idpreview.html?front=" + encodeURIComponent(frontUrl) + "&back=" + encodeURIComponent(backUrl);
+                } else {
+                    window.location.href = "success.html";
+                }
+            }, 1500);
         },
         theme: { color: "#1976d2" }
     };
