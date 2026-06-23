@@ -332,11 +332,14 @@ async function goFullscreen(side) {
     setTimeout(() => draw(side), 100);
 }
 
+// Fixed function structure ensuring full escape properties execute cleanly
 function closeFullscreen() {
-    if (document.fullscreenElement) {
-        document.exitFullscreen().catch(()=>{});
-    } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(()=>{});
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
     }
 }
 
@@ -648,7 +651,7 @@ async function submitID() {
     if (!name || !mobile) { alert("Enter customer details."); return; }
     if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
 
-    alert("Saving order and setting up secure checkout... Please wait.");
+    alert("Saving order... Please wait.");
 
     const frontName = Date.now() + "_front.jpg";
     const backName = Date.now() + "_back.jpg";
@@ -668,7 +671,7 @@ async function submitID() {
     const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
     const trackingPrintSummaryText = `ID Card - ${baseColorType} [${copiesInput} Copies]`;
 
-    // ADDED .select() here to gather the specific target ID back from Supabase instantly
+    // FIX: Safely structure returned data context to pull row entry ID metrics
     const { data: insertedOrder, error } = await client.from("orders").insert([{
         customer_name: name, 
         mobile: mobile, 
@@ -686,9 +689,13 @@ async function submitID() {
     localStorage.setItem("frontImage", frontUrl);
     localStorage.setItem("backImage", backUrl);
     localStorage.setItem("amount", totalAmountCalculation);
+    localStorage.setItem("mobile", mobile);
     localStorage.setItem("printType", "id");
-    // Save unique row order ID for payment confirmation tracking
-    localStorage.setItem("current_order_id", insertedOrder[0].id); 
+    
+    // FIX: Save the actual generated ID number into memory
+    if (insertedOrder && insertedOrder.length > 0) {
+        localStorage.setItem("current_order_id", insertedOrder[0].id); 
+    }
 
     window.location.href = "payment.html";
 }
