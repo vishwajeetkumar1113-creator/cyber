@@ -36,7 +36,7 @@
             box-sizing: border-box;
         }
 
-        /* 🌟 FIX: यहाँ एडवांस CSS फ़िल्टर लगाया गया है जो मटमैलेपन को साफ़ करके टेक्स्ट को गहरा काला करेगा */
+        /* 🌟 FIX: यहाँ से सारे फालतू फिल्टर्स हटा दिए गए हैं ताकि इमेज का ब्राइटनेस लेवल एकदम ओरिजिनल और सही दिखे */
         .card-img {
             width: 85.6mm;
             height: 54mm;
@@ -44,9 +44,6 @@
             border: 1px solid #000;
             border-radius: 2mm;
             display: block;
-            
-            /* कंट्रास्ट और ब्राइटनेस का परफेक्ट बैलेंस जो आधार कार्ड को एकदम साफ़ और प्रिंट-फ्रेंडली बनाता है */
-            filter: contrast(160%) brightness(102%) saturate(110%);
         }
 
         /* Controls Panel Layer (Hidden during physical print calls) */
@@ -109,7 +106,6 @@
                 page-break-before: avoid;
             }
             
-            /* प्रिंट करते समय भी फ़िल्टर की क्वालिटी वैसी ही बनी रहे */
             .card-img {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
