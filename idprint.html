@@ -246,7 +246,6 @@ function handleFileSelect(e, side) {
     reader.onload = function(event) {
         const rawImg = new Image();
         rawImg.onload = function() {
-            // OPTIMIZED FOR QUALITY: Increased boundary resolution limit to 1200px for sharper documents
             const maxDimension = 1200;
             let targetWidth = rawImg.width;
             let targetHeight = rawImg.height;
@@ -267,7 +266,6 @@ function handleFileSelect(e, side) {
             const optimizationCtx = optimizationCanvas.getContext('2d');
             optimizationCtx.drawImage(rawImg, 0, 0, targetWidth, targetHeight);
 
-            // OPTIMIZED FOR QUALITY: Increased JPEG quality setting to 0.92 for crystal clear text fields
             const optimizedDataUrl = optimizationCanvas.toDataURL("image/jpeg", 0.92);
             
             engine[side].originalSrc = optimizedDataUrl;
@@ -670,6 +668,7 @@ async function submitID() {
     const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
     const trackingPrintSummaryText = `ID Card - ${baseColorType} [${copiesInput} Copies]`;
 
+    // ADDED .select() here to gather the specific target ID back from Supabase instantly
     const { data: insertedOrder, error } = await client.from("orders").insert([{
         customer_name: name, 
         mobile: mobile, 
@@ -688,6 +687,7 @@ async function submitID() {
     localStorage.setItem("backImage", backUrl);
     localStorage.setItem("amount", totalAmountCalculation);
     localStorage.setItem("printType", "id");
+    // Save unique row order ID for payment confirmation tracking
     localStorage.setItem("current_order_id", insertedOrder[0].id); 
 
     window.location.href = "payment.html";
