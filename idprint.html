@@ -533,9 +533,9 @@ function draw(side) {
     window.addEventListener('touchend', handleEnd);
 });
 
-// फिक्स किया गया पर्स्पेक्टिव और पिक्सल एन्हांसमेंट चेकर
+// FIX: शर्त हटा दी गई है, अब यह फ़िल्टर हमेशा ब्राइटनेस और कॉन्ट्रास्ट को बढ़ाएगा
 function projectPerspective(srcImg, corners, targetW, targetH) {
-    targetW = 856; // हाई क्वालिटी आउटपुट साइज
+    targetW = 856; 
     targetH = 540;
 
     const hiddenCanvas = document.createElement('canvas');
@@ -549,7 +549,6 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
     const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
     const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
 
-    // पर्स्पेक्टिव क्रॉपिंग और रेंडरिंग
     for (let y = 0; y < targetH; y++) {
         for (let x = 0; x < targetW; x++) {
             let u = x / targetW;
@@ -571,53 +570,33 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
 
-        // स्टेप 1: क्रॉप्ड हिस्से की एवरेज ब्राइटनेस कैलकुलेट करें
-        let totalBrightness = 0;
-        const totalPixels = data.length / 4;
+        // फिक्स्ड एन्हांसमेंट वैल्यूज (जो हमेशा काम करेंगी)
+        let brightnessOffset = 30; // ब्राइटनेस बूस्टर
+        let contrastValue = 45; // हैवी कॉन्ट्रास्ट बूस्टर ताकि टेक्स्ट गहरा दिखे
+        let contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
 
-        for (let i = 0; i < data.length; i += 4) {
-            let luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            totalBrightness += luma;
-        }
-
-        const avgBrightness = totalBrightness / totalPixels;
-        console.log("Cropped Area Average Brightness:", avgBrightness);
-
-        // स्टेप 2: अगर इमेज डार्क (135 से कम) है, तो एन्हांसमेंट लागू करें
-        let brightnessOffset = 0;
-        let contrastFactor = 1;
-
-        if (avgBrightness < 135) {
-            console.log("Dark ID Image detected! Enhancing pixels dynamically...");
-            brightnessOffset = 30; // ब्राइटनेस बढ़ाएं
-            let contrastValue = 40; // मजबूत कॉन्ट्रास्ट वैल्यू
-            contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
-        }
-
-        // स्टेप 3: पिक्सल्स पर ब्राइटनेस और कॉन्ट्रास्ट लागू करें
+        // पूरे पिक्सल्स को प्रोसेस करें
         for (let i = 0; i < data.length; i += 4) {
             let r = data[i];
             let g = data[i + 1];
             let b = data[i + 2];
 
-            if (avgBrightness < 135) {
-                // ब्राइटनेस एडजस्ट करें
-                r += brightnessOffset;
-                g += brightnessOffset;
-                b += brightnessOffset;
+            // ब्राइटनेस बढ़ाएं
+            r += brightnessOffset;
+            g += brightnessOffset;
+            b += brightnessOffset;
 
-                // सुधरा हुआ कॉन्ट्रास्ट फॉर्मूला
-                r = contrastFactor * (r - 128) + 128;
-                g = contrastFactor * (g - 128) + 128;
-                b = contrastFactor * (b - 128) + 128;
-            }
+            // कॉन्ट्रास्ट फॉर्मूला लागू करें
+            r = contrastFactor * (r - 128) + 128;
+            g = contrastFactor * (g - 128) + 128;
+            b = contrastFactor * (b - 128) + 128;
 
             // गंदे / ग्रे बैकग्राउंड को साफ़ (Pure White) करने का नियम
             let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
             if (luminance > 175) { 
                 r = Math.min(255, r + 25);
-                g = Math.min(255, g + 25);
-                b = Math.min(255, b + 25);
+                g = Math.min(255, g + 20);
+                b = Math.min(255, b + 20);
             }
 
             // सुरक्षित सीमा (0-255)
@@ -628,7 +607,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
         ctx.putImageData(imgData, 0, 0);
     } catch (e) {
-        console.warn("Pixel auto enhancement array skipped:", e);
+        console.warn("Pixel matrix error:", e);
     }
 
     return hiddenCanvas;
@@ -650,7 +629,6 @@ function saveSide(side) {
 
     closeFullscreen();
 
-    // अब यह इमेज के वास्तविक रेजोल्यूशन डेटा को लेकर एन्हांस करेगा
     const resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
     
     const directCropUrl = resultCanvas.toDataURL("image/jpeg");
@@ -667,7 +645,7 @@ function saveSide(side) {
         if (side === 'front') frontBlob = processedFile;
         else backBlob = processedFile;
 
-    }, "image/jpeg", 0.85); // 0.85 प्रिंटिंग के लिए फाइल साइज और क्लेरिटी को बैलेंस रखता है
+    }, "image/jpeg", 0.85);
 }
 
 async function submitID() {
