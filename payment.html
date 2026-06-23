@@ -62,7 +62,7 @@ const client = window.supabase.createClient(
 );
 
 const amount = localStorage.getItem("amount");
-const orderId = localStorage.getItem("current_order_id"); // Pull precise order ID matching current transaction row
+const orderId = localStorage.getItem("current_order_id"); // Pull precise order ID row
 
 if (amount) {
     document.getElementById("amount").innerHTML = "Amount: ₹" + amount;
@@ -79,8 +79,8 @@ function payNow() {
             
             localStorage.setItem("payment_id", response.razorpay_payment_id);
 
-            // UNIQUE REDIRECT UPDATE: Targets the precise database entry row to completely bypass duplicates
-            if (orderId) {
+            // PERFECT SYNC: Target the specific row matching the captured order ID
+            if (orderId && orderId !== "undefined") {
                 try {
                     const { error } = await client
                         .from("orders")
@@ -96,6 +96,8 @@ function payNow() {
                 } catch (err) {
                     console.error("Network interface error updating database:", err);
                 }
+            } else {
+                console.warn("Sync warning: current_order_id was missing in memory.");
             }
 
             const printType = localStorage.getItem("printType");
