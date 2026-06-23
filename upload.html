@@ -12,7 +12,7 @@
         .preview-wrapper {
             width: 100%;
             max-width: 400px;
-            height: 350px; /* हाइट थोड़ी और बढ़ा दी ताकि पूरा स्क्रॉल व्यू अच्छे से दिखे */
+            height: 350px;
             margin: 15px auto;
             border: 2px dashed #1976d2;
             border-radius: 8px;
@@ -32,10 +32,9 @@
             color: #777;
             font-size: 14px;
             box-sizing: border-box;
-            gap: 12px; /* हर पेज के बीच में थोड़ा गैप रहेगा */
+            gap: 12px;
         }
         
-        /* इमेज और हर एक पेज के कैनवास का स्टाइल */
         .preview-box img, .preview-box canvas {
             max-width: 100%;
             height: auto;
@@ -83,7 +82,7 @@
 
     <div class="input-group">
         <label>Pages to Print:</label>
-        <input type="text" id="pages" placeholder="e.g., All, 1, 3-5" value="All" oninput="calculate();" required>
+        <input type="text" id="pages" placeholder="e.g., All, 1, 3-5" value="All" oninput="calculate(); previewDocument();" required>
     </div>
 
     <div class="input-group">
@@ -147,6 +146,7 @@ function resetFileCache() {
 async function previewDocument() {
     const previewContainer = document.getElementById("docPreview");
     const fileInput = document.getElementById("file").files[0];
+    let pageInput = document.getElementById("pages").value.trim();
 
     if (!fileInput) {
         previewContainer.innerHTML = '<span style="margin-top: 150px;">No file selected yet for preview</span>';
@@ -162,23 +162,37 @@ async function previewDocument() {
     if (currentFileType.startsWith("image/")) {
         previewContainer.innerHTML = `<img src="${currentlyLoadedFileURL}" alt="Document Preview">`;
     } else if (currentFileType === "application/pdf") {
-        previewContainer.innerHTML = "<span>Loading full document preview...</span>";
-        
         try {
             const fileArrayBuffer = await cachedFileObject.arrayBuffer();
             const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
             const pdf = await loadingTask.promise;
             
-            previewContainer.innerHTML = ""; // पुराना मैसेज क्लियर करें
+            // कस्टमर के सिलेक्टेड पेजेस की लिस्ट निकालें
+            let pagesToRender = [];
+            let targetPagesList = parsePageSelection(pageInput);
 
-            // FIX: लूप चलाकर एक-एक करके सारे पेजेस को रेंडर करना
-            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            if (targetPagesList !== null && targetPagesList.length > 0) {
+                // सिर्फ वही पेज रेंडर की लिस्ट में जाएंगे जो सिलेक्टेड हैं और PDF के अंदर हैं
+                pagesToRender = targetPagesList.filter(p => p >= 1 && p <= pdf.numPages);
+            } else {
+                // अगर "All" या खाली है, तो सारे पेजेस रेंडर होंगे
+                for (let i = 1; i <= pdf.numPages; i++) pagesToRender.push(i);
+            }
+
+            previewContainer.innerHTML = ""; // पुराना प्रीव्यू साफ करें
+
+            if (pagesToRender.length === 0) {
+                previewContainer.innerHTML = "<span>Invalid page selection</span>";
+                return;
+            }
+
+            // FIX: सिर्फ सिलेक्टेड पेजेस को लूप चलाकर रेंडर करना
+            for (let i = 0; i < pagesToRender.length; i++) {
+                const pageNum = pagesToRender[i];
                 const page = await pdf.getPage(pageNum);
                 
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
-                
-                // स्केल को 1.2 रखा ताकि टेक्स्ट बिल्कुल साफ दिखे और लोड होने में भी ज़्यादा समय न लगे
                 const viewport = page.getViewport({ scale: 1.2 }); 
 
                 canvas.height = viewport.height;
@@ -193,8 +207,8 @@ async function previewDocument() {
                 await page.render(renderContext).promise;
             }
         } catch (err) {
-            console.error("Error generating full PDF preview:", err);
-            previewContainer.innerHTML = "<span>Failed to load full preview</span>";
+            console.error("Error generating selective PDF preview:", err);
+            previewContainer.innerHTML = "<span>Failed to load preview</span>";
         }
     } else {
         previewContainer.innerHTML = "<span>Preview not supported for this file type</span>";
