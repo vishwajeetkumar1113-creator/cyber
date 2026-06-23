@@ -97,10 +97,11 @@
             text-align: center;
         }
 
+        /* 🌟 FIXED THEME COLOR SYSTEM: Red turns into Green for any successful validation */
         .badge-pending { background-color: #ffe699; color: #806000; }
         .badge-completed { background-color: #c6efce; color: #006100; }
         .badge-unpaid { background-color: #f8d7da; color: #721c24; }
-        .badge-paid { background-color: #d1ecf1; color: #0c5460; }
+        .badge-paid { background-color: #c6efce; color: #006100; } /* Set to clean Green badge */
 
         .action-btn {
             padding: 6px 12px;
@@ -197,8 +198,14 @@
             const row = document.createElement("tr");
             const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : "N/A";
             
-            const payStatus = order.payment_status || 'Pending';
-            const payBadgeClass = payStatus === "Completed" || payStatus === "Paid" ? "badge-paid" : "badge-unpaid";
+            // 🌟 CLEAN PARSING MATCH: Treats 'Success', 'Paid', or 'Completed' (case-insensitive) as GREEN
+            const payStatus = (order.payment_status || 'Pending').trim();
+            const lowerPay = payStatus.toLowerCase();
+            
+            let payBadgeClass = "badge-unpaid"; // Defaults to Red
+            if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
+                payBadgeClass = "badge-paid"; // Swaps to Green
+            }
 
             const prntStatus = order.print_status || 'Pending';
             const prntBadgeClass = prntStatus === "Completed" ? "badge-completed" : "badge-pending";
@@ -247,7 +254,6 @@
     async function markAsPrinted(orderId) {
         if (!confirm("Are you sure you want to mark this document as printed?")) return;
 
-        // Strictly targets the print_status text string and sets the true/false 'printed' column at once
         const { error } = await client
             .from("orders")
             .update({ 
