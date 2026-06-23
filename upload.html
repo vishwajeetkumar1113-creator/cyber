@@ -357,3 +357,75 @@ async function submitOrder() {
                 dynamicIndicesToKeep = pageNumbersList
                     .map(p => p - 1)
                     .filter(idx => idx >= 0 && idx < totalDocPagesCount);
+            } else {
+                calculatedIntegerPages = totalDocPagesCount;
+                for (let i = 0; i < totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
+            }
+
+            if (dynamicIndicesToKeep.length > 0) {
+                const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
+                copiedPages.forEach((page) => extractedPdf.addPage(page));
+                
+                if (isBlackAndWhite) {
+                    const targetPages = extractedPdf.getPages();
+                    targetPages.forEach(page => {
+                        page.pushOperators(
+                            PDFLib.pdfdoc.PDFOperator.of('cmd_set_color_space_gray', [
+                                PDFLib.PDFName.of('DeviceGray')
+                            ])
+                        );
+                    });
+                }
+                
+                const savedPdfBytes = await extractedPdf.save();
+                finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
+            }
+        } catch (pdfError) {
+            console.error("PDF-LIB system error:", pdfError);
+        }
+    }
+
+    alert("Uploading clean document... Please wait.");
+
+    const namePrefix = isBlackAndWhite ? "bw_" : "color_";
+    const fileName = Date.now() + "_" + namePrefix + file.name;
+    
+    const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
+
+    if (uploadError) { alert(uploadError.message); return; }
+
+    const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
+
+    const baseType = (isBlackAndWhite ? "Black & White" : "Color");
+    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
+
+    const { data: insertedOrder, error } = await client.from("orders").insert([
+        {
+            customer_name: name,
+            mobile: mobile,
+            pages: calculatedIntegerPages, 
+            print_type: detailedPrintSummary, 
+            amount: amount,
+            file_url: fileUrl,
+            payment_status: "Pending", 
+            payment_id: ""
+        }
+    ]).select();
+
+    if (error) {
+        alert(error.message);
+    } else {
+        localStorage.setItem("amount", amount);
+        localStorage.setItem("mobile", mobile);
+        localStorage.setItem("printType", "document");
+        
+        if (insertedOrder && insertedOrder.length > 0) {
+            localStorage.setItem("current_order_id", insertedOrder[0].id); 
+        }
+        window.location.href = "payment.html";
+    }
+}
+</script>
+
+</body>
+</html>
