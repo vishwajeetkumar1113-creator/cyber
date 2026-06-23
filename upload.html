@@ -373,7 +373,7 @@ async function submitOrder() {
     if (file.type.startsWith("image/")) {
         calculatedIntegerPages = 1;
         if (isBlackAndWhite) {
-            alert("Processing black & white image filters...");
+            alert("Processing image filters...");
             finalFileToUpload = await new Promise((resolve) => {
                 const img = new Image();
                 const objectUrl = URL.createObjectURL(file);
@@ -394,74 +394,78 @@ async function submitOrder() {
         let pageNumbersList = parsePageSelection(pages);
         
         try {
-            alert("Processing layout slicing matrix... Please wait.");
+            alert("Isolating and processing pages... Please wait.");
             
             const fileArrayBuffer = await file.arrayBuffer();
-            const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
-            const extractedPdf = await PDFLib.PDFDocument.create();
+            const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
+            const pdfjsDoc = await loadingTask.promise;
             
-            let totalDocPagesCount = srcPdf.getPageCount();
+            let totalDocPagesCount = pdfjsDoc.numPages;
             let dynamicIndicesToKeep = [];
 
             if (pageNumbersList !== null && pageNumbersList.length > 0) {
-                dynamicIndicesToKeep = pageNumbersList
-                    .map(p => p - 1)
-                    .filter(idx => idx >= 0 && idx < totalDocPagesCount);
-                
+                dynamicIndicesToKeep = pageNumbersList.filter(p => p >= 1 && p <= totalDocPagesCount);
                 dynamicIndicesToKeep = [...new Set(dynamicIndicesToKeep)];
                 calculatedIntegerPages = dynamicIndicesToKeep.length;
             } else {
                 calculatedIntegerPages = totalDocPagesCount;
-                for (let i = 0; i < totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
+                for (let i = 1; i <= totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
             }
 
             if (dynamicIndicesToKeep.length > 0) {
-                const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
-                copiedPages.forEach((page) => extractedPdf.addPage(page));
-                
-                // 🌟 FIX: Absolute Grayscale Processing. We structurally rewrite the binary color flags 
-                // for both vector operators AND any embedded color objects inside the dictionary layers.
-                if (isBlackAndWhite) {
-                    const targetPages = extractedPdf.getPages();
-                    targetPages.forEach(page => {
-                        // 1. Force the rendering pipeline framework into DeviceGray space paths
-                        page.pushOperators(
-                            PDFLib.PDFOperator.of('cmd_set_color_space_gray', [
-                                PDFLib.PDFName.of('DeviceGray')
-                            ])
-                        );
-                        
-                        // 2. Scan internal page dictionaries to intercept and strip embedded RGB image object profiles
-                        const { node } = page;
-                        const resources = node.Resources();
-                        if (resources) {
-                            const xObjects = resources.get(PDFLib.PDFName.of('XObject'));
-                            if (xObjects instanceof PDFLib.PDFDict) {
-                                const keys = xObjects.keys();
-                                keys.forEach(key => {
-                                    const xObject = xObjects.get(key);
-                                    if (xObject instanceof PDFLib.PDFStream) {
-                                        const subtype = xObject.dict.get(PDFLib.PDFName.of('Subtype'));
-                                        if (subtype && subtype.string === '/Image') {
-                                            // Convert the internal structural space map value profile to DeviceGray
-                                            xObject.dict.set(PDFLib.PDFName.of('ColorSpace'), PDFLib.PDFName.of('DeviceGray'));
-                                        }
-                                    }
-                                });
-                            }
+                // Create a completely clean output document binary block
+                const outputPdfDoc = await PDFLib.PDFDocument.create();
+
+                // 🌟 RE-RENDER MATRIX ENGINE: Re-render each specified page onto a clean A4 Canvas element
+                for (let i = 0; i < dynamicIndicesToKeep.length; i++) {
+                    const pageNum = dynamicIndicesToKeep[i];
+                    const page = await pdfjsDoc.getPage(pageNum);
+                    
+                    // High-quality print scale configuration
+                    const viewport = page.getViewport({ scale: 2.0 }); 
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+                    // 🌟 PIXEL STRIPPING: Force strict mathematical canvas-level grayscale filter mapping
+                    if (isBlackAndWhite) {
+                        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const data = imgData.data;
+                        for (let j = 0; j < data.length; j += 4) {
+                            let gray = 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2];
+                            data[j]     = gray;
+                            data[j + 1] = gray;
+                            data[j + 2] = gray;
                         }
+                        ctx.putImageData(imgData, 0, 0);
+                    }
+
+                    // Convert raw binary arrays to high-resolution JPEG streams
+                    const pageImageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                    const embeddedImageObj = await outputPdfDoc.embedJpg(pageImageBase64);
+
+                    // Add clean A4 container bounds natively matching original image aspects
+                    const pdfPage = outputPdfDoc.addPage([viewport.width, viewport.height]);
+                    pdfPage.drawImage(embeddedImageObj, {
+                        x: 0,
+                        y: 0,
+                        width: viewport.width,
+                        height: viewport.height
                     });
                 }
-                
-                const savedPdfBytes = await extractedPdf.save();
-                finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
+
+                const finalPdfBytes = await outputPdfDoc.save();
+                finalFileToUpload = new Blob([finalPdfBytes], { type: "application/pdf" });
             } else {
                 alert("Invalid page selection range.");
                 return;
             }
         } catch (pdfError) {
-            console.error("PDF-LIB processing failure:", pdfError);
-            alert("Error isolating pages. Upload aborted.");
+            console.error("PDF engine flat rasterizing routine failed:", pdfError);
+            alert("Error processing pages. Upload aborted.");
             return;
         }
     }
