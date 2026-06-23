@@ -68,11 +68,13 @@
             display: block;
         }
 
-        /* 🌟 FORCE GRAYSCALE FOR BLACK & WHITE ORDERS: Added style rule handles rendering profiles */
+        /* FIXED FORCE GRAYSCALE: Applies true grayscale filter layout to everything if active */
+        .print-container.bw-mode,
         .print-container.bw-mode .card-img,
+        .print-container.bw-mode iframe,
         .print-container.bw-mode canvas,
         .print-container.bw-mode img {
-            filter: grayscale(100%) contrast(120%) brightness(100%) !important;
+            filter: grayscale(100%) contrast(125%) brightness(100%) !important;
         }
 
         /* Controls Panel Layer (Hidden during physical print calls) */
@@ -154,9 +156,9 @@
                 print-color-adjust: exact;
             }
             
-            /* 🌟 Ensures the browser forces the printer hardware to drop color cart usage */
             .print-container.bw-mode {
                 filter: grayscale(100%) !important;
+                -webkit-filter: grayscale(100%) !important;
             }
         }
     </style>
@@ -177,20 +179,19 @@
 
 <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const frontUrl = urlParams.get('front');
-    const backUrl = urlParams.get('back');
-    const layoutMode = urlParams.get('layout'); 
     
-    // 🌟 READS ORDER TYPE FROM URL: Check if order summary contains Black & White string parameters
+    // 🌟 FIX: Use decodeURIComponent to cleanly unpack raw text parameters passed from the dashboard layout links
+    const frontUrl = decodeURIComponent(urlParams.get('front') || '');
+    const backUrl = decodeURIComponent(urlParams.get('back') || '');
+    const layoutMode = urlParams.get('layout'); 
     const printTypeSummary = urlParams.get('summary') || ''; 
-    const isBwOrder = printTypeSummary.toLowerCase().includes('black') || frontUrl.includes('bw_') || backUrl.includes('bw_');
 
     const frontImgEl = document.getElementById('frontCardImg');
     const backImgEl = document.getElementById('backCardImg');
     const printContainer = document.getElementById('printContainer');
     const pageElement = document.getElementById('pageElement');
 
-    if (frontUrl) {
+    if (frontUrl && frontUrl !== "null" && frontUrl.trim() !== "") {
         frontImgEl.src = frontUrl;
         frontImgEl.style.display = "block";
     }
@@ -200,8 +201,14 @@
         backImgEl.style.display = "block";
     }
 
-    // Apply the structural grayscale filtering class if it's a B&W request
-    if (isBwOrder) {
+    if (
+        printTypeSummary.toLowerCase().includes('black') || 
+        printTypeSummary.toLowerCase().includes('b&w') || 
+        frontUrl.toLowerCase().includes('_bw_') || 
+        frontUrl.toLowerCase().includes('/bw_') ||
+        backUrl.toLowerCase().includes('_bw_') ||
+        backUrl.toLowerCase().includes('/bw_')
+    ) {
         printContainer.classList.add('bw-mode');
     }
 
