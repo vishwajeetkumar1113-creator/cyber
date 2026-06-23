@@ -533,10 +533,10 @@ function draw(side) {
     window.addEventListener('touchend', handleEnd);
 });
 
-// FIX: री-इंजीनियर्ड पर्स्पेक्टिव फ़िल्टर जो पिक्सल ब्राइटनेस डेटा को सही से सिंक करता है
+// फिक्स किया गया पर्स्पेक्टिव और पिक्सल एन्हांसमेंट चेकर
 function projectPerspective(srcImg, corners, targetW, targetH) {
-    targetW = 428;
-    targetH = 270;
+    targetW = 856; // हाई क्वालिटी आउटपुट साइज
+    targetH = 540;
 
     const hiddenCanvas = document.createElement('canvas');
     hiddenCanvas.width = targetW;
@@ -549,6 +549,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
     const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
     const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
 
+    // पर्स्पेक्टिव क्रॉपिंग और रेंडरिंग
     for (let y = 0; y < targetH; y++) {
         for (let x = 0; x < targetW; x++) {
             let u = x / targetW;
@@ -559,8 +560,8 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
             let botX = p4[0] + u * (p3[0] - p4[0]);
             let botY = p4[1] + u * (p3[1] - p4[1]);
 
-            let srcX = (topX + v * (botX - topX)) * srcImg.naturalWidth;
-            let srcY = (topY + v * (botY - topY)) * srcImg.naturalHeight;
+            let srcX = (topX + v * (botX - topX)) * srcImg.width;
+            let srcY = (topY + v * (botY - topY)) * srcImg.height;
 
             ctx.drawImage(srcImg, srcX, srcY, 1, 1, x, y, 1, 1);
         }
@@ -570,7 +571,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
 
-        // स्टेप 1: क्रॉप्ड आईडी कार्ड की एवरेज ब्राइटनेस नापें
+        // स्टेप 1: क्रॉप्ड हिस्से की एवरेज ब्राइटनेस कैलकुलेट करें
         let totalBrightness = 0;
         const totalPixels = data.length / 4;
 
@@ -580,36 +581,151 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         }
 
         const avgBrightness = totalBrightness / totalPixels;
-        console.log("ID Card Crop - Calculated Average Brightness:", avgBrightness);
+        console.log("Cropped Area Average Brightness:", avgBrightness);
 
-        // स्टेप 2: अगर फोटो डार्क है (avgBrightness 130 से कम है), तभी फ़िल्टर एक्टिवेट करें
+        // स्टेप 2: अगर इमेज डार्क (135 से कम) है, तो एन्हांसमेंट लागू करें
         let brightnessOffset = 0;
         let contrastFactor = 1;
 
-        if (avgBrightness < 130) {
-            console.log("Low Brightness detected! Applying Auto-Enhancement Matrix...");
-            brightnessOffset = 25; 
-            let contrastValue = 35; 
+        if (avgBrightness < 135) {
+            console.log("Dark ID Image detected! Enhancing pixels dynamically...");
+            brightnessOffset = 30; // ब्राइटनेस बढ़ाएं
+            let contrastValue = 40; // मजबूत कॉन्ट्रास्ट वैल्यू
             contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
         }
 
-        // स्टेप 3: पिक्सल्स को प्रोसेस करें
+        // स्टेप 3: पिक्सल्स पर ब्राइटनेस और कॉन्ट्रास्ट लागू करें
         for (let i = 0; i < data.length; i += 4) {
             let r = data[i];
             let g = data[i + 1];
             let b = data[i + 2];
 
-            if (avgBrightness < 130) {
-                // ब्राइटनेस जोड़ें
+            if (avgBrightness < 135) {
+                // ब्राइटनेस एडजस्ट करें
                 r += brightnessOffset;
                 g += brightnessOffset;
                 b += brightnessOffset;
 
-                // कॉन्ट्रास्ट फॉर्मूला अप्लाई करें (गड़बड़ी सुधारी गई)
+                // सुधरा हुआ कॉन्ट्रास्ट फॉर्मूला
                 r = contrastFactor * (r - 128) + 128;
                 g = contrastFactor * (g - 128) + 128;
                 b = contrastFactor * (b - 128) + 128;
             }
 
-            // हाइलाइट्स फिक्सर: जो हिस्सा पहले से सफेद बैकग्राउंड है, उसे और साफ (Pure White) करें
-            let luminance = 0.
+            // गंदे / ग्रे बैकग्राउंड को साफ़ (Pure White) करने का नियम
+            let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            if (luminance > 175) { 
+                r = Math.min(255, r + 25);
+                g = Math.min(255, g + 25);
+                b = Math.min(255, b + 25);
+            }
+
+            // सुरक्षित सीमा (0-255)
+            data[i]     = Math.max(0, Math.min(255, r));
+            data[i + 1] = Math.max(0, Math.min(255, g));
+            data[i + 2] = Math.max(0, Math.min(255, b));
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+    } catch (e) {
+        console.warn("Pixel auto enhancement array skipped:", e);
+    }
+
+    return hiddenCanvas;
+}
+
+function saveSide(side) {
+    const s = engine[side];
+    if (!s.img) {
+        alert(`Please choose an image for ${side} first.`);
+        return;
+    }
+
+    const mappedCorners = s.corners.map(c => {
+        return {
+            x: (c.x - s.offsetX) / s.zoom,
+            y: (c.y - s.offsetY) / s.zoom
+        };
+    });
+
+    closeFullscreen();
+
+    // अब यह इमेज के वास्तविक रेजोल्यूशन डेटा को लेकर एन्हांस करेगा
+    const resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
+    
+    const directCropUrl = resultCanvas.toDataURL("image/jpeg");
+    document.getElementById(`${side}PreviewImg`).src = directCropUrl;
+    
+    const statusText = document.getElementById(`${side}PreviewStatus`);
+    statusText.innerText = "✓ Image Enhanced for Printing Successfully!";
+    statusText.className = "";
+    
+    document.getElementById(`${side}PreviewContainer`).style.display = "block";
+
+    resultCanvas.toBlob((baseBlob) => {
+        const processedFile = new File([baseBlob], `${side}.jpg`, { type: "image/jpeg" });
+        if (side === 'front') frontBlob = processedFile;
+        else backBlob = processedFile;
+
+    }, "image/jpeg", 0.85); // 0.85 प्रिंटिंग के लिए फाइल साइज और क्लेरिटी को बैलेंस रखता है
+}
+
+async function submitID() {
+    const name = document.getElementById("name").value.trim();
+    const mobile = document.getElementById("mobile").value.trim();
+    const copiesInput = parseInt(document.getElementById("copies").value) || 1;
+    const typeSelect = document.getElementById("type").value;
+
+    if (!name || !mobile) { alert("Enter customer details."); return; }
+    if (!frontBlob || !backBlob) { alert("Save both Front and Back crops first."); return; }
+
+    alert("Saving order... Please wait.");
+
+    const frontName = Date.now() + "_front.jpg";
+    const backName = Date.now() + "_back.jpg";
+
+    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { contentType: "image/jpeg", upsert: true });
+    if (frontUpload.error) { alert(frontUpload.error.message); return; }
+
+    const backUpload = await client.storage.from("documents").upload(backName, backBlob, { contentType: "image/jpeg", upsert: true });
+    if (backUpload.error) { alert(backUpload.error.message); return; }
+
+    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
+    const backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
+
+    let baseRate = parseInt(typeSelect); 
+    let totalAmountCalculation = copiesInput * baseRate;
+
+    const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
+    const trackingPrintSummaryText = `ID Card - ${baseColorType} [${copiesInput} Copies]`;
+
+    const { data: insertedOrder, error } = await client.from("orders").insert([{
+        customer_name: name, 
+        mobile: mobile, 
+        print_type: trackingPrintSummaryText, 
+        pages: copiesInput, 
+        amount: totalAmountCalculation,
+        front_url: frontUrl, 
+        back_url: backUrl, 
+        payment_status: "Pending", 
+        payment_id: ""
+    }]).select();
+
+    if (error) { alert(error.message); return; }
+
+    localStorage.setItem("frontImage", frontUrl);
+    localStorage.setItem("backImage", backUrl);
+    localStorage.setItem("amount", totalAmountCalculation);
+    localStorage.setItem("mobile", mobile);
+    localStorage.setItem("printType", "id");
+    
+    if (insertedOrder && insertedOrder.length > 0) {
+        localStorage.setItem("current_order_id", insertedOrder[0].id); 
+    }
+
+    window.location.href = "payment.html";
+}
+</script>
+
+</body>
+</html>
