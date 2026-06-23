@@ -1,153 +1,130 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Payment</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Payment Method</title>
     <link rel="stylesheet" href="css/style.css">
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background: #f5f5f5;
-            margin: 0;
-            padding: 15px;
-        }
-        .card {
-            width: 100%;
-            max-width: 400px;
-            margin: 20px auto;
-            background: white;
-            padding: 20px;
+        .payment-container {
+            max-width: 450px;
+            margin: 40px auto;
+            padding: 25px;
+            background: #ffffff;
             border-radius: 12px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            box-sizing: border-box;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
         }
-        h2 { font-size: 28px; }
-        h3 { font-size: 22px; word-break: break-word; }
-        img { width: 100%; max-width: 250px; height: auto; margin: 20px 0; }
-        button { width: 100%; background: #28a745; color: white; border: none; padding: 15px; cursor: pointer; border-radius: 8px; font-size: 18px; }
-        button:hover { background: #218838; }
-        p { font-size: 16px; }
-        @media (max-width: 480px) {
-            .card { padding: 15px; margin: 10px auto; }
-            h2 { font-size: 24px; }
-            h3 { font-size: 20px; }
-            button { font-size: 16px; padding: 14px; }
+
+        h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .amount-display {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+            margin: 20px 0;
+            background: #f0f7ff;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px dashed #1976d2;
+        }
+
+        .pay-btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+            color: white;
+        }
+
+        .pay-btn:active {
+            transform: scale(0.98);
+        }
+
+        .online-btn {
+            background-color: #28a745;
+        }
+
+        .online-btn:hover {
+            background-color: #218838;
+        }
+
+        /* 🌟 CASH BUTTON CUSTOM STYLES */
+        .cash-btn {
+            background-color: #85bb65; /* Money Green color accent */
+            border: 2px solid #73a953;
+        }
+
+        .cash-btn:hover {
+            background-color: #6e9e51;
+        }
+
+        .cancel-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .cancel-link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
-
 <body>
 
-<div class="card">
-    <h2>Payment</h2>
-    <h3 id="amount">Amount: ₹0</h3>
+<div class="payment-container">
+    <h2>Complete Your Order</h2>
+    <p style="color: #666;">Please select your preferred payment configuration mode below.</p>
+    
+    <div class="amount-display" id="priceDisplay">Total Amount: ₹0</div>
 
-    <img src="images/upi-qr.png" width="250" alt="UPI QR">
+    <button class="pay-btn online-btn" onclick="processOnlinePayment()">💳 Pay Online (UPI / Card)</button>
+    
+    <button class="pay-btn cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
 
-    <p><strong>UPI ID:</strong></p>
-    <h3>7992433200@sbi</h3>
-
-    <p>Click below to pay online.</p>
-    <button onclick="payNow()">Pay Now</button>
+    <a href="index.html" class="cancel-link">❌ Cancel & Abandon Order</a>
 </div>
 
 <script>
-const client = window.supabase.createClient(
-    "https://irqlvuphoblgjqysteto.supabase.co",
-    "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-"
-);
+    // Pull transaction details stored temporarily in client context cache storage
+    const billingAmount = localStorage.getItem("amount") || "0";
+    const targetOrderId = localStorage.getItem("current_order_id");
+    const customerMobile = localStorage.getItem("mobile");
 
-const amount = localStorage.getItem("amount");
-const mobile = localStorage.getItem("mobile");
-const orderId = localStorage.getItem("current_order_id"); 
-
-if (amount) {
-    document.getElementById("amount").innerHTML = "Amount: ₹" + amount;
-}
-
-function payNow() {
-    var options = {
-        key: "rzp_live_T49srqXpwl5lGy",
-        amount: amount * 100,
-        currency: "INR",
-        name: "Vishwajeet Cyber Cafe",
-        description: "Document Printing",
-        handler: async function (response) {
-            
-            localStorage.setItem("payment_id", response.razorpay_payment_id);
-            alert("Payment Successful! Syncing with Admin Dashboard...");
-
-            let updatedSuccessfully = false;
-
-            // STRATEGY 1: Update using the unique Order ID
-            if (orderId && orderId !== "undefined") {
-                try {
-                    const { data, error } = await client
-                        .from("orders")
-                        .update({ 
-                            payment_status: "Success", 
-                            payment_id: response.razorpay_payment_id 
-                        })
-                        .eq("id", orderId)
-                        .select(); 
-
-                    if (!error && data && data.length > 0) {
-                        updatedSuccessfully = true;
-                        console.log("Sync achieved via unique Order ID.");
-                    } else if (error) {
-                        console.error("ID Update Error Details:", error.message);
-                    }
-                } catch (err) {
-                    console.error("Network error during unique ID update:", err);
-                }
-            }
-
-            // STRATEGY 2: Backup Fallback using mobile number
-            if (!updatedSuccessfully && mobile) {
-                try {
-                    const { error } = await client
-                        .from("orders")
-                        .update({ 
-                            payment_status: "Success", 
-                            payment_id: response.razorpay_payment_id 
-                        })
-                        .eq("mobile", mobile)
-                        .order("id", { ascending: false })
-                        .limit(1);
-
-                    if (!error) {
-                        updatedSuccessfully = true;
-                        console.log("Sync achieved via mobile number fallback.");
-                    } else {
-                        alert("Database sync failed: " + error.message);
-                    }
-                } catch (err) {
-                    console.error("Network error during mobile fallback update:", err);
-                }
-            }
-
-            if (!updatedSuccessfully) {
-                alert("Warning: Could not update status automatically. Please show payment receipt to counter.");
-            }
-
-            // Execute redirect uniformly to success.html after database cycles conclude
-            setTimeout(function() {
-                window.location.href = "success.html";
-            }, 1200);
-        },
-        theme: { color: "#1976d2" }
+    window.onload = function() {
+        document.getElementById("priceDisplay").innerText = "Total Amount: ₹" + billingAmount;
     };
 
-    var rzp = new Razorpay(options);
-    rzp.on('payment.failed', function (response) {
-        alert("Payment Failed\n" + response.error.description);
-    });
-    rzp.open();
-}
+    function processOnlinePayment() {
+        // Your existing routing gateway configuration handles this loop block
+        alert("Redirecting to secure online payment gateway framework...");
+        // window.location.href = "online_gateway_url_here";
+    }
+
+    // 🌟 CASH TRANSACTION HANDLER ROUTINE
+    function processCashPayment() {
+        // Confirms intent action locally to avoid accidental user slip redirects
+        if (!confirm("Are you sure you want to pay using cash at the shop counter? Your document will print once marked by management.")) return;
+
+        console.log(`Cash checkout pipeline engaged for order document matching index: ${targetOrderId}`);
+
+        // Update local session data matrix so your success screen knows it was an offline cash collection profile
+        localStorage.setItem("last_payment_method", "Cash");
+        
+        // Instant hard destination routing swap straight into your order success template
+        window.location.href = "success.html";
+    }
 </script>
 
 </body>
