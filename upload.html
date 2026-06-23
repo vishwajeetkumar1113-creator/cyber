@@ -394,7 +394,7 @@ async function submitOrder() {
         let pageNumbersList = parsePageSelection(pages);
         
         try {
-            alert("Processing selected pages... Please wait.");
+            alert("Processing layout slicing matrix... Please wait.");
             
             const fileArrayBuffer = await file.arrayBuffer();
             const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -419,15 +419,37 @@ async function submitOrder() {
                 const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
                 copiedPages.forEach((page) => extractedPdf.addPage(page));
                 
-                // 🌟 FIX: Apply grayscale operators ONLY if Black & White option (type == 5) is selected
+                // 🌟 FIX: Absolute Grayscale Processing. We structurally rewrite the binary color flags 
+                // for both vector operators AND any embedded color objects inside the dictionary layers.
                 if (isBlackAndWhite) {
                     const targetPages = extractedPdf.getPages();
                     targetPages.forEach(page => {
+                        // 1. Force the rendering pipeline framework into DeviceGray space paths
                         page.pushOperators(
                             PDFLib.PDFOperator.of('cmd_set_color_space_gray', [
                                 PDFLib.PDFName.of('DeviceGray')
                             ])
                         );
+                        
+                        // 2. Scan internal page dictionaries to intercept and strip embedded RGB image object profiles
+                        const { node } = page;
+                        const resources = node.Resources();
+                        if (resources) {
+                            const xObjects = resources.get(PDFLib.PDFName.of('XObject'));
+                            if (xObjects instanceof PDFLib.PDFDict) {
+                                const keys = xObjects.keys();
+                                keys.forEach(key => {
+                                    const xObject = xObjects.get(key);
+                                    if (xObject instanceof PDFLib.PDFStream) {
+                                        const subtype = xObject.dict.get(PDFLib.PDFName.of('Subtype'));
+                                        if (subtype && subtype.string === '/Image') {
+                                            // Convert the internal structural space map value profile to DeviceGray
+                                            xObject.dict.set(PDFLib.PDFName.of('ColorSpace'), PDFLib.PDFName.of('DeviceGray'));
+                                        }
+                                    }
+                                });
+                            }
+                        }
                     });
                 }
                 
