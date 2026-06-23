@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <title>A4 Print Preview</title>
     <style>
-        /* A4 Page Formatting Rules */
-        body {
+        /* A4 Page Formatting Rules with Scrolling Enabled */
+        html, body {
             margin: 0;
             padding: 0;
             background: #f0f0f0;
             font-family: Arial, sans-serif;
+            min-height: 100%;
+            overflow-y: auto; 
+            overflow-x: hidden;
         }
 
         .page {
@@ -22,17 +25,18 @@
             position: relative;
         }
 
-        /* Default layout styling for standard double-sided prints */
+        /* Container layout for card elements */
         .print-container {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 20px;
-            padding-top: 40mm; /* Positions card objects inside upper print thresholds */
+            padding-top: 40mm; 
             width: 100%;
             box-sizing: border-box;
         }
 
+        /* 🌟 FIX: यहाँ एडवांस CSS फ़िल्टर लगाया गया है जो मटमैलेपन को साफ़ करके टेक्स्ट को गहरा काला करेगा */
         .card-img {
             width: 85.6mm;
             height: 54mm;
@@ -40,6 +44,9 @@
             border: 1px solid #000;
             border-radius: 2mm;
             display: block;
+            
+            /* कंट्रास्ट और ब्राइटनेस का परफेक्ट बैलेंस जो आधार कार्ड को एकदम साफ़ और प्रिंट-फ्रेंडली बनाता है */
+            filter: contrast(160%) brightness(102%) saturate(110%);
         }
 
         /* Controls Panel Layer (Hidden during physical print calls) */
@@ -49,6 +56,9 @@
             padding: 15px;
             text-align: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: sticky;
+            top: 0;
+            z-index: 9999;
         }
 
         .action-btn {
@@ -67,9 +77,25 @@
             background: #218838;
         }
 
+        /* Screen optimization for mobile displays */
+        @media (max-width: 215mm) {
+            .page {
+                margin: 5px auto !important;
+                width: 95vw !important;
+                height: auto !important;
+                min-height: 135vw !important;
+                padding: 10px !important;
+            }
+            .card-img {
+                width: 80vw !important;
+                height: 50.5vw !important;
+            }
+        }
+
         @media print {
-            body {
+            body, html {
                 background: white;
+                overflow: visible !important;
             }
             .no-print-bar {
                 display: none !important;
@@ -79,6 +105,14 @@
                 box-shadow: none !important;
                 width: 210mm;
                 height: 297mm;
+                page-break-after: avoid;
+                page-break-before: avoid;
+            }
+            
+            /* प्रिंट करते समय भी फ़िल्टर की क्वालिटी वैसी ही बनी रहे */
+            .card-img {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
         }
     </style>
@@ -97,7 +131,6 @@
 </div>
 
 <script>
-    // Read the explicit image URLs and layout queries from address params
     const urlParams = new URLSearchParams(window.location.search);
     const frontUrl = urlParams.get('front');
     const backUrl = urlParams.get('back');
@@ -107,7 +140,6 @@
     const backImgEl = document.getElementById('backCardImg');
     const printContainer = document.getElementById('printContainer');
 
-    // Populate and structure image fields based on input metrics
     if (frontUrl) {
         frontImgEl.src = frontUrl;
         frontImgEl.style.display = "block";
@@ -118,15 +150,11 @@
         backImgEl.style.display = "block";
     }
 
-    // TOP-CENTERED PAN CARD LAYOUT CONFIGURATION RULE
     if (layoutMode === 'top-center' || !backUrl || backUrl === "null" || backUrl.trim() === "") {
-        // Center the single card horizontally at the top portion of the page canvas
         printContainer.style.display = "flex";
         printContainer.style.justifyContent = "center";
         printContainer.style.alignItems = "center";
-        printContainer.style.paddingTop = "25mm"; // Standard top-middle alignment matching rule
-        
-        // Ensure the back card frame remains hidden
+        printContainer.style.paddingTop = "25mm"; 
         backImgEl.style.display = "none";
     }
 </script>
