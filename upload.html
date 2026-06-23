@@ -253,7 +253,7 @@ function calculate() {
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
 }
 
-// Re-engineered synchronous pixel converter loop
+// Fixed grayscale loop array processing engine
 function convertImageToGrayscale(imageElement) {
     const canvas = document.createElement("canvas");
     canvas.width = imageElement.width;
@@ -265,6 +265,7 @@ function convertImageToGrayscale(imageElement) {
     const data = imgData.data;
     
     for (let i = 0; i < data.length; i += 4) {
+        // Precise luminance mapping formula
         let v = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
         data[i]     = v; 
         data[i + 1] = v; 
@@ -286,7 +287,8 @@ async function submitOrder() {
     const mobile = document.getElementById("mobile").value.trim();
     if (mobile === "") { alert("Please enter Mobile Number."); return; }
 
-    const file = document.getElementById("file").files[0];
+    const fileInputEl = document.getElementById("file");
+    const file = fileInputEl.files[0];
     if (!file) { alert("Please select a document."); return; }
 
     const pages = document.getElementById("pages").value.trim();
@@ -302,14 +304,16 @@ async function submitOrder() {
     let calculatedIntegerPages = 1;
     let isBlackAndWhite = (type == 5); 
 
-    // FIX: Await image compilation completely before continuing execution flow
+    // 1. CONVERT IMAGES (JPG, PNG) TO SHARP COLORLESS FOR SERVER UPLOAD
     if (file.type.startsWith("image/") && isBlackAndWhite) {
         alert("Converting image to Black & White...");
         finalFileToUpload = await new Promise((resolve) => {
             const img = new Image();
-            img.src = URL.createObjectURL(file);
+            const objectUrl = URL.createObjectURL(file);
+            img.src = objectUrl;
             img.onload = function() {
                 const grayCanvas = convertImageToGrayscale(img);
+                URL.revokeObjectURL(objectUrl); // Clear resource instantly
                 grayCanvas.toBlob((blob) => {
                     const processedFile = new File([blob], file.name, { type: "image/jpeg" });
                     resolve(processedFile);
@@ -318,7 +322,7 @@ async function submitOrder() {
         });
     }
 
-    // PROCESS PDF DOCUMENTS (PER-PAGE CANVAS EXTRACTION RATIOS)
+    // 2. CONVERT PDF DOCUMENTS TO TRUE COLORLESS PAGES FOR SERVER UPLOAD
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
@@ -347,7 +351,7 @@ async function submitOrder() {
                 copiedPages.forEach((page) => extractedPdf.addPage(page));
                 
                 if (isBlackAndWhite) {
-                    alert("Rendering pages to pure colorless document streams...");
+                    alert("Converting PDF pages to pure Black & White...");
                     const savedNormalBytes = await extractedPdf.save();
                     const pdfjsDoc = await pdfjsLib.getDocument({ data: savedNormalBytes }).promise;
                     const finalGrayscalePdf = await PDFLib.PDFDocument.create();
@@ -393,9 +397,12 @@ async function submitOrder() {
         }
     }
 
-    alert("Uploading colorless file directly to server... Please wait.");
+    alert("Uploading file... Please wait.");
 
-    const fileName = Date.now() + "_" + file.name;
+    // Fix file naming convention to cleanly reflect B&W modifications on backend
+    const namePrefix = isBlackAndWhite ? "bw_" : "color_";
+    const fileName = Date.now() + "_" + namePrefix + file.name;
+    
     const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
 
     if (uploadError) { alert(uploadError.message); return; }
