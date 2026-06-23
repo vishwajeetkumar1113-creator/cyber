@@ -244,7 +244,6 @@ function handleFileSelect(e, side) {
 
     const reader = new FileReader();
     reader.onload = function(event) {
-        // FIX: सीधे असली इमेज ऑब्जेक्ट बनाकर उसे Base64 स्ट्रिंग की तरह लोड करना ताकि सुरक्षा लॉक टूटे
         const rawImg = new Image();
         rawImg.onload = function() {
             const maxDimension = 1200;
@@ -281,7 +280,6 @@ function handleFileSelect(e, side) {
 
 function loadImageData(side, src) {
     const img = new Image();
-    // सुरक्षा के लिए crossOrigin को सेट करना ज़रूरी है
     img.crossOrigin = "anonymous";
     
     img.onload = function() {
@@ -535,7 +533,7 @@ function draw(side) {
     window.addEventListener('touchend', handleEnd);
 });
 
-// फिक्स किया गया पर्स्पेक्टिव और पिक्सल एन्हांसमेंट चेकर (CORS प्रूफ)
+// FIX: स्मार्ट पिक्सेल एन्हांसर—यह केवल डार्क पिक्सल्स पर काम करेगा, ब्राइट पिक्सल्स को नहीं छुएगा
 function projectPerspective(srcImg, corners, targetW, targetH) {
     targetW = 856; 
     targetH = 540;
@@ -569,12 +567,11 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
     }
 
     try {
-        // अब ब्राउज़र की सुरक्षा ब्लॉक नहीं करेगी क्योंकि फ़ाइल Base64 लोकल स्ट्रिंग से बनी है
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
 
-        let brightnessOffset = 40; // ब्राइटनेस को और बढ़ाया गया
-        let contrastValue = 45;   // कॉन्ट्रास्ट को और मजबूत किया गया
+        // कॉन्ट्रास्ट सेटिंग मैट्रिक्स
+        let contrastValue = 40; 
         let contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
 
         for (let i = 0; i < data.length; i += 4) {
@@ -582,24 +579,32 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
             let g = data[i + 1];
             let b = data[i + 2];
 
-            // ब्राइटनेस को सीधे पिक्सल्स में जोड़ें
-            r += brightnessOffset;
-            g += brightnessOffset;
-            b += brightnessOffset;
+            // पिक्सेल की वर्तमान चमक (Luminance) चेक करें
+            let currentLuma = 0.299 * r + 0.587 * g + 0.114 * b;
 
-            // सही कॉन्ट्रास्ट फॉर्मूला लागू करें
-            r = contrastFactor * (r - 128) + 128;
-            g = contrastFactor * (g - 128) + 128;
-            b = contrastFactor * (b - 128) + 128;
+            // 🌟 जादू यहीं है: अगर पिक्सेल डार्क या शैडो एरिया में है (Luma < 140)
+            // तभी ब्राइटनेस बढ़ाओ और कॉन्ट्रास्ट डीप करो।
+            if (currentLuma < 140) {
+                // डार्क एरिया को ब्राइट करें
+                r += 35;
+                g += 35;
+                b += 35;
 
-            // बैकग्राउंड क्लीनर (ग्रे और गंदे हिस्से को डायरेक्ट व्हाइट करना)
-            let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            if (luminance > 165) { 
-                r = Math.min(255, r + 30);
-                g = Math.min(255, g + 30);
-                b = Math.min(255, b + 30);
+                // उस हिस्से का टेक्स्ट गहरा (Sharp) करने के लिए कॉन्ट्रास्ट लगाएं
+                r = contrastFactor * (r - 128) + 128;
+                g = contrastFactor * (g - 128) + 128;
+                b = contrastFactor * (b - 128) + 128;
+            } 
+            // 🌟 अगर पिक्सेल पहले से ही काफी ब्राइट है (जैसे e-Aadhaar का सफेद हिस्सा या अच्छी फोटो)
+            // तो उसे वैसा ही छोड़ दो, ताकि इमेज ओवर-व्हाइट न हो।
+            else if (currentLuma > 185) {
+                // जो गंदा सफेद या हल्का मटमैला हिस्सा है, उसे बिल्कुल साफ (Pure White) कर दें
+                r = Math.min(255, r + 20);
+                g = Math.min(255, g + 20);
+                b = Math.min(255, b + 20);
             }
 
+            // सुरक्षित सीमा सेट करें (0-255)
             data[i]     = Math.max(0, Math.min(255, r));
             data[i + 1] = Math.max(0, Math.min(255, g));
             data[i + 2] = Math.max(0, Math.min(255, b));
@@ -607,7 +612,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
         ctx.putImageData(imgData, 0, 0);
     } catch (e) {
-        console.error("Auto enhancement fatal error intercepted:", e);
+        console.error("Selective auto enhancement skipped:", e);
     }
 
     return hiddenCanvas;
