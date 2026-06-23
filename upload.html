@@ -32,10 +32,18 @@
             color: #777;
             font-size: 14px;
             box-sizing: border-box;
-            gap: 12px;
+            gap: 16px;
         }
         
-        /* Enforces that the canvas element scales strictly inside standard A4 container thresholds */
+        /* Container holding each dynamic canvas along with its page layout label overlay */
+        .page-render-container {
+            position: relative;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
         .preview-box img, .preview-box canvas {
             max-width: 100%;
             height: auto;
@@ -45,6 +53,18 @@
             border-radius: 4px;
         }
         
+        /* Dynamic label container overlay showing specific formatting info */
+        .page-badge-label {
+            margin-top: 6px;
+            background: #1976d2;
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
         .input-group {
             margin-bottom: 15px;
         }
@@ -161,7 +181,11 @@ async function previewDocument() {
     }
 
     if (currentFileType.startsWith("image/")) {
-        previewContainer.innerHTML = `<img src="${currentlyLoadedFileURL}" alt="Document Preview">`;
+        previewContainer.innerHTML = `
+            <div class="page-render-container">
+                <img src="${currentlyLoadedFileURL}" alt="Document Preview">
+                <div class="page-badge-label">Image File [Standard]</div>
+            </div>`;
     } else if (currentFileType === "application/pdf") {
         try {
             const fileArrayBuffer = await cachedFileObject.arrayBuffer();
@@ -186,20 +210,29 @@ async function previewDocument() {
                 return;
             }
 
-            // Fixed rendering process mapping elements cleanly onto the forced A4 bounding context
             for (let i = 0; i < pagesToRender.length; i++) {
                 const pageNum = pagesToRender[i];
                 const page = await pdf.getPage(pageNum);
                 
+                const pageWrapper = document.createElement('div');
+                pageWrapper.className = 'page-render-container';
+
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 
-                // 🌟 FIX: Force standard A4 layout rendering properties by normalizing viewport parameters
-                const targetA4Width = 595; // Standard architectural point calculation matching A4 dimensions
                 const initialViewport = page.getViewport({ scale: 1.0 });
+                let computedScale = 1.0;
+                let layoutModeText = "Portrait";
+
+                // 🌟 AUTOMATIC DETECTION: Calculate layout dynamically based on aspect ratio
+                if (initialViewport.width > initialViewport.height) {
+                    layoutModeText = "Landscape";
+                    // Soft scale restriction to prevent massive landscape widths from spilling
+                    computedScale = 400 / initialViewport.width;
+                } else {
+                    computedScale = 595 / initialViewport.width; // Strict A4 portrait matching parameters
+                }
                 
-                // Dynamically scale the page so it is exactly fitted inside an A4 bounding box framework
-                const computedScale = targetA4Width / initialViewport.width;
                 const viewport = page.getViewport({ scale: computedScale });
 
                 canvas.width = viewport.width;
@@ -210,11 +243,19 @@ async function previewDocument() {
                     viewport: viewport
                 };
                 
-                previewContainer.appendChild(canvas);
+                pageWrapper.appendChild(canvas);
+
+                // 🌟 DISPLAY CURRENT PAGE NUMBER & DOCUMENT TYPE INFO
+                const labelBadge = document.createElement('div');
+                labelBadge.className = 'page-badge-label';
+                labelBadge.innerText = `Page ${pageNum} of ${pdf.numPages} [${layoutModeText}]`;
+                pageWrapper.appendChild(labelBadge);
+
+                previewContainer.appendChild(pageWrapper);
                 await page.render(renderContext).promise;
             }
         } catch (err) {
-            console.error("Error forcing standard A4 rendering layout parameters:", err);
+            console.error("Error processing custom responsive preview layouts:", err);
             previewContainer.innerHTML = "<span>Failed to load preview</span>";
         }
     } else {
