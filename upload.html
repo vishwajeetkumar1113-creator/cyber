@@ -35,7 +35,6 @@
             gap: 16px;
         }
         
-        /* Container holding each dynamic canvas along with its page layout label overlay */
         .page-render-container {
             position: relative;
             width: 100%;
@@ -53,7 +52,6 @@
             border-radius: 4px;
         }
         
-        /* Dynamic label container overlay showing specific formatting info */
         .page-badge-label {
             margin-top: 6px;
             background: #1976d2;
@@ -136,6 +134,9 @@ let currentFileType = "";
 let cachedFileObject = null;
 let totalDetectedPDFPages = 1; 
 
+// 🌟 FIX: Global counter token to instantly kill overlapping async background render thread operations
+let activeRenderTaskId = 0; 
+
 async function handleFileSelectionChange() {
     resetFileCache();
     const fileInput = document.getElementById("file").files[0];
@@ -165,6 +166,9 @@ function resetFileCache() {
 }
 
 async function previewDocument() {
+    // Increment task ID instantly to signify an older sequence must terminate immediately
+    const currentTaskId = ++activeRenderTaskId; 
+    
     const previewContainer = document.getElementById("docPreview");
     const fileInput = document.getElementById("file").files[0];
     let pageInput = document.getElementById("pages").value.trim();
@@ -192,6 +196,9 @@ async function previewDocument() {
             const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
             const pdf = await loadingTask.promise;
             
+            // Check if input changed during file read initialization stage
+            if (currentTaskId !== activeRenderTaskId) return;
+
             let pagesToRender = [];
             let targetPagesList = parsePageSelection(pageInput);
 
@@ -211,6 +218,9 @@ async function previewDocument() {
             }
 
             for (let i = 0; i < pagesToRender.length; i++) {
+                // Break mid-loop if user edits selection range values continuously
+                if (currentTaskId !== activeRenderTaskId) return;
+
                 const pageNum = pagesToRender[i];
                 const page = await pdf.getPage(pageNum);
                 
@@ -224,13 +234,12 @@ async function previewDocument() {
                 let computedScale = 1.0;
                 let layoutModeText = "Portrait";
 
-                // 🌟 AUTOMATIC DETECTION: Calculate layout dynamically based on aspect ratio
+                // Secure calculations checking aspect metrics safely
                 if (initialViewport.width > initialViewport.height) {
                     layoutModeText = "Landscape";
-                    // Soft scale restriction to prevent massive landscape widths from spilling
-                    computedScale = 400 / initialViewport.width;
+                    computedScale = 380 / initialViewport.width; // Fixed bounding cap inside target elements box
                 } else {
-                    computedScale = 595 / initialViewport.width; // Strict A4 portrait matching parameters
+                    computedScale = 380 / initialViewport.width; 
                 }
                 
                 const viewport = page.getViewport({ scale: computedScale });
@@ -245,7 +254,6 @@ async function previewDocument() {
                 
                 pageWrapper.appendChild(canvas);
 
-                // 🌟 DISPLAY CURRENT PAGE NUMBER & DOCUMENT TYPE INFO
                 const labelBadge = document.createElement('div');
                 labelBadge.className = 'page-badge-label';
                 labelBadge.innerText = `Page ${pageNum} of ${pdf.numPages} [${layoutModeText}]`;
@@ -255,8 +263,10 @@ async function previewDocument() {
                 await page.render(renderContext).promise;
             }
         } catch (err) {
-            console.error("Error processing custom responsive preview layouts:", err);
-            previewContainer.innerHTML = "<span>Failed to load preview</span>";
+            console.error("Error processing customized structural PDF context ranges:", err);
+            if (currentTaskId === activeRenderTaskId) {
+                previewContainer.innerHTML = "<span>Failed to load preview</span>";
+            }
         }
     } else {
         previewContainer.innerHTML = "<span>Preview not supported for this file type</span>";
