@@ -390,7 +390,6 @@ async function submitOrder() {
         }
     }
 
-    // 🌟 FIX: Absolute PDF Slicing Engine that intercepts the payload file object
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
@@ -405,7 +404,6 @@ async function submitOrder() {
             let dynamicIndicesToKeep = [];
 
             if (pageNumbersList !== null && pageNumbersList.length > 0) {
-                // Ensure array index alignment and drop out-of-bound variables
                 dynamicIndicesToKeep = pageNumbersList
                     .map(p => p - 1)
                     .filter(idx => idx >= 0 && idx < totalDocPagesCount);
@@ -424,8 +422,9 @@ async function submitOrder() {
                 if (isBlackAndWhite) {
                     const targetPages = extractedPdf.getPages();
                     targetPages.forEach(page => {
+                        // 🌟 FIX: Namespace error corrected from PDFLib.pdfdoc.PDFOperator to PDFLib.PDFOperator
                         page.pushOperators(
-                            PDFLib.pdfdoc.PDFOperator.of('cmd_set_color_space_gray', [
+                            PDFLib.PDFOperator.of('cmd_set_color_space_gray', [
                                 PDFLib.PDFName.of('DeviceGray')
                             ])
                         );
@@ -433,7 +432,6 @@ async function submitOrder() {
                 }
                 
                 const savedPdfBytes = await extractedPdf.save();
-                // 🌟 FIX: Convert array to typed explicit application/pdf Blob block directly, bypassing fallbacks
                 finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
             } else {
                 alert("Invalid page selection range.");
@@ -451,7 +449,6 @@ async function submitOrder() {
     const namePrefix = isBlackAndWhite ? "bw_" : "color_";
     const fileName = Date.now() + "_" + namePrefix + file.name;
     
-    // 🌟 FIX: Force explicit type parameter during upload transmission
     const mimeTypeStr = file.type || "application/pdf";
     const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload, {
         contentType: mimeTypeStr,
