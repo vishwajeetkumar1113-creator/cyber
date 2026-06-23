@@ -390,12 +390,12 @@ async function submitOrder() {
         }
     }
 
-    // 🌟 FIX: Strict PDF Slicing Engine ensuring only selected pages get bundled and uploaded
+    // 🌟 FIX: Absolute PDF Slicing Engine that intercepts the payload file object
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
         try {
-            alert("Slicing requested pages... Please wait.");
+            alert("Isolating requested pages... Please wait.");
             
             const fileArrayBuffer = await file.arrayBuffer();
             const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -405,12 +405,11 @@ async function submitOrder() {
             let dynamicIndicesToKeep = [];
 
             if (pageNumbersList !== null && pageNumbersList.length > 0) {
-                // Keep only valid indices matching the user's custom choice range selection
+                // Ensure array index alignment and drop out-of-bound variables
                 dynamicIndicesToKeep = pageNumbersList
                     .map(p => p - 1)
                     .filter(idx => idx >= 0 && idx < totalDocPagesCount);
                 
-                // Drop duplicates to ensure accurate final tracking metrics
                 dynamicIndicesToKeep = [...new Set(dynamicIndicesToKeep)];
                 calculatedIntegerPages = dynamicIndicesToKeep.length;
             } else {
@@ -419,7 +418,6 @@ async function submitOrder() {
             }
 
             if (dynamicIndicesToKeep.length > 0) {
-                // Extract only the chosen pages into a clean, standalone binary block
                 const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
                 copiedPages.forEach((page) => extractedPdf.addPage(page));
                 
@@ -435,7 +433,7 @@ async function submitOrder() {
                 }
                 
                 const savedPdfBytes = await extractedPdf.save();
-                // Override the local file variable so the upload script only sends the sliced PDF block
+                // 🌟 FIX: Convert array to typed explicit application/pdf Blob block directly, bypassing fallbacks
                 finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
             } else {
                 alert("Invalid page selection range.");
@@ -448,13 +446,16 @@ async function submitOrder() {
         }
     }
 
-    alert("Uploading clean document... Please wait.");
+    alert("Uploading document... Please wait.");
 
     const namePrefix = isBlackAndWhite ? "bw_" : "color_";
     const fileName = Date.now() + "_" + namePrefix + file.name;
     
+    // 🌟 FIX: Force explicit type parameter during upload transmission
+    const mimeTypeStr = file.type || "application/pdf";
     const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload, {
-        contentType: file.type
+        contentType: mimeTypeStr,
+        upsert: true
     });
 
     if (uploadError) { alert(uploadError.message); return; }
