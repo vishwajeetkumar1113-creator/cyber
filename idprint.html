@@ -3,11 +3,14 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ID Card Print (Perspective Tool)</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        * {
+            touch-action: manipulation;
+        }
         .canvas-container {
             position: relative;
             margin: 15px auto;
@@ -18,6 +21,8 @@
             border-radius: 8px;
             overflow: hidden;
             transition: all 0.2s ease;
+            /* Prevents the mobile screen from scrolling when dragging corners */
+            touch-action: none; 
         }
         canvas {
             display: block;
@@ -165,7 +170,7 @@
     <hr>
 
     <h3>Front Side</h3>
-    <p class="instructions">Use mouse wheel or pinch to zoom. Drag corners to crop.</p>
+    <p class="instructions">Drag corners to crop. Use fingers to zoom/pan.</p>
     <input type="file" id="frontFile" accept="image/*">
     
     <div class="canvas-container" id="frontContainer">
@@ -347,24 +352,26 @@ function rotateImage(side) {
     tempImg.crossOrigin = "anonymous";
     tempImg.onload = function() {
         const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        if (s.rotation === 90 || s.rotation === 270) {
-            tempCanvas.width = tempImg.height;
-            tempCanvas.height = tempImg.width;
-        } else {
-            tempCanvas.width = tempImg.width;
-            tempCanvas.height = tempImg.height;
-        }
-        tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-        tempCtx.rotate((s.rotation * Math.PI) / 180);
-        tempCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
+        const tempCtx = tempCanvas.createElement('canvas').getContext('2d');
+        const canvasW = s.rotation === 90 || s.rotation === 270 ? tempImg.height : tempImg.width;
+        const canvasH = s.rotation === 90 || s.rotation === 270 ? tempImg.width : tempImg.height;
+        
+        const internalCanvas = document.createElement('canvas');
+        internalCanvas.width = canvasW;
+        internalCanvas.height = canvasH;
+        const internalCtx = internalCanvas.getContext('2d');
+        
+        internalCtx.translate(canvasW / 2, canvasH / 2);
+        internalCtx.rotate((s.rotation * Math.PI) / 180);
+        internalCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
+        
         const rotatedImg = new Image();
         rotatedImg.crossOrigin = "anonymous";
         rotatedImg.onload = function() {
             s.img = rotatedImg;
             draw(side);
         };
-        rotatedImg.src = tempCanvas.toDataURL("image/jpeg");
+        rotatedImg.src = internalCanvas.toDataURL("image/jpeg");
     };
     tempImg.src = s.originalSrc;
 }
@@ -388,10 +395,10 @@ function draw(side) {
     s.corners.forEach((corner) => {
         s.ctx.fillStyle = '#28a745';
         s.ctx.beginPath();
-        s.ctx.arc(corner.x, corner.y, 8, 0, Math.PI * 2);
+        s.ctx.arc(corner.x, corner.y, 14, 0, Math.PI * 2); // Increased hit radius to 14px for easy mobile fingertip tracking
         s.ctx.fill();
         s.ctx.strokeStyle = '#fff';
-        s.ctx.lineWidth = 2;
+        s.ctx.lineWidth = 3;
         s.ctx.stroke();
     });
 }
@@ -508,19 +515,76 @@ async function submitID() {
     window.location.href = "payment.html";
 }
 
+// 🌟 DUAL MOBILE + DESKTOP GESTURE INTERFACE PIPELINE
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
     let lastX = 0; let lastY = 0;
-    function getMousePos(e) {
+    
+    function getCanvasCoordinates(e) {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: (clientX - rect.left) * (canvas.width / rect.width), y: (clientY - rect.top) * (canvas.height / rect.height) };
+        return { 
+            x: (clientX - rect.left) * (canvas.width / rect.width), 
+            y: (clientY - rect.top) * (canvas.height / rect.height) 
+        };
     }
+
+    function startHandler(e) {
+        const s = engine[side]; if (!s.img) return;
+        if(e.touches && e.touches.length > 1) return; // Ignore if processing multifinger zoom expansions
+        
+        const pos = getCanvasCoordinates(e);
+        // Larger matching search bound (45px) to catch mobile thumb taps perfectly
+        s.activeCorner = s.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 45);
+        
+        if (s.activeCorner === -1 && s.zoom > 1) { 
+            s.isPanning = true; 
+            lastX = e.touches ? e.touches[0].clientX : e.clientX; 
+            lastY = e.touches ? e.touches[0].clientY : e.clientY; 
+        }
+    }
+
+    function moveHandler(e) {
+        const s = engine[side]; if (!s.img) return;
+        
+        if (s.activeCorner !== -1) {
+            if(e.cancelable) e.preventDefault(); // Lock down phone frame native bouncing
+            const pos = getCanvasCoordinates(e);
+            s.corners[s.activeCorner] = { x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) };
+            draw(side);
+        } else if (s.isPanning) {
+            if(e.cancelable) e.preventDefault();
+            const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+            const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+            s.offsetX += (currentX - lastX); 
+            s.offsetY += (currentY - lastY);
+            lastX = currentX; 
+            lastY = currentY; 
+            draw(side);
+        }
+    }
+
+    function endHandler() { 
+        engine[side].activeCorner = -1; 
+        engine[side].isPanning = false; 
+    }
+
+    // Desktop Mouse Handlers
+    canvas.addEventListener('mousedown', startHandler);
+    canvas.addEventListener('mousemove', moveHandler);
+    window.addEventListener('mouseup', endHandler);
+
+    // 🌟 Mobile Touch Handlers
+    canvas.addEventListener('touchstart', startHandler, { passive: false });
+    canvas.addEventListener('touchmove', moveHandler, { passive: false });
+    window.addEventListener('touchend', endHandler);
+
+    // Mouse Wheel Desktop Zoom Fallback Loop
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const s = engine[side]; if (!s.img) return;
-        const mouse = getMousePos(e);
+        const mouse = getCanvasCoordinates(e);
         let newZoom = e.deltaY < 0 ? s.zoom * 1.1 : s.zoom / 1.1;
         newZoom = Math.max(1, Math.min(8, newZoom));
         s.offsetX = mouse.x - (mouse.x - s.offsetX) * (newZoom / s.zoom);
@@ -529,25 +593,6 @@ async function submitID() {
         if(s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
         draw(side);
     }, { passive: false });
-
-    canvas.addEventListener('mousedown', (e) => {
-        const s = engine[side]; if (!s.img) return;
-        const pos = getMousePos(e);
-        s.activeCorner = s.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 35);
-        if (s.activeCorner === -1 && s.zoom > 1) { s.isPanning = true; lastX = e.clientX; lastY = e.clientY; }
-    });
-    canvas.addEventListener('mousemove', (e) => {
-        const s = engine[side]; if (!s.img) return;
-        if (s.activeCorner !== -1) {
-            const pos = getMousePos(e);
-            s.corners[s.activeCorner] = { x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) };
-            draw(side);
-        } else if (s.isPanning) {
-            s.offsetX += (e.clientX - lastX); s.offsetY += (e.clientY - lastY);
-            lastX = e.clientX; lastY = e.clientY; draw(side);
-        }
-    });
-    window.addEventListener('mouseup', () => { engine[side].activeCorner = -1; engine[side].isPanning = false; });
 });
 </script>
 </body>
