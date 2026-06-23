@@ -57,7 +57,6 @@
             font-weight: bold;
         }
         
-        /* Strict CSS rule to force immediate visual grayscale preview on screen */
         .force-grayscale {
             filter: grayscale(100%) brightness(105%) contrast(105%) !important;
         }
@@ -74,7 +73,7 @@
     
     <div class="input-group">
         <label>Select Document File:</label>
-        <input type="file" id="file" accept="image/*,application/pdf" onchange="resetFileCache(); previewDocument();" required>
+        <input type="file" id="file" accept="image/*,application/pdf" onchange="handleFileSelectionChange();" required>
     </div>
 
     <div class="preview-wrapper" id="previewWrapperFrame">
@@ -116,6 +115,27 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let currentlyLoadedFileURL = null;
 let currentFileType = "";
 let cachedFileObject = null;
+let totalDetectedPDFPages = 1; // Tracks actual total pages of uploaded PDF globally
+
+async function handleFileSelectionChange() {
+    resetFileCache();
+    const fileInput = document.getElementById("file").files[0];
+    totalDetectedPDFPages = 1; // Reset default count
+
+    if (fileInput && fileInput.type === "application/pdf") {
+        try {
+            // Read PDF directly on selection to detect exact multi-page bounds instantly
+            const fileArrayBuffer = await fileInput.arrayBuffer();
+            const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
+            totalDetectedPDFPages = srcPdf.getPageCount();
+        } catch (err) {
+            console.error("Error analyzing PDF page count on file select:", err);
+        }
+    }
+    
+    await previewDocument();
+    calculate();
+}
 
 function resetFileCache() {
     if (currentlyLoadedFileURL) {
@@ -242,18 +262,17 @@ function calculate() {
     let price = parseInt(document.getElementById("type").value);
     
     if (copies < 1) copies = 1;
-    let totalPages = 1;
+    let totalPages = totalDetectedPDFPages; // Use the actual detected page length instead of fallback 1
 
     let selectedPages = parsePageSelection(pageInput);
     if (selectedPages !== null) {
-        totalPages = selectedPages.length > 0 ? selectedPages.length : 1;
+        totalPages = selectedPages.length > 0 ? selectedPages.length : totalDetectedPDFPages;
     }
 
     let finalAmount = totalPages * price * copies;
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
 }
 
-// Full resolution image grayscale converter
 function convertImageToGrayscale(imageElement) {
     const canvas = document.createElement("canvas");
     canvas.width = imageElement.naturalWidth || imageElement.width;
@@ -300,10 +319,9 @@ async function submitOrder() {
     let amount = parseInt(displayPriceText.replace("Total: ₹", ""));
 
     let finalFileToUpload = file;
-    let calculatedIntegerPages = 1;
+    let calculatedIntegerPages = totalDetectedPDFPages;
     let isBlackAndWhite = (type == 5); 
 
-    // 1. IMAGE CONVERSION: Maintained at full natural camera dimensions
     if (file.type.startsWith("image/") && isBlackAndWhite) {
         alert("Processing high resolution image...");
         finalFileToUpload = await new Promise((resolve) => {
@@ -316,12 +334,11 @@ async function submitOrder() {
                 grayCanvas.toBlob((blob) => {
                     const processedFile = new File([blob], file.name, { type: "image/jpeg" });
                     resolve(processedFile);
-                }, "image/jpeg", 1.0); // 1.0 maintains maximum photo clarity
+                }, "image/jpeg", 1.0);
             };
         });
     }
 
-    // 2. PERFECT VECTOR PDF CONVERSION: No downscaling to images
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
@@ -340,77 +357,3 @@ async function submitOrder() {
                 dynamicIndicesToKeep = pageNumbersList
                     .map(p => p - 1)
                     .filter(idx => idx >= 0 && idx < totalDocPagesCount);
-            } else {
-                calculatedIntegerPages = totalDocPagesCount;
-                for (let i = 0; i < totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
-            }
-
-            if (dynamicIndicesToKeep.length > 0) {
-                const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
-                copiedPages.forEach((page) => extractedPdf.addPage(page));
-                
-                if (isBlackAndWhite) {
-                    // Inject internal color rendering operators directly into the document structure.
-                    // This forces the printer to output zero color saturation while keeping text vector lines perfectly sharp.
-                    const targetPages = extractedPdf.getPages();
-                    targetPages.forEach(page => {
-                        page.pushOperators(
-                            PDFLib.pdfdoc.PDFOperator.of('cmd_set_color_space_gray', [
-                                PDFLib.PDFName.of('DeviceGray')
-                            ])
-                        );
-                    });
-                }
-                
-                const savedPdfBytes = await extractedPdf.save();
-                finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
-            }
-        } catch (pdfError) {
-            console.error("PDF-LIB system error:", pdfError);
-        }
-    }
-
-    alert("Uploading clean document... Please wait.");
-
-    const namePrefix = isBlackAndWhite ? "bw_" : "color_";
-    const fileName = Date.now() + "_" + namePrefix + file.name;
-    
-    const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
-
-    if (uploadError) { alert(uploadError.message); return; }
-
-    const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
-
-    const baseType = (isBlackAndWhite ? "Black & White" : "Color");
-    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
-
-    const { data: insertedOrder, error } = await client.from("orders").insert([
-        {
-            customer_name: name,
-            mobile: mobile,
-            pages: calculatedIntegerPages, 
-            print_type: detailedPrintSummary, 
-            amount: amount,
-            file_url: fileUrl,
-            payment_status: "Pending", 
-            payment_id: ""
-        }
-    ]).select();
-
-    if (error) {
-        alert(error.message);
-    } else {
-        localStorage.setItem("amount", amount);
-        localStorage.setItem("mobile", mobile);
-        localStorage.setItem("printType", "document");
-        
-        if (insertedOrder && insertedOrder.length > 0) {
-            localStorage.setItem("current_order_id", insertedOrder[0].id); 
-        }
-        window.location.href = "payment.html";
-    }
-}
-</script>
-
-</body>
-</html>
