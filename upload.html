@@ -170,31 +170,40 @@ async function previewDocument() {
             let pagesToRender = [];
             let targetPagesList = parsePageSelection(pageInput);
 
-            // CONDITION CONDITION CHECK: अगर "All" या खाली है, तो सारे पेजेस रेंडर की लिस्ट में जाएंगे
+            // Adaptive calculation checks
             if (targetPagesList === null || targetPagesList.length === 0 || pageInput.toLowerCase() === "all") {
                 for (let i = 1; i <= pdf.numPages; i++) {
                     pagesToRender.push(i);
                 }
             } else {
-                // अगर कस्टम नंबर है, तो सिर्फ वही सिलेक्टेड पेजेस लिस्ट में आएंगे
                 pagesToRender = targetPagesList.filter(p => p >= 1 && p <= pdf.numPages);
             }
 
-            previewContainer.innerHTML = ""; // पुराना प्रीव्यू साफ करें
+            previewContainer.innerHTML = ""; 
 
             if (pagesToRender.length === 0) {
                 previewContainer.innerHTML = "<span>Invalid page selection</span>";
                 return;
             }
 
-            // रेंडरिंग लूप: चुनिंदा पेजेस या सारे पेजेस को स्क्रीन पर जोड़ना
+            // Dynamic rendering loop optimized for orientation metrics
             for (let i = 0; i < pagesToRender.length; i++) {
                 const pageNum = pagesToRender[i];
                 const page = await pdf.getPage(pageNum);
                 
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
-                const viewport = page.getViewport({ scale: 1.2 }); 
+                
+                // 🌟 FIX: Automatically adapt viewport scale parameters depending on landscape detection metrics
+                const rawViewport = page.getViewport({ scale: 1.0 });
+                let scaleFactor = 1.2;
+                
+                // If width is greater than height, it is landscape. Reduce scale slightly to fit perfectly inside the 400px view box framework.
+                if (rawViewport.width > rawViewport.height) {
+                    scaleFactor = 0.9; 
+                }
+                
+                const viewport = page.getViewport({ scale: scaleFactor });
 
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
@@ -208,7 +217,7 @@ async function previewDocument() {
                 await page.render(renderContext).promise;
             }
         } catch (err) {
-            console.error("Error generating adaptive PDF preview:", err);
+            console.error("Error generating adaptive landscape PDF preview:", err);
             previewContainer.innerHTML = "<span>Failed to load preview</span>";
         }
     } else {
