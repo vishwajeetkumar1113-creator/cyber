@@ -533,7 +533,7 @@ function draw(side) {
     window.addEventListener('touchend', handleEnd);
 });
 
-// FIX: स्मार्ट पिक्सेल एन्हांसर—यह केवल डार्क पिक्सल्स पर काम करेगा, ब्राइट पिक्सल्स को नहीं छुएगा
+// FIX: एडवांस स्कैनर मोड—यह धुंधले अक्षरों को गहरा काला करेगा और बैकग्राउंड को दूध जैसा सफेद करेगा
 function projectPerspective(srcImg, corners, targetW, targetH) {
     targetW = 856; 
     targetH = 540;
@@ -570,41 +570,38 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
 
-        // कॉन्ट्रास्ट सेटिंग मैट्रिक्स
-        let contrastValue = 40; 
-        let contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
-
+        // स्कैनर फ़िल्टर लूप
         for (let i = 0; i < data.length; i += 4) {
             let r = data[i];
             let g = data[i + 1];
             let b = data[i + 2];
 
-            // पिक्सेल की वर्तमान चमक (Luminance) चेक करें
-            let currentLuma = 0.299 * r + 0.587 * g + 0.114 * b;
+            // पिक्सेल की चमक (Luminance) नापें
+            let luma = 0.299 * r + 0.587 * g + 0.114 * b;
 
-            // 🌟 जादू यहीं है: अगर पिक्सेल डार्क या शैडो एरिया में है (Luma < 140)
-            // तभी ब्राइटनेस बढ़ाओ और कॉन्ट्रास्ट डीप करो।
-            if (currentLuma < 140) {
-                // डार्क एरिया को ब्राइट करें
-                r += 35;
-                g += 35;
-                b += 35;
-
-                // उस हिस्से का टेक्स्ट गहरा (Sharp) करने के लिए कॉन्ट्रास्ट लगाएं
-                r = contrastFactor * (r - 128) + 128;
-                g = contrastFactor * (g - 128) + 128;
-                b = contrastFactor * (b - 128) + 128;
+            // 1. बैकग्राउंड को साफ करना: अगर पिक्सेल हल्का मटमैला या मद्धम सफेद है (Luma > 140)
+            // तो उसे सीधे प्योर व्हाइट (255) कर दो ताकि प्रिंटिंग पेपर बिल्कुल क्लीन आए।
+            if (luma > 140) {
+                r = 255;
+                g = 255;
+                b = 255;
             } 
-            // 🌟 अगर पिक्सेल पहले से ही काफी ब्राइट है (जैसे e-Aadhaar का सफेद हिस्सा या अच्छी फोटो)
-            // तो उसे वैसा ही छोड़ दो, ताकि इमेज ओवर-व्हाइट न हो।
-            else if (currentLuma > 185) {
-                // जो गंदा सफेद या हल्का मटमैला हिस्सा है, उसे बिल्कुल साफ (Pure White) कर दें
-                r = Math.min(255, r + 20);
-                g = Math.min(255, g + 20);
-                b = Math.min(255, b + 20);
+            // 2. अक्षरों को गहरा करना: अगर पिक्सेल डार्क/ग्रे है (जैसे आपका नाम, पता या बारकोड)
+            // तो उसकी ब्राइटनेस को कम करो और शार्पनेस बढ़ाओ ताकि वह बिल्कुल गहरा काला (Bold) दिखे।
+            else {
+                // अक्षरों की डार्कनेस बढ़ाएं
+                r = Math.max(0, r - 50);
+                g = Math.max(0, g - 50);
+                b = Math.max(0, b - 50);
+                
+                // हार्ड कॉन्ट्रास्ट ट्यूनिंग ताकि धुंधलापन गायब हो जाए
+                let factor = 1.6; // टेक्स्ट शार्पनेस बूस्टर
+                r = factor * (r - 128) + 128;
+                g = factor * (g - 128) + 128;
+                b = factor * (b - 128) + 128;
             }
 
-            // सुरक्षित सीमा सेट करें (0-255)
+            // सुरक्षित लिमिट (0 से 255)
             data[i]     = Math.max(0, Math.min(255, r));
             data[i + 1] = Math.max(0, Math.min(255, g));
             data[i + 2] = Math.max(0, Math.min(255, b));
@@ -612,7 +609,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
         ctx.putImageData(imgData, 0, 0);
     } catch (e) {
-        console.error("Selective auto enhancement skipped:", e);
+        console.error("Document scanner matrix failed:", e);
     }
 
     return hiddenCanvas;
