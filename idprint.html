@@ -147,6 +147,23 @@
     <input type="text" id="name" placeholder="Customer Name" required>
     <input type="tel" id="mobile" placeholder="Mobile Number" required>
 
+    <div class="input-group">
+        <label>Number of Pages / Copies to Print:</label>
+        <input type="number" id="copies" value="1" min="1" oninput="calculatePrice()" required>
+    </div>
+
+    <div class="input-group">
+        <label>Print Type Mode:</label>
+        <select id="type" onchange="calculatePrice(); applyLiveGrayscalePreviewFilter();">
+            <option value="5" selected>Black & White (₹5 / copy)</option>
+            <option value="10">Color (₹10 / copy)</option>
+        </select>
+    </div>
+
+    <h3 id="totalPrice" style="color: #1976d2; text-align: center; margin-bottom: 20px;">Total Price: ₹5</h3>
+
+    <hr>
+
     <h3>Front Side</h3>
     <p class="instructions">Use mouse wheel or pinch to zoom. Drag corners to crop.</p>
     <input type="file" id="frontFile" accept="image/*">
@@ -198,23 +215,6 @@
         <img id="backPreviewImg" src="" alt="Back Preview">
         <p id="backPreviewStatus">✓ Back Side Saved</p>
     </div>
-
-    <hr>
-
-    <div class="input-group">
-        <label>Number of Pages / Copies to Print:</label>
-        <input type="number" id="copies" value="1" min="1" oninput="calculatePrice()" required>
-    </div>
-
-    <div class="input-group">
-        <label>Print Type Mode:</label>
-        <select id="type" onchange="calculatePrice(); applyLiveGrayscalePreviewFilter();">
-            <option value="5" selected>Black & White (₹5 / copy)</option>
-            <option value="10">Color (₹10 / copy)</option>
-        </select>
-    </div>
-
-    <h3 id="totalPrice" style="color: #1976d2; text-align: center;">Total Price: ₹5</h3>
 
     <br>
     <button onclick="submitID()" style="background:#1976d2;">Submit Processing Order</button>
@@ -447,7 +447,6 @@ function saveSide(side) {
     applyLiveGrayscalePreviewFilter();
 
     resultCanvas.toBlob((baseBlob) => {
-        // Encapsulating clean image data explicitly to prevent upload drops
         if (baseBlob) {
             if (side === 'front') frontBlob = baseBlob;
             else backBlob = baseBlob;
@@ -471,7 +470,6 @@ async function submitID() {
     const frontName = `${timestamp}_${prefix}front.jpg`;
     const backName = backBlob ? `${timestamp}_${prefix}back.jpg` : "";
 
-    // 🌟 FIX: Added upsert config properties to bypass database bucket security locks completely
     const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { 
         contentType: "image/jpeg",
         upsert: true 
