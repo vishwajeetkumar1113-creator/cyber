@@ -10,6 +10,8 @@
     <style>
         * {
             touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
         }
         .canvas-container {
             position: relative;
@@ -21,7 +23,6 @@
             border-radius: 8px;
             overflow: hidden;
             transition: all 0.2s ease;
-            /* Prevents the mobile screen from scrolling when dragging corners */
             touch-action: none; 
         }
         canvas {
@@ -170,7 +171,7 @@
     <hr>
 
     <h3>Front Side</h3>
-    <p class="instructions">Drag corners to crop. Use fingers to zoom/pan.</p>
+    <p class="instructions">Drag corners to crop. Use 2 fingers to pinch-zoom / pan.</p>
     <input type="file" id="frontFile" accept="image/*">
     
     <div class="canvas-container" id="frontContainer">
@@ -234,8 +235,8 @@ let frontBlob = null;
 let backBlob = null;
 
 const engine = {
-    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0 },
-    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0 }
+    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 },
+    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 }
 };
 
 engine.front.canvas = document.getElementById('frontCanvas');
@@ -347,21 +348,22 @@ function closeFullscreen() {
 function rotateImage(side) {
     const s = engine[side];
     if (!s.originalSrc) { alert("Upload image first."); return; }
+    
     s.rotation = (s.rotation + 90) % 360;
     const tempImg = new Image();
     tempImg.crossOrigin = "anonymous";
     tempImg.onload = function() {
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.createElement('canvas').getContext('2d');
-        const canvasW = s.rotation === 90 || s.rotation === 270 ? tempImg.height : tempImg.width;
-        const canvasH = s.rotation === 90 || s.rotation === 270 ? tempImg.width : tempImg.height;
-        
         const internalCanvas = document.createElement('canvas');
-        internalCanvas.width = canvasW;
-        internalCanvas.height = canvasH;
-        const internalCtx = internalCanvas.getContext('2d');
+        if (s.rotation === 90 || s.rotation === 270) {
+            internalCanvas.width = tempImg.height;
+            internalCanvas.height = tempImg.width;
+        } else {
+            internalCanvas.width = tempImg.width;
+            internalCanvas.height = tempImg.height;
+        }
         
-        internalCtx.translate(canvasW / 2, canvasH / 2);
+        const internalCtx = internalCanvas.getContext('2d');
+        internalCtx.translate(internalCanvas.width / 2, internalCanvas.height / 2);
         internalCtx.rotate((s.rotation * Math.PI) / 180);
         internalCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
         
@@ -395,7 +397,7 @@ function draw(side) {
     s.corners.forEach((corner) => {
         s.ctx.fillStyle = '#28a745';
         s.ctx.beginPath();
-        s.ctx.arc(corner.x, corner.y, 14, 0, Math.PI * 2); // Increased hit radius to 14px for easy mobile fingertip tracking
+        s.ctx.arc(corner.x, corner.y, 14, 0, Math.PI * 2); 
         s.ctx.fill();
         s.ctx.strokeStyle = '#fff';
         s.ctx.lineWidth = 3;
@@ -515,7 +517,7 @@ async function submitID() {
     window.location.href = "payment.html";
 }
 
-// 🌟 DUAL MOBILE + DESKTOP GESTURE INTERFACE PIPELINE
+// 🌟 ADVANCED MULTI-TOUCH ZOOM & PAN EVENT SYSTEM FOR MOBILE PHONES
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
     let lastX = 0; let lastY = 0;
@@ -530,57 +532,115 @@ async function submitID() {
         };
     }
 
-    function startHandler(e) {
+    // Touch Start Engine Interceptor
+    canvas.addEventListener('touchstart', function(e) {
         const s = engine[side]; if (!s.img) return;
-        if(e.touches && e.touches.length > 1) return; // Ignore if processing multifinger zoom expansions
         
-        const pos = getCanvasCoordinates(e);
-        // Larger matching search bound (45px) to catch mobile thumb taps perfectly
-        s.activeCorner = s.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 45);
-        
-        if (s.activeCorner === -1 && s.zoom > 1) { 
-            s.isPanning = true; 
-            lastX = e.touches ? e.touches[0].clientX : e.clientX; 
-            lastY = e.touches ? e.touches[0].clientY : e.clientY; 
+        if (e.touches.length === 2) {
+            // 🌟 TWO-FINGER ZOOM INITIATION
+            s.activeCorner = -1;
+            s.isPanning = false;
+            s.lastTouchDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            // Center focal point tracking for panning while zooming
+            s.lastTouchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            s.lastTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        } else if (e.touches.length === 1) {
+            // SINGLE-FINGER CORNER SELECTION OR PANNING
+            const pos = getCanvasCoordinates(e);
+            s.activeCorner = s.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 45);
+            
+            if (s.activeCorner === -1 && s.zoom > 1) { 
+                s.isPanning = true; 
+                lastX = e.touches[0].clientX; 
+                lastY = e.touches[0].clientY; 
+            }
         }
-    }
+    }, { passive: false });
 
-    function moveHandler(e) {
+    // Touch Movement Tracking Engine
+    canvas.addEventListener('touchmove', function(e) {
         const s = engine[side]; if (!s.img) return;
-        
+        if (e.cancelable) e.preventDefault(); // Stop mobile window scroll interference
+
+        if (e.touches.length === 2) {
+            // 🌟 PINCH TO ZOOM CALCULATION
+            const currentDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const currentX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+            let scaleFactor = currentDist / s.lastTouchDist;
+            let newZoom = s.zoom * scaleFactor;
+            newZoom = Math.max(1, Math.min(8, newZoom)); // Restrict boundaries between 1x and 8x zoom
+
+            // Adjust offset anchors around finger center point cleanly
+            const rect = canvas.getBoundingClientRect();
+            const canvasCenterX = (currentX - rect.left) * (canvas.width / rect.width);
+            const canvasCenterY = (currentY - rect.top) * (canvas.height / rect.height);
+
+            s.offsetX = canvasCenterX - (canvasCenterX - s.offsetX) * (newZoom / s.zoom);
+            s.offsetY = canvasCenterY - (canvasCenterY - s.offsetY) * (newZoom / s.zoom);
+            
+            // Apply layout values
+            s.zoom = newZoom;
+            s.offsetX += (currentX - s.lastTouchX);
+            s.offsetY += (currentY - s.lastTouchY);
+
+            s.lastTouchDist = currentDist;
+            s.lastTouchX = currentX;
+            s.lastTouchY = currentY;
+
+            if (s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
+            draw(side);
+        } else if (e.touches.length === 1) {
+            // SINGLE FINGER HANDLING CORNER DRAG OR POSITION PAN
+            if (s.activeCorner !== -1) {
+                const pos = getCanvasCoordinates(e);
+                s.corners[s.activeCorner] = { x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) };
+                draw(side);
+            } else if (s.isPanning) {
+                s.offsetX += (e.touches[0].clientX - lastX); 
+                s.offsetY += (e.touches[0].clientY - lastY);
+                lastX = e.touches[0].clientX; 
+                lastY = e.touches[0].clientY; 
+                draw(side);
+            }
+        }
+    }, { passive: false });
+
+    // Touch End Routine Reset
+    window.addEventListener('touchend', function() { 
+        engine[side].activeCorner = -1; 
+        engine[side].isPanning = false; 
+    });
+
+    // Desktop Click Mouse Event Fallback Links
+    canvas.addEventListener('mousedown', function(e) {
+        const s = engine[side]; if (!s.img) return;
+        const pos = getCanvasCoordinates(e);
+        s.activeCorner = s.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 45);
+        if (s.activeCorner === -1 && s.zoom > 1) { s.isPanning = true; lastX = e.clientX; lastY = e.clientY; }
+    });
+    
+    canvas.addEventListener('mousemove', function(e) {
+        const s = engine[side]; if (!s.img) return;
         if (s.activeCorner !== -1) {
-            if(e.cancelable) e.preventDefault(); // Lock down phone frame native bouncing
             const pos = getCanvasCoordinates(e);
             s.corners[s.activeCorner] = { x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) };
             draw(side);
         } else if (s.isPanning) {
-            if(e.cancelable) e.preventDefault();
-            const currentX = e.touches ? e.touches[0].clientX : e.clientX;
-            const currentY = e.touches ? e.touches[0].clientY : e.clientY;
-            s.offsetX += (currentX - lastX); 
-            s.offsetY += (currentY - lastY);
-            lastX = currentX; 
-            lastY = currentY; 
-            draw(side);
+            s.offsetX += (e.clientX - lastX); s.offsetY += (e.clientY - lastY);
+            lastX = e.clientX; lastY = e.clientY; draw(side);
         }
-    }
+    });
+    window.addEventListener('mouseup', function() { engine[side].activeCorner = -1; engine[side].isPanning = false; });
 
-    function endHandler() { 
-        engine[side].activeCorner = -1; 
-        engine[side].isPanning = false; 
-    }
-
-    // Desktop Mouse Handlers
-    canvas.addEventListener('mousedown', startHandler);
-    canvas.addEventListener('mousemove', moveHandler);
-    window.addEventListener('mouseup', endHandler);
-
-    // 🌟 Mobile Touch Handlers
-    canvas.addEventListener('touchstart', startHandler, { passive: false });
-    canvas.addEventListener('touchmove', moveHandler, { passive: false });
-    window.addEventListener('touchend', endHandler);
-
-    // Mouse Wheel Desktop Zoom Fallback Loop
+    // Mouse Wheel Desktop Scroll Zoom Loop
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const s = engine[side]; if (!s.img) return;
