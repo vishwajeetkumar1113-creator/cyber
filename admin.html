@@ -103,7 +103,7 @@
             <tr>
                 <th>Name</th>
                 <th>Mobile</th>
-                <th>Pages</th>
+                <th>Pages / Copies</th>
                 <th>Type / Instructions</th>
                 <th>Amount</th>
                 <th>Payment Status</th>
@@ -120,14 +120,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-
 const client = window.supabase.createClient(
     "https://irqlvuphoblgjqysteto.supabase.co",
     "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-"
 );
 
 async function loadOrders() {
-
     const { data, error } = await client
         .from("orders")
         .select("*")
@@ -141,7 +139,6 @@ async function loadOrders() {
     let html = "";
 
     data.forEach(order => {
-
         let preview = "";
 
         /* ID CARD ORDER */
@@ -155,7 +152,7 @@ async function loadOrders() {
                     <img src="${order.back_url}" class="preview-img"><br>
                     <a href="${order.back_url}" target="_blank">View Back</a><br><br>
                     <button class="print-btn" onclick="window.open('./idpreview.html?front=' + encodeURIComponent('${order.front_url}') + '&back=' + encodeURIComponent('${order.back_url}'), '_blank');">
-                         printer A4 Preview / Print
+                        🖨️ A4 Preview / Print
                     </button>
                 </div>
             `;
@@ -196,16 +193,16 @@ async function loadOrders() {
     document.getElementById("orders").innerHTML = html;
 }
 
-// Helper function to easily print images or PDFs directly within a hidden background frame
 function printDirectDocument(url) {
     const printWindow = window.open(url, '_blank');
     printWindow.focus();
-    // Triggers native print dialog once loaded if supported by file type
     printWindow.print();
 }
 
-loadOrders();
+// Polling interval to auto-refresh the dashboard tracking entries every 10 seconds automatically
+setInterval(loadOrders, 10000);
 
+loadOrders();
 </script>
 
 </body>
