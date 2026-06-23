@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>A4 Print Preview</title>
+    <title>A4 Print Preview (PAN Card Layout)</title>
     <style>
         /* A4 Page Formatting Rules with Scrolling Enabled */
         html, body {
@@ -25,20 +25,19 @@
             position: relative;
         }
 
-        /* 🌟 FIX: कन्टेंट को एक लाइन में रखने के लिए Row लेआउट बनाया और टॉप-मार्जिन सेट किया */
+        /* 🌟 FIX: Center layout structure perfectly positioning single items in top-middle */
         .print-container {
             display: flex;
-            flex-direction: row;
+            flex-direction: column;
             justify-content: flex-start;
-            align-items: flex-start;
-            gap: 10mm; /* दोनों कार्ड्स के बीच का गैप */
-            padding-top: 20mm; /* टॉप से दूरी */
-            padding-left: 15mm; /* लेफ्ट से मार्जिन ताकि लेफ्ट अलाइन सही रहे */
+            align-items: center; /* Centers the card horizontally on the A4 page */
+            gap: 20px;
+            padding-top: 40mm; /* Sets the precise gap from the top of the sheet */
             width: 100%;
             box-sizing: border-box;
         }
 
-        /* कार्ड का स्टैण्डर्ड प्रिंट साइज */
+        /* Standard CR-80 Document Print Proportions */
         .card-img {
             width: 85.6mm;
             height: 54mm;
@@ -84,12 +83,6 @@
                 height: auto !important;
                 min-height: 135vw !important;
                 padding: 10px !important;
-            }
-            .print-container {
-                flex-direction: column !important;
-                align-items: center !important;
-                padding-left: 0 !important;
-                gap: 15px !important;
             }
             .card-img {
                 width: 80vw !important;
@@ -149,14 +142,14 @@
         frontImgEl.style.display = "block";
     }
 
+    // Load back side image if it exists in data payload metrics
     if (backUrl && backUrl !== "null" && backUrl.trim() !== "") {
         backImgEl.src = backUrl;
         backImgEl.style.display = "block";
     }
 
-    // अगर केवल सिंगल साइड है या बैक यूआरएल खाली है
+    // Handles dynamic layout structural updates for single documents cleanly
     if (layoutMode === 'top-center' || !backUrl || backUrl === "null" || backUrl.trim() === "") {
-        printContainer.style.justifyContent = "flex-start";
         backImgEl.style.display = "none";
     }
 </script>
