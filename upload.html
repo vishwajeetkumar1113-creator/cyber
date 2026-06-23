@@ -333,9 +333,9 @@ function convertImageToGrayscale(imageElement) {
     
     for (let i = 0; i < data.length; i += 4) {
         let v = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        data[i]     = v; 
-        data[i + 1] = v; 
-        data[i + 2] = v; 
+        data[j]     = v; 
+        data[j + 1] = v; 
+        data[j + 2] = v; 
     }
     
     ctx.putImageData(imgData, 0, 0);
@@ -354,8 +354,8 @@ async function submitOrder() {
     if (mobile === "") { alert("Please enter Mobile Number."); return; }
 
     const fileInputEl = document.getElementById("file");
-    const file = fileInputEl.files[0];
-    if (!file) { alert("Please select a document."); return; }
+    const originalFileHandle = fileInputEl.files[0];
+    if (!originalFileHandle) { alert("Please select a document."); return; }
 
     const pages = document.getElementById("pages").value.trim();
     if (pages === "") { alert("Please specify print pages."); return; }
@@ -366,42 +366,55 @@ async function submitOrder() {
     let displayPriceText = document.getElementById("total").innerHTML;
     let amount = parseInt(displayPriceText.replace("Total: ₹", ""));
 
-    let finalFileToUpload = file;
+    let processedPayloadBlob = null;
     let calculatedIntegerPages = totalDetectedPDFPages;
     let isBlackAndWhite = (type == 5); 
-    
-    // 🌟 FIX: Force upload content profile mapping to prevent fallback issues
-    let finalMimeType = file.type;
+    let finalMimeType = originalFileHandle.type;
 
-    if (file.type.startsWith("image/")) {
+    // --- IMAGE FILE HANDLING PATH ---
+    if (originalFileHandle.type.startsWith("image/")) {
         calculatedIntegerPages = 1;
         if (isBlackAndWhite) {
-            alert("Processing image filters...");
+            alert("Converting Image to Black & White pattern profiles...");
             finalMimeType = "image/jpeg";
-            finalFileToUpload = await new Promise((resolve) => {
+            processedPayloadBlob = await new Promise((resolve) => {
                 const img = new Image();
-                const objectUrl = URL.createObjectURL(file);
+                const objectUrl = URL.createObjectURL(originalFileHandle);
                 img.src = objectUrl;
                 img.onload = function() {
-                    const grayCanvas = convertImageToGrayscale(img);
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.naturalWidth || img.width;
+                    canvas.height = img.naturalHeight || img.height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0);
+                    
+                    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imgData.data;
+                    for (let j = 0; j < data.length; j += 4) {
+                        let gray = 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2];
+                        data[j]     = gray; 
+                        data[j + 1] = gray; 
+                        data[j + 2] = gray; 
+                    }
+                    ctx.putImageData(imgData, 0, 0);
                     URL.revokeObjectURL(objectUrl);
-                    grayCanvas.toBlob((blob) => {
-                        const processedFile = new File([blob], file.name, { type: "image/jpeg" });
-                        resolve(processedFile);
-                    }, "image/jpeg", 0.92);
+                    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.90);
                 };
             });
+        } else {
+            processedPayloadBlob = originalFileHandle;
         }
     }
 
-    if (file.type === "application/pdf") {
+    // --- PDF FILE HANDLING PATH ---
+    if (originalFileHandle.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         finalMimeType = "application/pdf";
         
         try {
-            alert("Isolating and converting pages to Black & White... Please wait.");
+            alert("Isolating pages and converting layout formats... Please wait.");
             
-            const fileArrayBuffer = await file.arrayBuffer();
+            const fileArrayBuffer = await originalFileHandle.arrayBuffer();
             const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
             const pdfjsDoc = await loadingTask.promise;
             
@@ -424,6 +437,7 @@ async function submitOrder() {
                     const pageNum = dynamicIndicesToKeep[i];
                     const page = await pdfjsDoc.getPage(pageNum);
                     
+                    // High print resolution config (scale 2.0 matches crisp standard outputs)
                     const viewport = page.getViewport({ scale: 2.0 }); 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
@@ -457,30 +471,33 @@ async function submitOrder() {
                 }
 
                 const finalPdfBytes = await outputPdfDoc.save();
-                // 🌟 FIX: Absolute conversion directly reassigned to final storage upload array tracking block
-                finalFileToUpload = new Blob([finalPdfBytes], { type: "application/pdf" });
+                // Encapsulate into standalone binary block payload
+                processedPayloadBlob = new Blob([finalPdfBytes], { type: "application/pdf" });
             } else {
                 alert("Invalid page selection range.");
                 return;
             }
         } catch (pdfError) {
-            console.error("PDF engine flat rasterizing routine failed:", pdfError);
-            alert("Error processing pages. Upload aborted.");
+            console.error("PDF generation flat raster routine crash:", pdfError);
+            alert("Error isolating pages. Upload aborted.");
             return;
         }
     }
 
-    alert("Uploading document to database... Please wait.");
+    if (!processedPayloadBlob) {
+        alert("Processing mismatch error occurred.");
+        return;
+    }
+
+    alert("Uploading clean document to database... Please wait.");
 
     const namePrefix = isBlackAndWhite ? "bw_" : "color_";
-    
-    // 🌟 FIX: Normalize filename extension strings to prevent application mismatches inside storage panels
-    let targetExtension = file.type === "application/pdf" ? ".pdf" : ".jpg";
-    let baseRawCleanName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    let targetExtension = originalFileHandle.type === "application/pdf" ? ".pdf" : ".jpg";
+    let baseRawCleanName = originalFileHandle.name.substring(0, originalFileHandle.name.lastIndexOf('.')) || originalFileHandle.name;
     const fileName = Date.now() + "_" + namePrefix + baseRawCleanName + targetExtension;
     
-    // 🌟 FIX: Pass finalFileToUpload variable explicitly to Supabase storage instance
-    const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload, {
+    // 🌟 EXTRA FORCED OVERRIDE: Send ONLY the compiled binary block to completely bypass colored references
+    const { error: uploadError } = await client.storage.from("documents").upload(fileName, processedPayloadBlob, {
         contentType: finalMimeType,
         upsert: true
     });
