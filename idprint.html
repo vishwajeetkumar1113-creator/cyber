@@ -332,7 +332,6 @@ async function goFullscreen(side) {
     setTimeout(() => draw(side), 100);
 }
 
-// Fixed function structure ensuring full escape properties execute cleanly
 function closeFullscreen() {
     if (document.fullscreenElement || document.webkitFullscreenElement) {
         if (document.exitFullscreen) {
@@ -534,6 +533,7 @@ function draw(side) {
     window.addEventListener('touchend', handleEnd);
 });
 
+// स्मार्ट फिल्टर जो कम ब्राइटनेस होने पर ही ब्राइटनेस और कॉन्ट्रास्ट बढ़ाएगा
 function projectPerspective(srcImg, corners, targetW, targetH) {
     targetW = 428;
     targetH = 270;
@@ -570,30 +570,57 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
 
-        const contrast = 35; 
-        const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-        const brightnessOffset = 20; 
+        // स्टेप 1: क्रॉप्ड आईडी कार्ड की एवरेज ब्राइटनेस नापें
+        let totalBrightness = 0;
+        const totalPixels = data.length / 4;
 
+        for (let i = 0; i < data.length; i += 4) {
+            let luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            totalBrightness += luma;
+        }
+
+        const avgBrightness = totalBrightness / totalPixels;
+        console.log("ID Card Crop - Average Brightness:", avgBrightness);
+
+        // स्टेप 2: अगर फोटो डार्क है (avgBrightness 130 से कम है), तभी फ़िल्टर एक्टिवेट करें
+        let brightnessOffset = 0;
+        let contrastFactor = 1;
+
+        if (avgBrightness < 130) {
+            console.log("Dark ID Detected! Applying Auto-Enhancement...");
+            brightnessOffset = 25; // ब्राइटनेस बढ़ाएं
+            let contrastValue = 35; // कॉन्ट्रास्ट वैल्यू
+            contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
+        }
+
+        // स्टेप 3: पिक्सल्स को प्रोसेस करें
         for (let i = 0; i < data.length; i += 4) {
             let r = data[i];
             let g = data[i + 1];
             let b = data[i + 2];
 
-            r += brightnessOffset;
-            g += brightnessOffset;
-            b += brightnessOffset;
+            // केवल तभी बदलें जब फोटो धुंधली या डार्क हो
+            if (avgBrightness < 130) {
+                // ब्राइटनेस जोड़ें
+                r += brightnessOffset;
+                g += brightnessOffset;
+                b += brightnessOffset;
 
-            r = factor * (r - 128) + 128;
-            g = factor * (g - 128) + 128;
-            b = factor * (g - 128) + 128;
-
-            let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            if (luminance > 180) { 
-                r = Math.min(255, r + 25);
-                g = Math.min(255, g + 25);
-                b = Math.min(255, b + 25);
+                // कॉन्ट्रास्ट फॉर्मूला अप्लाई करें
+                r = contrastFactor * (r - 128) + 128;
+                g = contrastFactor * (g - 128) + 128;
+                b = contrastFactor * (b - 128) + 128;
             }
 
+            // हाइलाइट्स फिक्सर: जो हिस्सा पहले से सफेद बैकग्राउंड है, उसे और साफ (Pure White) करें
+            let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            if (luminance > 180) { 
+                r = Math.min(255, r + 20);
+                g = Math.min(255, g + 20);
+                b = Math.min(255, b + 20);
+            }
+
+            // सीमाओं को सुरक्षित रखें (0 से 255)
             data[i]     = Math.max(0, Math.min(255, r));
             data[i + 1] = Math.max(0, Math.min(255, g));
             data[i + 2] = Math.max(0, Math.min(255, b));
@@ -671,7 +698,6 @@ async function submitID() {
     const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
     const trackingPrintSummaryText = `ID Card - ${baseColorType} [${copiesInput} Copies]`;
 
-    // FIX: Safely structure returned data context to pull row entry ID metrics
     const { data: insertedOrder, error } = await client.from("orders").insert([{
         customer_name: name, 
         mobile: mobile, 
@@ -692,7 +718,6 @@ async function submitID() {
     localStorage.setItem("mobile", mobile);
     localStorage.setItem("printType", "id");
     
-    // FIX: Save the actual generated ID number into memory
     if (insertedOrder && insertedOrder.length > 0) {
         localStorage.setItem("current_order_id", insertedOrder[0].id); 
     }
