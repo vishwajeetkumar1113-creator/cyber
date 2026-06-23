@@ -35,7 +35,7 @@
             transform-origin: center center;
             box-sizing: border-box;
         }
-        .preview-box img, .preview-box canvas {
+        .preview-box img, .preview-box canvas, .preview-box iframe {
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
@@ -56,6 +56,11 @@
             margin-bottom: 5px;
             font-weight: bold;
         }
+        
+        /* Strict CSS rule to force immediate visual grayscale preview on screen */
+        .force-grayscale {
+            filter: grayscale(100%) brightness(105%) contrast(105%) !important;
+        }
     </style>
 </head>
 
@@ -72,7 +77,7 @@
         <input type="file" id="file" accept="image/*,application/pdf" onchange="resetFileCache(); previewDocument();" required>
     </div>
 
-    <div class="preview-wrapper">
+    <div class="preview-wrapper" id="previewWrapperFrame">
         <div class="preview-box" id="docPreview">
             <span>No file selected yet for preview</span>
         </div>
@@ -90,7 +95,7 @@
 
     <div class="input-group">
         <label>Print Type:</label>
-        <select id="type" onchange="calculate()">
+        <select id="type" onchange="calculate(); applyPreviewFilter();">
             <option value="5">Black & White (₹5 / page)</option>
             <option value="10">Color (₹10 / page)</option>
         </select>
@@ -191,6 +196,22 @@ async function previewDocument() {
     } else {
         previewContainer.innerHTML = "<span>Preview not supported for this file type</span>";
     }
+    
+    // Apply the display filter to the box wrapper instantly
+    applyPreviewFilter();
+}
+
+function applyPreviewFilter() {
+    const wrapperFrame = document.getElementById("previewWrapperFrame");
+    const printTypeDropdown = document.getElementById("type").value;
+    
+    if (wrapperFrame) {
+        if (printTypeDropdown == 5) {
+            wrapperFrame.classList.add("force-grayscale");
+        } else {
+            wrapperFrame.classList.remove("force-grayscale");
+        }
+    }
 }
 
 function parsePageSelection(pageInput) {
@@ -233,7 +254,7 @@ function calculate() {
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
 }
 
-// Helper function to turn an image element colorless (Grayscale) using HTML5 Canvas
+// Fixed grayscale loop array processing engine
 function convertImageToGrayscale(imageElement) {
     const canvas = document.createElement("canvas");
     canvas.width = imageElement.width;
@@ -244,12 +265,11 @@ function convertImageToGrayscale(imageElement) {
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imgData.data;
     
-    // Standard luminosity coefficients for realistic colorless transformation
     for (let i = 0; i < data.length; i += 4) {
-        let brightness = 0.34 * data[i] + 0.5 * data[i + 1] + 0.16 * data[i + 2];
-        data[i]     = brightness; // Red
-        data[i + 1] = brightness; // Green
-        data[i + 2] = brightness; // Blue
+        let v = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        data[i]     = v; 
+        data[i + 1] = v; 
+        data[i + 2] = v; 
     }
     
     ctx.putImageData(imgData, 0, 0);
@@ -281,30 +301,30 @@ async function submitOrder() {
 
     let finalFileToUpload = file;
     let calculatedIntegerPages = 1;
-    let isBlackAndWhite = (type == 5); // Check if customer selected Black & White
+    let isBlackAndWhite = (type == 5); 
 
-    // PROCESS IMAGES (JPG, PNG) TO COLORLESS
+    // 1. CONVERT IMAGES (JPG, PNG) TO SHARP GRAYSCALE FOR SERVER UPLOAD
     if (file.type.startsWith("image/") && isBlackAndWhite) {
-        alert("Converting image to Black & White...");
+        alert("Processing: Converting image to colorless layout...");
         try {
             const img = new Image();
             img.src = URL.createObjectURL(file);
             await new Promise(resolve => img.onload = resolve);
             
             const grayCanvas = convertImageToGrayscale(img);
-            const blob = await new Promise(resolve => grayCanvas.toBlob(resolve, "image/jpeg", 0.90));
+            const blob = await new Promise(resolve => grayCanvas.toBlob(resolve, "image/jpeg", 0.92));
             finalFileToUpload = new File([blob], file.name, { type: "image/jpeg" });
         } catch (err) {
-            console.error("Image grayscale filter failed:", err);
+            console.error("Image grayscale engine failure:", err);
         }
     }
 
-    // PROCESS PDF DOCUMENTS TO COLORLESS
+    // 2. CONVERT PDF DOCUMENTS TO TRUE COLORLESS PAGES FOR SERVER UPLOAD
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
         try {
-            alert("Processing PDF document... Please wait.");
+            alert("Processing PDF file rules... Please wait.");
             
             const fileArrayBuffer = await file.arrayBuffer();
             const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -327,28 +347,54 @@ async function submitOrder() {
                 const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
                 copiedPages.forEach((page) => extractedPdf.addPage(page));
                 
-                // If Black & White option is chosen, apply grayscale overlay filter natively to the PDF document layout
                 if (isBlackAndWhite) {
-                    const pagesArray = extractedPdf.getPages();
-                    pagesArray.forEach(page => {
-                        // Renders a grayscale blend filter on top of the elements container context
-                        page.pushOperators(
-                            PDFLib.pdfdoc.PDFOperator.of(PDFLib.CustomOpcodes.SetGraphicsState, [
-                                PDFLib.PDFName.of('ExtGStateBMGrayscale')
-                            ])
-                        );
-                    });
+                    alert("Converting PDF pages to pure Black & White...");
+                    const savedNormalBytes = await extractedPdf.save();
+                    const pdfjsDoc = await pdfjsLib.getDocument({ data: savedNormalBytes }).promise;
+                    const finalGrayscalePdf = await PDFLib.PDFDocument.create();
+
+                    for (let i = 0; i < pdfjsDoc.numPages; i++) {
+                        const page = await pdfjsDoc.getPage(i + 1);
+                        const viewport = page.getViewport({ scale: 2.0 }); 
+                        
+                        const renderCanvas = document.createElement("canvas");
+                        renderCanvas.width = viewport.width;
+                        renderCanvas.height = viewport.height;
+                        const renderCtx = renderCanvas.getContext("2d");
+
+                        await page.render({ canvasContext: renderCtx, viewport: viewport }).promise;
+
+                        const imgData = renderCtx.getImageData(0, 0, renderCanvas.width, renderCanvas.height);
+                        const data = imgData.data;
+                        for (let j = 0; j < data.length; j += 4) {
+                            let brightness = 0.299 * data[j] + 0.587 * data[j+1] + 0.114 * data[j+2];
+                            data[j] = brightness;
+                            data[j+1] = brightness;
+                            data[j+2] = brightness;
+                        }
+                        renderCtx.putImageData(imgData, 0, 0);
+
+                        const imageJpgUrl = renderCanvas.toDataURL("image/jpeg", 0.85);
+                        const embeddedImage = await finalGrayscalePdf.embedJpg(imageJpgUrl);
+                        
+                        const newPage = finalGrayscalePdf.addPage([viewport.width, viewport.height]);
+                        newPage.drawImage(embeddedImage, {
+                            x: 0, y: 0, width: viewport.width, height: viewport.height
+                        });
+                    }
+                    const savedPdfBytes = await finalGrayscalePdf.save();
+                    finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
+                } else {
+                    const savedPdfBytes = await extractedPdf.save();
+                    finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
                 }
-                
-                const savedPdfBytes = await extractedPdf.save();
-                finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
             }
         } catch (pdfError) {
             console.error("PDF-LIB processing failed:", pdfError);
         }
     }
 
-    alert("Uploading document... Please wait.");
+    alert("Uploading colorless file directly to server... Please wait.");
 
     const fileName = Date.now() + "_" + file.name;
     const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
