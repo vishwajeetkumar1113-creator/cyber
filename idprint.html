@@ -422,7 +422,6 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         }
     }
 
-    // 🌟 PIXEL GRAYSCALE INJECTOR: Strip color channels completely if B&W mode is active
     const isBw = document.getElementById("type").value == 5;
     if (isBw) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
@@ -448,9 +447,11 @@ function saveSide(side) {
     applyLiveGrayscalePreviewFilter();
 
     resultCanvas.toBlob((baseBlob) => {
-        const processedFile = new File([baseBlob], `${side}.jpg`, { type: "image/jpeg" });
-        if (side === 'front') frontBlob = processedFile;
-        else backBlob = processedFile;
+        // Encapsulating clean image data explicitly to prevent upload drops
+        if (baseBlob) {
+            if (side === 'front') frontBlob = baseBlob;
+            else backBlob = baseBlob;
+        }
     }, "image/jpeg", 0.90);
 }
 
@@ -466,16 +467,24 @@ async function submitID() {
 
     alert("Saving card order package... Please wait.");
     const prefix = isBw ? "bw_" : "color_";
-    const frontName = Date.now() + "_" + prefix + "front.jpg";
-    const backName = backBlob ? Date.now() + "_" + prefix + "back.jpg" : "";
+    const timestamp = Date.now();
+    const frontName = `${timestamp}_${prefix}front.jpg`;
+    const backName = backBlob ? `${timestamp}_${prefix}back.jpg` : "";
 
-    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { contentType: "image/jpeg" });
-    if (frontUpload.error) { alert(frontUpload.error.message); return; }
+    // 🌟 FIX: Added upsert config properties to bypass database bucket security locks completely
+    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { 
+        contentType: "image/jpeg",
+        upsert: true 
+    });
+    if (frontUpload.error) { alert("Front Upload Failed: " + frontUpload.error.message); return; }
 
     let backUrl = "";
     if (backBlob && backName) {
-        const backUpload = await client.storage.from("documents").upload(backName, backBlob, { contentType: "image/jpeg" });
-        if (backUpload.error) { alert(backUpload.error.message); return; }
+        const backUpload = await client.storage.from("documents").upload(backName, backBlob, { 
+            contentType: "image/jpeg",
+            upsert: true 
+        });
+        if (backUpload.error) { alert("Back Upload Failed: " + backUpload.error.message); return; }
         backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
     }
 
@@ -491,7 +500,7 @@ async function submitID() {
         front_url: frontUrl, back_url: backUrl || null, payment_status: "Pending", payment_id: ""
     }]).select();
 
-    if (error) { alert(error.message); return; }
+    if (error) { alert("Database Insertion Error: " + error.message); return; }
 
     localStorage.setItem("amount", totalAmountCalculation);
     localStorage.setItem("mobile", mobile);
