@@ -1,240 +1,282 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print Shop Admin Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body {
-            background: #f5f5f5;
-            font-family: Arial, sans-serif;
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        .card {
+        body {
+            background-color: #f4f6f9;
+            color: #333;
             padding: 20px;
-            max-width: 95%;
-            margin: 30px auto;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #eaeaea;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+        }
+
+        .header h1 {
+            color: #1976d2;
+            font-size: 28px;
+        }
+
+        .refresh-btn {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background-color: #115293;
+        }
+
+        .orders-table-wrapper {
+            overflow-x: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
-            margin-top: 20px;
+            margin-top: 10px;
+            text-align: left;
         }
 
         th, td {
-            border: 1px solid #ddd;
-            padding: 12px 10px;
-            text-align: center;
-            vertical-align: top;
+            padding: 14px 16px;
+            border-bottom: 1px solid #eeeeee;
+            font-size: 14px;
         }
 
         th {
-            background: #1976d2;
-            color: white;
-            font-weight: bold;
+            background-color: #f8f9fa;
+            color: #555;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
         }
 
-        a {
-            color: #1976d2;
-            text-decoration: none;
-            font-weight: bold;
-        }
-        a:hover {
-            text-decoration: underline;
+        tr:hover {
+            background-color: #fdfdfd;
         }
 
-        img.preview-img {
-            max-width: 120px;
-            height: auto;
-            border: 1px solid #ccc;
-            margin: 5px 0;
-            border-radius: 4px;
+        .badge {
             display: inline-block;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 6px 12px;
+            padding: 4px 8px;
+            border-radius: 12px;
             font-size: 12px;
             font-weight: bold;
-            border-radius: 4px;
-            text-transform: uppercase;
-        }
-        .status-completed {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status-pending {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .print-btn {
-            background: #1976d2;
-            color: white;
-            border: none;
-            padding: 8px 14px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-weight: bold;
-            display: inline-block;
-            transition: background 0.2s;
-        }
-        .print-btn:hover {
-            background: #125ea7;
-        }
-
-        .doc-btn {
-            background: #28a745;
-        }
-        .doc-btn:hover {
-            background: #218838;
-        }
-        
-        .preview-box-container {
             text-align: center;
-            padding: 5px;
+        }
+
+        .badge-pending { background-color: #ffe699; color: #806000; }
+        .badge-completed { background-color: #c6efce; color: #006100; }
+
+        .action-btn {
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+            transition: opacity 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .action-btn:hover {
+            opacity: 0.85;
+        }
+
+        .preview-btn { background-color: #28a745; color: white; }
+        .download-btn { background-color: #17a2b8; color: white; }
+        .complete-btn { background-color: #ffc107; color: #212529; }
+
+        .no-orders {
+            text-align: center;
+            padding: 40px;
+            color: #777;
+            font-size: 16px;
         }
     </style>
 </head>
-
 <body>
 
-<div class="card">
-    <h2>Admin Dashboard</h2>
+<div class="dashboard-container">
+    <div class="header">
+        <h1>Print Shop Admin Control Panel</h1>
+        <button class="refresh-btn" onclick="fetchOrders()">🔄 Refresh Orders</button>
+    </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Mobile</th>
-                <th>Pages / Copies</th>
-                <th>Type / Instructions</th>
-                <th>Amount</th>
-                <th>Payment Status</th>
-                <th>Preview / Actions</th>
-            </tr>
-        </thead>
-        <tbody id="orders">
-            <tr>
-                <td colspan="7">Loading records from database...</td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="orders-table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Created At</th>
+                    <th>Customer Name</th>
+                    <th>Mobile</th>
+                    <th>Print Details</th>
+                    <th>Pages / Copies</th>
+                    <th>Amount</th>
+                    <th>Payment Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+                <tr>
+                    <td colspan="8" class="no-orders">Loading print queue dataset...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <script>
-const client = window.supabase.createClient(
-    "https://irqlvuphoblgjqysteto.supabase.co",
-    "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-"
-);
+    // Supabase Credentials Config Setup
+    const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function loadOrders() {
-    const { data, error } = await client
-        .from("orders")
-        .select("*")
-        .order("id", { ascending: false });
+    // Initial load fetch initialization
+    window.onload = function() {
+        fetchOrders();
+    };
 
-    if (error) {
-        console.error("Dashboard error:", error.message);
-        return;
-    }
+    // Main extraction workflow logic query engine
+    async function fetchOrders() {
+        const tableBody = document.getElementById("ordersTableBody");
+        
+        const { data: orders, error } = await client
+            .from("orders")
+            .select("*")
+            .order("created_at", { ascending: false });
 
-    let html = "";
+        if (error) {
+            console.error("Error retrieving dashboard logs:", error);
+            tableBody.innerHTML = `<tr><td colspan="8" class="no-orders" style="color:red;">Error loading orders: ${error.message}</td></tr>`;
+            return;
+        }
 
-    data.forEach(order => {
-        let preview = "";
+        if (!orders || orders.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="8" class="no-orders">No print job records found in database query queue matrix.</td></tr>`;
+            return;
+        }
 
-        /* CARD PRINT LAYOUT CONDITION (Aadhaar or PAN) */
-        if (order.front_url) {
-            let isSingleSided = !order.back_url || order.back_url.trim() === "";
-            let targetPrintUrl = "";
+        tableBody.innerHTML = ""; // Empty loader placeholder context rows
 
-            if (isSingleSided) {
-                // Route PAN card to A4 layout matching top-center parameters
-                targetPrintUrl = `./idpreview.html?front=${encodeURIComponent(order.front_url)}&layout=top-center`;
-            } else {
-                // Route standard Aadhaar card layout parameters
-                targetPrintUrl = `./idpreview.html?front=${encodeURIComponent(order.front_url)}&back=${encodeURIComponent(order.back_url)}`;
+        orders.forEach(order => {
+            const row = document.createElement("tr");
+
+            // Format timestamp neatly
+            const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : "N/A";
+            
+            // Payment badge filter handler rules
+            const statusClass = order.payment_status === "Completed" ? "badge-completed" : "badge-pending";
+
+            // Determine if the file is a unified generic single Document file upload or structural ID layout template mapping
+            const isIdCardOrder = order.front_url && order.front_url !== "";
+            const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
+
+            // Generate Action buttons structure cleanly
+            let actionsHtml = "";
+
+            if (trueTargetRawSourceUrl) {
+                if (isIdCardOrder) {
+                    // 🌟 STEP 3 FIXED INTEGRATION ENGINE: 
+                    // Safely bundle URL components so strings with raw spaces, slashes or special characters don't break browser rendering pipelines
+                    const encFront = encodeURIComponent(order.front_url || '');
+                    const encBack = encodeURIComponent(order.back_url || '');
+                    const encSummary = encodeURIComponent(order.print_type || '');
+
+                    // Generates clean URL parameters matching idpreview.html structures natively
+                    const a4LinkUrl = `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`;
+                    
+                    actionsHtml += `<a href="${a4LinkUrl}" target="_blank" class="action-btn preview-btn">👁️ A4 Preview</a>`;
+                } else {
+                    // Standard explicit structural fallback link formatting rules for basic standalone document files
+                    actionsHtml += `<a href="${trueTargetRawSourceUrl}" target="_blank" class="action-btn preview-btn">👁️ View Doc</a>`;
+                }
+                
+                // Add explicit direct file object file downloader link handler 
+                actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
-            preview = `
-                <div class="preview-box-container">
-                    <b>Front View</b><br>
-                    <img src="${order.front_url}" class="preview-img"><br>
-                    <a href="${order.front_url}" target="_blank">Open Image</a><br><br>
-                    
-                    ${!isSingleSided ? `
-                        <b>Back View</b><br>
-                        <img src="${order.back_url}" class="preview-img"><br>
-                        <a href="${order.back_url}" target="_blank">Open Image</a><br><br>
-                    ` : ''}
-                    
-                    <button class="print-btn" onclick="window.open('${targetPrintUrl}', '_blank');">
-                        🖨️ A4 Preview / Print
-                    </button>
-                </div>
+            // Dynamic mark complete lifecycle action button injector
+            if (order.payment_status !== "Completed") {
+                actionsHtml += `<button onclick="markAsCompleted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
+            }
+
+            row.innerHTML = `
+                <td>${dateStr}</td>
+                <td><strong>${escapeHtml(order.customer_name)}</strong></td>
+                <td>${escapeHtml(order.mobile)}</td>
+                <td><span style="font-size:12px; color:#555;">${escapeHtml(order.print_type || 'Document Print')}</span></td>
+                <td>${order.pages || 1}</td>
+                <td><strong>₹${order.amount || 0}</strong></td>
+                <td><span class="badge ${statusClass}">${escapeHtml(order.payment_status || 'Pending')}</span></td>
+                <td>${actionsHtml}</td>
             `;
-        }
-        /* DOCUMENT SYSTEM CONDITION */
-        else if (order.file_url) {
-            preview = `
-                <div class="preview-box-container">
-                    <a href="${order.file_url}" target="_blank" style="display:block; margin-bottom:10px;">
-                        Open Original File
-                    </a>
-                    <button class="print-btn doc-btn" onclick="printDirectDocument('${order.file_url}')">
-                        🖨️ Print Document
-                    </button>
-                </div>
-            `;
-        } else {
-            preview = "No Files Attached";
-        }
 
-        let status = (order.payment_status || "Pending").trim();
-        let isPaid = status.toLowerCase() === "completed" || status.toLowerCase() === "success";
-        let statusBadgeHTML = `<span class="status-badge ${isPaid ? 'status-completed' : 'status-pending'}">${status}</span>`;
-
-        html += `
-        <tr>
-            <td>${order.customer_name || "N/A"}</td>
-            <td>${order.mobile || "N/A"}</td>
-            <td>${order.pages || "1"}</td>
-            <td>${order.print_type || "N/A"}</td>
-            <td style="font-weight:bold; color:#1976d2;">₹${order.amount || 0}</td>
-            <td>${statusBadgeHTML}</td>
-            <td>${preview}</td>
-        </tr>
-        `;
-    });
-
-    document.getElementById("orders").innerHTML = html || `<tr><td colspan="7">No orders found.</td></tr>`;
-}
-
-function printDirectDocument(url) {
-    const printWindow = window.open(url, '_blank');
-    if (printWindow) {
-        printWindow.focus();
-        printWindow.print();
+            tableBody.appendChild(row);
+        });
     }
-}
 
-// Automatically check database logs every 10 seconds for real-time order tracking updates
-setInterval(loadOrders, 10000);
-loadOrders();
+    // Dynamic backend manual data updater call
+    async function markAsCompleted(orderId) {
+        if (!confirm("Are you sure you want to mark this print order task complete?")) return;
+
+        const { error } = await client
+            .from("orders")
+            .update({ payment_status: "Completed" })
+            .eq("id", orderId);
+
+        if (error) {
+            alert("Update operation failed: " + error.message);
+        } else {
+            alert("Order marked completed successfully!");
+            fetchOrders(); // Reload the query data list immediately
+        }
+    }
+
+    // Helper secure sanitation mapping rules preventing HTML injection vulnerabilities inside string outputs
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
 </script>
 
 </body>
