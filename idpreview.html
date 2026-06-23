@@ -3,9 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>A4 Print Preview</title>
+    <title>A4 Card Print Preview</title>
     <style>
-        /* A4 Page Formatting Rules with Scrolling Enabled */
         html, body {
             margin: 0;
             padding: 0;
@@ -16,7 +15,6 @@
             overflow-x: hidden;
         }
 
-        /* Base Page Styles (Default Portrait) */
         .page {
             width: 210mm;
             height: 297mm;
@@ -27,38 +25,30 @@
             position: relative;
         }
 
-        /* Dynamic Landscape Class for Preview Sheet Adjustment */
-        .page.landscape-mode {
-            width: 297mm !important;
-            height: 210mm !important;
-        }
-
-        /* Flexible Print Container Elements Layout Setup */
         .print-container {
             display: flex;
             box-sizing: border-box;
             width: 100%;
-            gap: 10mm; 
-            padding-top: 20mm; 
         }
 
-        /* Default Portrait Class Rules (Single card center-top) */
-        .print-container.portrait-layout {
+        /* 🌟 DUAL CARD POSITIONING: Sets front side to top-left and back side to top-right layout */
+        .print-container.two-sided-layout {
+            flex-direction: row;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 10mm; 
+            padding-top: 20mm; 
+            padding-left: 15mm; 
+        }
+
+        /* 🌟 PAN POSITIONING: Places a single card directly in top-middle orientation */
+        .print-container.single-sided-layout {
             flex-direction: column;
             justify-content: flex-start;
             align-items: center; 
             padding-top: 40mm;
         }
 
-        /* Dynamic Landscape Class Layout Rules (Side-by-side card structure) */
-        .print-container.landscape-layout {
-            flex-direction: row;
-            justify-content: flex-start;
-            align-items: flex-start;
-            padding-left: 20mm;
-        }
-
-        /* Standard CR-80 Printed Document Size Scaling Bounds */
         .card-img {
             width: 85.6mm;
             height: 54mm;
@@ -68,16 +58,14 @@
             display: block;
         }
 
-        /* FIXED FORCE GRAYSCALE: Applies true grayscale filter layout to everything if active */
+        /* FORCE GRAYSCALE OVERRIDE ENGINE */
         .print-container.bw-mode,
         .print-container.bw-mode .card-img,
-        .print-container.bw-mode iframe,
         .print-container.bw-mode canvas,
         .print-container.bw-mode img {
             filter: grayscale(100%) contrast(125%) brightness(100%) !important;
         }
 
-        /* Controls Panel Layer (Hidden during physical print calls) */
         .no-print-bar {
             background: #333;
             color: white;
@@ -98,68 +86,14 @@
             font-weight: bold;
             border-radius: 4px;
             cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .action-btn:hover {
-            background: #218838;
-        }
-
-        /* Screen optimization for mobile displays */
-        @media (max-width: 215mm) {
-            .page {
-                margin: 5px auto !important;
-                width: 95vw !important;
-                height: auto !important;
-                min-height: 135vw !important;
-                padding: 10px !important;
-            }
-            .print-container {
-                flex-direction: column !important;
-                align-items: center !important;
-                padding-left: 0 !important;
-                gap: 15px !important;
-            }
-            .card-img {
-                width: 80vw !important;
-                height: 50.5vw !important;
-            }
         }
 
         @media print {
-            body, html {
-                background: white;
-                overflow: visible !important;
-            }
-            .no-print-bar {
-                display: none !important;
-            }
-            .page {
-                margin: 0 !important;
-                box-shadow: none !important;
-                page-break-after: avoid;
-                page-break-before: avoid;
-            }
-            
-            .page.portrait-mode-print {
-                width: 210mm;
-                height: 297mm;
-            }
-            
-            .page.landscape-mode-print {
-                width: 297mm;
-                height: 210mm;
-            }
-
-            .card-img {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-            
-            .print-container.bw-mode {
-                filter: grayscale(100%) !important;
-                -webkit-filter: grayscale(100%) !important;
-            }
+            body, html { background: white; overflow: visible !important; }
+            .no-print-bar { display: none !important; }
+            .page { margin: 0 !important; box-shadow: none !important; width: 210mm; height: 297mm; }
+            @page { size: portrait; margin: 0; }
+            .print-container.bw-mode { filter: grayscale(100%) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
     </style>
 </head>
@@ -167,29 +101,27 @@
 <body>
 
 <div class="no-print-bar">
-    <button class="action-btn" onclick="window.print()">🖨️ Print Now (A4 Sheet)</button>
+    <button class="action-btn" onclick="window.print()">🖨️ Print Document (A4 Portrait)</button>
 </div>
 
-<div class="page" id="pageElement">
+<div class="page">
     <div class="print-container" id="printContainer">
-        <img id="frontCardImg" class="card-img" style="display:none;" alt="Front Card Side">
-        <img id="backCardImg" class="card-img" style="display:none;" alt="Back Card Side">
+        <img id="frontCardImg" class="card-img" style="display:none;" alt="Front View">
+        <img id="backCardImg" class="card-img" style="display:none;" alt="Back View">
     </div>
 </div>
 
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     
-    // 🌟 FIX: Use decodeURIComponent to cleanly unpack raw text parameters passed from the dashboard layout links
+    // Clean string component decoding 
     const frontUrl = decodeURIComponent(urlParams.get('front') || '');
     const backUrl = decodeURIComponent(urlParams.get('back') || '');
-    const layoutMode = urlParams.get('layout'); 
-    const printTypeSummary = urlParams.get('summary') || ''; 
+    const printTypeSummary = decodeURIComponent(urlParams.get('summary') || ''); 
 
     const frontImgEl = document.getElementById('frontCardImg');
     const backImgEl = document.getElementById('backCardImg');
     const printContainer = document.getElementById('printContainer');
-    const pageElement = document.getElementById('pageElement');
 
     if (frontUrl && frontUrl !== "null" && frontUrl.trim() !== "") {
         frontImgEl.src = frontUrl;
@@ -201,38 +133,23 @@
         backImgEl.style.display = "block";
     }
 
+    // Dynamic layout controller evaluation
+    if (backUrl && backUrl !== "null" && backUrl.trim() !== "") {
+        printContainer.classList.add('two-sided-layout');
+    } else {
+        printContainer.classList.add('single-sided-layout');
+        backImgEl.style.display = "none";
+    }
+
+    // Strict color channel filter verification
     if (
         printTypeSummary.toLowerCase().includes('black') || 
         printTypeSummary.toLowerCase().includes('b&w') || 
         frontUrl.toLowerCase().includes('_bw_') || 
-        frontUrl.toLowerCase().includes('/bw_') ||
-        backUrl.toLowerCase().includes('_bw_') ||
-        backUrl.toLowerCase().includes('/bw_')
+        frontUrl.toLowerCase().includes('/bw_')
     ) {
         printContainer.classList.add('bw-mode');
     }
-
-    // Dynamic Orientation Selector Engine
-    if (layoutMode === 'landscape') {
-        pageElement.classList.add('landscape-mode', 'landscape-mode-print');
-        printContainer.classList.add('landscape-layout');
-        
-        const style = document.createElement('style');
-        style.innerHTML = '@media print { @page { size: landscape; margin: 0; } }';
-        document.head.appendChild(style);
-    } else {
-        pageElement.classList.add('portrait-mode-print');
-        printContainer.classList.add('portrait-layout');
-        
-        const style = document.createElement('style');
-        style.innerHTML = '@media print { @page { size: portrait; margin: 0; } }';
-        document.head.appendChild(style);
-        
-        if (layoutMode === 'top-center' || !backUrl || backUrl === "null" || backUrl.trim() === "") {
-            backImgEl.style.display = "none";
-        }
-    }
 </script>
-
 </body>
 </html>
