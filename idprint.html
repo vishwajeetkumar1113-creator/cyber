@@ -417,6 +417,7 @@ function draw(side) {
     let lastX = 0;
     let lastY = 0;
     
+    
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -533,7 +534,7 @@ function draw(side) {
     window.addEventListener('touchend', handleEnd);
 });
 
-// FIX: एडवांस स्कैनर मोड—यह धुंधले अक्षरों को गहरा काला करेगा और बैकग्राउंड को दूध जैसा सफेद करेगा
+// FIX: सॉफ्ट एडैप्टिव एन्हांसर — टेक्स्ट को बिना उड़ाए साफ़ और विज़िबल रखेगा
 function projectPerspective(srcImg, corners, targetW, targetH) {
     targetW = 856; 
     targetH = 540;
@@ -570,38 +571,44 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
 
-        // स्कैनर फ़िल्टर लूप
+        // सॉफ्ट कंट्रास्ट और बैलेंस्ड ब्राइटनेस वेरिएबल्स
+        let contrastValue = 28; // हल्का कंट्रास्ट ताकि बारकोड सॉलिड ब्लॉक न बने
+        let contrastFactor = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
+        let brightnessOffset = 18; // सॉफ्ट ब्राइटनेस ताकि हल्का टेक्स्ट न उड़े
+
         for (let i = 0; i < data.length; i += 4) {
             let r = data[i];
             let g = data[i + 1];
             let b = data[i + 2];
 
-            // पिक्सेल की चमक (Luminance) नापें
             let luma = 0.299 * r + 0.587 * g + 0.114 * b;
 
-            // 1. बैकग्राउंड को साफ करना: अगर पिक्सेल हल्का मटमैला या मद्धम सफेद है (Luma > 140)
-            // तो उसे सीधे प्योर व्हाइट (255) कर दो ताकि प्रिंटिंग पेपर बिल्कुल क्लीन आए।
-            if (luma > 140) {
-                r = 255;
-                g = 255;
-                b = 255;
+            // अगर पिक्सेल बहुत ब्राइटर साइड में है (यानी मटमैला बैकग्राउंड)
+            if (luma > 155) {
+                // उसे धीरे से प्योर व्हाइट की तरफ पुश करें (एकदम से 255 नहीं करेंगे)
+                r = Math.min(255, r + 35);
+                g = Math.min(255, g + 35);
+                b = Math.min(255, b + 35);
             } 
-            // 2. अक्षरों को गहरा करना: अगर पिक्सेल डार्क/ग्रे है (जैसे आपका नाम, पता या बारकोड)
-            // तो उसकी ब्राइटनेस को कम करो और शार्पनेस बढ़ाओ ताकि वह बिल्कुल गहरा काला (Bold) दिखे।
+            // अगर पिक्सेल डार्क/मिडटोन है (यानी टेक्स्ट या धुंधले अक्षर)
             else {
-                // अक्षरों की डार्कनेस बढ़ाएं
-                r = Math.max(0, r - 50);
-                g = Math.max(0, g - 50);
-                b = Math.max(0, b - 50);
-                
-                // हार्ड कॉन्ट्रास्ट ट्यूनिंग ताकि धुंधलापन गायब हो जाए
-                let factor = 1.6; // टेक्स्ट शार्पनेस बूस्टर
-                r = factor * (r - 128) + 128;
-                g = factor * (g - 128) + 128;
-                b = factor * (b - 128) + 128;
+                // सॉफ्ट ब्राइटनेस बैलेंस लागू करें
+                r += brightnessOffset;
+                g += brightnessOffset;
+                b += brightnessOffset;
+
+                // सॉफ्ट कंट्रास्ट फ़ॉर्मूला ताकि अक्षर साफ़ और गहरे दिखें
+                r = contrastFactor * (r - 128) + 128;
+                g = contrastFactor * (g - 128) + 128;
+                b = contrastFactor * (b - 128) + 128;
             }
 
-            // सुरक्षित लिमिट (0 से 255)
+            // डबल चेक: एक्सट्रीम वाइटनिंग फिक्सर (आधार कार्ड की बॉडी को साफ़ करने के लिए)
+            let newLuma = 0.299 * r + 0.587 * g + 0.114 * b;
+            if (newLuma > 210) {
+                r = 255; g = 255; b = 255;
+            }
+
             data[i]     = Math.max(0, Math.min(255, r));
             data[i + 1] = Math.max(0, Math.min(255, g));
             data[i + 2] = Math.max(0, Math.min(255, b));
@@ -609,7 +616,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
         ctx.putImageData(imgData, 0, 0);
     } catch (e) {
-        console.error("Document scanner matrix failed:", e);
+        console.error("Selective balancing skipped:", e);
     }
 
     return hiddenCanvas;
