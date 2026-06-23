@@ -137,7 +137,7 @@
     <div class="header">
         <div>
             <h1>Print Shop Admin Control Panel</h1>
-            <p style="font-size:12px; color:#666; margin-top:4px;">Scanning data matrix every 5 seconds...</p>
+            <p style="font-size:12px; color:#666; margin-top:4px;">Scanning database table every 5 seconds...</p>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
             <span class="auto-print-badge">🟢 AUTO-PRINT ENGAGED</span>
@@ -223,21 +223,13 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            // 🌟 REAL-TIME INTERCEPT: Fires auto-printing instantly when paid and pending
+            // 🌟 BACKGROUND AUTO-INTERCEPT ENGINE
             if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
                 triggerAutomaticHardwarePrint(order);
             }
 
             let actionsHtml = "";
             if (trueTargetRawSourceUrl) {
-                const encFront = encodeURIComponent(order.front_url || '');
-                const encBack = encodeURIComponent(order.back_url || '');
-                const encSummary = encodeURIComponent(order.print_type || '');
-
-                const previewUrl = isIdCardOrder 
-                    ? `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`
-                    : `docpreview.html?file=${encodeURIComponent(trueTargetRawSourceUrl)}`;
-                
                 actionsHtml += `<button onclick="triggerAutomaticHardwarePrint(${JSON.stringify(order).replace(/"/g, '&quot;')})" class="action-btn print-btn">🖨️ Print Now</button>`;
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
@@ -266,11 +258,11 @@
         });
     }
 
-    // 🌟 FULLY AUTOMATIC COHESIVE PRINT HARNESS ENGINE
+    // 🌟 REBUILT NO-404 PRINT DISPATCHER
     async function triggerAutomaticHardwarePrint(order) {
         if (isProcessingPrintJob) return;
         isProcessingPrintJob = true; 
-        console.log("Auto-Print Processing Order ID:", order.id);
+        console.log("Processing print delivery layout tracking context: ", order.id);
 
         const iframe = document.getElementById("silentPrintFrame");
         const isIdCard = order.front_url && order.front_url !== "";
@@ -279,20 +271,19 @@
         const encBack = encodeURIComponent(order.back_url || '');
         const encSummary = encodeURIComponent(order.print_type || '');
 
-        // Standardized route paths point explicitly to your clean local code wrappers
+        // FIXED PATH: Points standard documents directly to their Supabase public URL to avoid 404 errors!
         const targetPrintLayoutUrl = isIdCard 
             ? `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}&autoplay=true`
-            : `docpreview.html?file=${encodeURIComponent(order.file_url)}&autoplay=true`;
+            : order.file_url;
 
         iframe.src = targetPrintLayoutUrl;
 
         iframe.onload = async function() {
             try {
-                // Focus and fire internal document runtime matrix parameters
                 iframe.contentWindow.focus();
                 iframe.contentWindow.print();
                 
-                // Update database immediately
+                // Save complete state inside Supabase database
                 const { error } = await client
                     .from("orders")
                     .update({ print_status: "Completed", printed: true })
@@ -300,7 +291,7 @@
 
                 if (error) console.error("Database update sync error:", error);
             } catch (err) {
-                console.error("Hardware pipeline deployment crash:", err);
+                console.error("Hardware pipeline deployment status warning:", err);
             } finally {
                 setTimeout(() => {
                     isProcessingPrintJob = false;
