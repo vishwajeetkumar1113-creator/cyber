@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Print Shop Admin Dashboard</title>
+    <title>Print Shop Auto-Print Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
@@ -42,6 +42,22 @@
             font-size: 28px;
         }
 
+        .auto-print-badge {
+            background-color: #28a745;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
         .refresh-btn {
             background-color: #1976d2;
             color: white;
@@ -51,28 +67,19 @@
             font-weight: bold;
             border-radius: 6px;
             cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .refresh-btn:hover {
-            background-color: #115293;
-        }
-
-        .orders-table-wrapper {
-            overflow-x: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
-            text-align: left;
         }
 
         th, td {
             padding: 14px 16px;
             border-bottom: 1px solid #eeeeee;
             font-size: 14px;
+            text-align: left;
         }
 
         th {
@@ -81,11 +88,6 @@
             font-weight: 600;
             text-transform: uppercase;
             font-size: 12px;
-            letter-spacing: 0.5px;
-        }
-
-        tr:hover {
-            background-color: #fdfdfd;
         }
 
         .badge {
@@ -94,14 +96,12 @@
             border-radius: 12px;
             font-size: 12px;
             font-weight: bold;
-            text-align: center;
         }
 
-        /* 🌟 FIXED THEME COLOR SYSTEM: Red turns into Green for any successful validation */
         .badge-pending { background-color: #ffe699; color: #806000; }
         .badge-completed { background-color: #c6efce; color: #006100; }
         .badge-unpaid { background-color: #f8d7da; color: #721c24; }
-        .badge-paid { background-color: #c6efce; color: #006100; } /* Set to clean Green badge */
+        .badge-paid { background-color: #c6efce; color: #006100; }
 
         .action-btn {
             padding: 6px 12px;
@@ -111,24 +111,21 @@
             border-radius: 4px;
             cursor: pointer;
             margin-right: 5px;
-            transition: opacity 0.2s;
             text-decoration: none;
             display: inline-block;
         }
 
-        .action-btn:hover {
-            opacity: 0.85;
-        }
-
         .preview-btn { background-color: #28a745; color: white; }
         .download-btn { background-color: #17a2b8; color: white; }
-        .complete-btn { background-color: #ffc107; color: #212529; }
-
-        .no-orders {
-            text-align: center;
-            padding: 40px;
-            color: #777;
-            font-size: 16px;
+        .no-orders { text-align: center; padding: 40px; color: #777; }
+        
+        /* 🌟 HIDDEN SILENT PRINT IFRAME: Kept completely hidden from visual view */
+        #silentPrintFrame {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border: none;
+            visibility: hidden;
         }
     </style>
 </head>
@@ -136,8 +133,14 @@
 
 <div class="dashboard-container">
     <div class="header">
-        <h1>Print Shop Admin Control Panel</h1>
-        <button class="refresh-btn" onclick="fetchOrders()">🔄 Refresh Orders</button>
+        <div>
+            <h1>Print Shop Admin Control Panel</h1>
+            <p style="font-size:12px; color:#666; margin-top:4px;">Auto-scanning for successful payments every 5 seconds...</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <span class="auto-print-badge">🟢 AUTO-PRINT ACTIVE</span>
+            <button class="refresh-btn" onclick="fetchOrders()">🔄 Refresh</button>
+        </div>
     </div>
 
     <div class="orders-table-wrapper">
@@ -164,13 +167,19 @@
     </div>
 </div>
 
+<iframe id="silentPrintFrame"></iframe>
+
 <script>
     const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    let isProcessingPrintJob = false; // Mutex flag locks to stop double-triggering collisions
+
     window.onload = function() {
         fetchOrders();
+        // 🌟 START BACKGROUND AUTO-SCAN ENGINE: Polls the datastore loop every 5 seconds
+        setInterval(fetchOrders, 5000);
     };
 
     async function fetchOrders() {
@@ -182,13 +191,12 @@
             .order("created_at", { ascending: false });
 
         if (error) {
-            console.error("Error retrieving dashboard logs:", error);
-            tableBody.innerHTML = `<tr><td colspan="9" class="no-orders" style="color:red;">Error loading orders: ${error.message}</td></tr>`;
+            console.error("Database connection dropped:", error);
             return;
         }
 
         if (!orders || orders.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="9" class="no-orders">No print job records found in database queue matrix.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="9" class="no-orders">No print job records found.</td></tr>`;
             return;
         }
 
@@ -198,13 +206,14 @@
             const row = document.createElement("tr");
             const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : "N/A";
             
-            // 🌟 CLEAN PARSING MATCH: Treats 'Success', 'Paid', or 'Completed' (case-insensitive) as GREEN
             const payStatus = (order.payment_status || 'Pending').trim();
             const lowerPay = payStatus.toLowerCase();
             
-            let payBadgeClass = "badge-unpaid"; // Defaults to Red
+            let payBadgeClass = "badge-unpaid";
+            let isPaidSuccess = false;
             if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
-                payBadgeClass = "badge-paid"; // Swaps to Green
+                payBadgeClass = "badge-paid";
+                isPaidSuccess = true;
             }
 
             const prntStatus = order.print_status || 'Pending';
@@ -213,26 +222,24 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            let actionsHtml = "";
-
-            if (trueTargetRawSourceUrl) {
-                if (isIdCardOrder) {
-                    const encFront = encodeURIComponent(order.front_url || '');
-                    const encBack = encodeURIComponent(order.back_url || '');
-                    const encSummary = encodeURIComponent(order.print_type || '');
-
-                    const a4LinkUrl = `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`;
-                    
-                    actionsHtml += `<a href="${a4LinkUrl}" target="_blank" class="action-btn preview-btn">👁️ A4 Preview</a>`;
-                } else {
-                    actionsHtml += `<a href="${trueTargetRawSourceUrl}" target="_blank" class="action-btn preview-btn">👁️ View Doc</a>`;
-                }
-                
-                actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
+            // 🌟 REAL-TIME TRIGGER INTERCEPTOR:
+            // If payment is SUCCESS and print_status is STILL PENDING, instantly launch hardware automation
+            if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
+                triggerAutomaticHardwarePrint(order);
             }
 
-            if (prntStatus !== "Completed") {
-                actionsHtml += `<button onclick="markAsPrinted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
+            let actionsHtml = "";
+            if (trueTargetRawSourceUrl) {
+                const encFront = encodeURIComponent(order.front_url || '');
+                const encBack = encodeURIComponent(order.back_url || '');
+                const encSummary = encodeURIComponent(order.print_type || '');
+
+                const previewUrl = isIdCardOrder 
+                    ? `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`
+                    : trueTargetRawSourceUrl;
+                
+                actionsHtml += `<a href="${previewUrl}" target="_blank" class="action-btn preview-btn">👁️ Preview / Print</a>`;
+                actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
             row.innerHTML = `
@@ -251,35 +258,61 @@
         });
     }
 
-    async function markAsPrinted(orderId) {
-        if (!confirm("Are you sure you want to mark this document as printed?")) return;
+    // 🌟 AUTOMATIC SILENT HARDWARE PRINTER CONDUIT ROUTINE
+    async function triggerAutomaticHardwarePrint(order) {
+        isProcessingPrintJob = true; 
+        console.log("Auto-Print Triggered for Order ID:", order.id);
 
-        const { error } = await client
-            .from("orders")
-            .update({ 
-                print_status: "Completed",
-                printed: true
-            })
-            .eq("id", orderId);
+        const iframe = document.getElementById("silentPrintFrame");
+        
+        const encFront = encodeURIComponent(order.front_url || '');
+        const encBack = encodeURIComponent(order.back_url || '');
+        const encSummary = encodeURIComponent(order.print_type || '');
 
-        if (error) {
-            console.error("Update operation failed:", error);
-            alert("Error updating order status: " + error.message);
-            return;
-        }
+        // Determine correct template mapping dynamically
+        const isIdCard = order.front_url && order.front_url !== "";
+        const targetPrintLayoutUrl = isIdCard 
+            ? `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`
+            : order.file_url;
 
-        alert("Order marked printed successfully!");
-        fetchOrders(); 
+        // Load the payload layout inside the invisible background window layer
+        iframe.src = targetPrintLayoutUrl;
+
+        // Wait for frame assets to map completely, then dump directly to printer channels
+        iframe.onload = async function() {
+            try {
+                // Focus container layout and shoot print signal
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                
+                console.log("Print signal broadcast successful. Synchronizing database state changes...");
+
+                // 🌟 UPDATE PRINT STATUS TO COMPLETED IN BACKEND IMMEDIATELY
+                const { error } = await client
+                    .from("orders")
+                    .update({ 
+                        print_status: "Completed",
+                        printed: true
+                    })
+                    .eq("id", order.id);
+
+                if (error) console.error("Auto-status update sync error:", error);
+
+            } catch (err) {
+                console.error("Hardware printing connection loop failure context:", err);
+            } finally {
+                // Release lock channel safely so next order can print cleanly
+                isProcessingPrintJob = false;
+                fetchOrders(); // Instantly refresh row styles visually
+            }
+        };
     }
 
     function escapeHtml(str) {
         if (!str) return '';
         return str.toString()
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 </script>
 
