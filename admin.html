@@ -20,7 +20,7 @@
         }
 
         .dashboard-container {
-            max-width: 1300px; /* Widened slightly to accommodate the extra column */
+            max-width: 1300px;
             margin: 0 auto;
             background: #ffffff;
             padding: 30px;
@@ -97,7 +97,6 @@
             text-align: center;
         }
 
-        /* Status Colors */
         .badge-pending { background-color: #ffe699; color: #806000; }
         .badge-completed { background-color: #c6efce; color: #006100; }
         .badge-unpaid { background-color: #f8d7da; color: #721c24; }
@@ -198,11 +197,10 @@
             const row = document.createElement("tr");
             const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : "N/A";
             
-            // 🌟 Separate Column Tracking Logic
             const payStatus = order.payment_status || 'Pending';
             const payBadgeClass = payStatus === "Completed" || payStatus === "Paid" ? "badge-paid" : "badge-unpaid";
 
-            const prntStatus = order.print_status || order.order_status || 'Pending';
+            const prntStatus = order.print_status || 'Pending';
             const prntBadgeClass = prntStatus === "Completed" ? "badge-completed" : "badge-pending";
 
             const isIdCardOrder = order.front_url && order.front_url !== "";
@@ -246,34 +244,22 @@
         });
     }
 
-    // 🌟 SEPARATED STATUS UPDATE ENGINE
     async function markAsPrinted(orderId) {
         if (!confirm("Are you sure you want to mark this document as printed?")) return;
 
-        // Explicitly targets the printing column arrays to keep them away from raw payment keys
-        const updateData = { 
-            print_status: "Completed",
-            order_status: "Completed"
-        };
-
+        // Strictly targets the print_status text string and sets the true/false 'printed' column at once
         const { error } = await client
             .from("orders")
-            .update(updateData)
+            .update({ 
+                print_status: "Completed",
+                printed: true
+            })
             .eq("id", orderId);
 
         if (error) {
-            console.error("Primary column target error, running precision printing patch query...", error);
-            
-            // System safety loop fallback inside schema properties
-            const { error: fallbackError } = await client
-                .from("orders")
-                .update({ order_status: "Completed" })
-                .eq("id", orderId);
-
-            if (fallbackError) {
-                alert("Failed to update status. Ensure you have 'print_status' or 'order_status' columns configured in your orders table: " + fallbackError.message);
-                return;
-            }
+            console.error("Update operation failed:", error);
+            alert("Error updating order status: " + error.message);
+            return;
         }
 
         alert("Order marked printed successfully!");
