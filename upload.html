@@ -167,16 +167,17 @@ async function previewDocument() {
             const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
             const pdf = await loadingTask.promise;
             
-            // कस्टमर के सिलेक्टेड पेजेस की लिस्ट निकालें
             let pagesToRender = [];
             let targetPagesList = parsePageSelection(pageInput);
 
-            if (targetPagesList !== null && targetPagesList.length > 0) {
-                // सिर्फ वही पेज रेंडर की लिस्ट में जाएंगे जो सिलेक्टेड हैं और PDF के अंदर हैं
-                pagesToRender = targetPagesList.filter(p => p >= 1 && p <= pdf.numPages);
+            // CONDITION CONDITION CHECK: अगर "All" या खाली है, तो सारे पेजेस रेंडर की लिस्ट में जाएंगे
+            if (targetPagesList === null || targetPagesList.length === 0 || pageInput.toLowerCase() === "all") {
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    pagesToRender.push(i);
+                }
             } else {
-                // अगर "All" या खाली है, तो सारे पेजेस रेंडर होंगे
-                for (let i = 1; i <= pdf.numPages; i++) pagesToRender.push(i);
+                // अगर कस्टम नंबर है, तो सिर्फ वही सिलेक्टेड पेजेस लिस्ट में आएंगे
+                pagesToRender = targetPagesList.filter(p => p >= 1 && p <= pdf.numPages);
             }
 
             previewContainer.innerHTML = ""; // पुराना प्रीव्यू साफ करें
@@ -186,7 +187,7 @@ async function previewDocument() {
                 return;
             }
 
-            // FIX: सिर्फ सिलेक्टेड पेजेस को लूप चलाकर रेंडर करना
+            // रेंडरिंग लूप: चुनिंदा पेजेस या सारे पेजेस को स्क्रीन पर जोड़ना
             for (let i = 0; i < pagesToRender.length; i++) {
                 const pageNum = pagesToRender[i];
                 const page = await pdf.getPage(pageNum);
@@ -207,7 +208,7 @@ async function previewDocument() {
                 await page.render(renderContext).promise;
             }
         } catch (err) {
-            console.error("Error generating selective PDF preview:", err);
+            console.error("Error generating adaptive PDF preview:", err);
             previewContainer.innerHTML = "<span>Failed to load preview</span>";
         }
     } else {
