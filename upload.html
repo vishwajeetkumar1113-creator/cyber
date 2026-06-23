@@ -302,6 +302,7 @@ async function submitOrder() {
     const baseType = (type == 5 ? "Black & White" : "Color");
     const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
 
+    // ADDED .select() to retrieve the unique order primary key returned from database insertion
     const { data: insertedOrder, error } = await client.from("orders").insert([
         {
             customer_name: name,
@@ -321,6 +322,7 @@ async function submitOrder() {
         localStorage.setItem("amount", amount);
         localStorage.setItem("mobile", mobile);
         localStorage.setItem("printType", "document");
+        // Save unique row order ID for the payment engine sync tracking
         localStorage.setItem("current_order_id", insertedOrder[0].id); 
         window.location.href = "payment.html";
     }
