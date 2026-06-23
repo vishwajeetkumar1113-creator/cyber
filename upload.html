@@ -373,7 +373,7 @@ async function submitOrder() {
     if (file.type.startsWith("image/")) {
         calculatedIntegerPages = 1;
         if (isBlackAndWhite) {
-            alert("Processing image filters...");
+            alert("Processing black & white image filters...");
             finalFileToUpload = await new Promise((resolve) => {
                 const img = new Image();
                 const objectUrl = URL.createObjectURL(file);
@@ -394,7 +394,7 @@ async function submitOrder() {
         let pageNumbersList = parsePageSelection(pages);
         
         try {
-            alert("Isolating requested pages... Please wait.");
+            alert("Processing selected pages... Please wait.");
             
             const fileArrayBuffer = await file.arrayBuffer();
             const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -419,10 +419,10 @@ async function submitOrder() {
                 const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
                 copiedPages.forEach((page) => extractedPdf.addPage(page));
                 
+                // 🌟 FIX: Apply grayscale operators ONLY if Black & White option (type == 5) is selected
                 if (isBlackAndWhite) {
                     const targetPages = extractedPdf.getPages();
                     targetPages.forEach(page => {
-                        // 🌟 FIX: Namespace error corrected from PDFLib.pdfdoc.PDFOperator to PDFLib.PDFOperator
                         page.pushOperators(
                             PDFLib.PDFOperator.of('cmd_set_color_space_gray', [
                                 PDFLib.PDFName.of('DeviceGray')
