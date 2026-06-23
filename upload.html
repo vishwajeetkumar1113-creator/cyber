@@ -197,7 +197,6 @@ async function previewDocument() {
         previewContainer.innerHTML = "<span>Preview not supported for this file type</span>";
     }
     
-    // Apply the display filter to the box wrapper instantly
     applyPreviewFilter();
 }
 
@@ -254,7 +253,7 @@ function calculate() {
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
 }
 
-// Fixed grayscale loop array processing engine
+// Re-engineered synchronous pixel converter loop
 function convertImageToGrayscale(imageElement) {
     const canvas = document.createElement("canvas");
     canvas.width = imageElement.width;
@@ -303,28 +302,28 @@ async function submitOrder() {
     let calculatedIntegerPages = 1;
     let isBlackAndWhite = (type == 5); 
 
-    // 1. CONVERT IMAGES (JPG, PNG) TO SHARP GRAYSCALE FOR SERVER UPLOAD
+    // FIX: Await image compilation completely before continuing execution flow
     if (file.type.startsWith("image/") && isBlackAndWhite) {
-        alert("Processing: Converting image to colorless layout...");
-        try {
+        alert("Converting image to Black & White...");
+        finalFileToUpload = await new Promise((resolve) => {
             const img = new Image();
             img.src = URL.createObjectURL(file);
-            await new Promise(resolve => img.onload = resolve);
-            
-            const grayCanvas = convertImageToGrayscale(img);
-            const blob = await new Promise(resolve => grayCanvas.toBlob(resolve, "image/jpeg", 0.92));
-            finalFileToUpload = new File([blob], file.name, { type: "image/jpeg" });
-        } catch (err) {
-            console.error("Image grayscale engine failure:", err);
-        }
+            img.onload = function() {
+                const grayCanvas = convertImageToGrayscale(img);
+                grayCanvas.toBlob((blob) => {
+                    const processedFile = new File([blob], file.name, { type: "image/jpeg" });
+                    resolve(processedFile);
+                }, "image/jpeg", 0.92);
+            };
+        });
     }
 
-    // 2. CONVERT PDF DOCUMENTS TO TRUE COLORLESS PAGES FOR SERVER UPLOAD
+    // PROCESS PDF DOCUMENTS (PER-PAGE CANVAS EXTRACTION RATIOS)
     if (file.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         
         try {
-            alert("Processing PDF file rules... Please wait.");
+            alert("Processing PDF pages... Please wait.");
             
             const fileArrayBuffer = await file.arrayBuffer();
             const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -348,7 +347,7 @@ async function submitOrder() {
                 copiedPages.forEach((page) => extractedPdf.addPage(page));
                 
                 if (isBlackAndWhite) {
-                    alert("Converting PDF pages to pure Black & White...");
+                    alert("Rendering pages to pure colorless document streams...");
                     const savedNormalBytes = await extractedPdf.save();
                     const pdfjsDoc = await pdfjsLib.getDocument({ data: savedNormalBytes }).promise;
                     const finalGrayscalePdf = await PDFLib.PDFDocument.create();
