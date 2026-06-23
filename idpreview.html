@@ -1,105 +1,135 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>A4 Print Preview</title>
+    <style>
+        /* A4 Page Formatting Rules */
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
 
-<title>ID Print Preview</title>
+        .page {
+            width: 210mm;
+            height: 297mm;
+            background: white;
+            margin: 10mm auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+            position: relative;
+        }
 
-<style>
+        /* Default layout styling for standard double-sided prints */
+        .print-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding-top: 40mm; /* Positions card objects inside upper print thresholds */
+            width: 100%;
+            box-sizing: border-box;
+        }
 
-body{
-    margin:0;
-    background:#ddd;
-}
+        .card-img {
+            width: 85.6mm;
+            height: 54mm;
+            object-fit: fill;
+            border: 1px solid #000;
+            border-radius: 2mm;
+            display: block;
+        }
 
-.a4{
-    width:210mm;
-    height:297mm;
-    background:white;
-    margin:auto;
-    position:relative;
-    padding:10mm;
-    box-sizing:border-box;
-}
+        /* Controls Panel Layer (Hidden during physical print calls) */
+        .no-print-bar {
+            background: #333;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
 
-.front{
-    position:absolute;
-    top:15mm;
-    left:10mm;
-    width:85.6mm;
-    height:54mm;
-    border:1px solid #ccc;
-}
+        .action-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
 
-.back{
-    position:absolute;
-    top:15mm;
-    right:10mm;
-    width:85.6mm;
-    height:54mm;
-    border:1px solid #ccc;
-}
+        .action-btn:hover {
+            background: #218838;
+        }
 
-.front img,
-.back img{
-    width:100%;
-    height:100%;
-    object-fit:contain;
-}
-
-button{
-    width:100%;
-    padding:15px;
-    margin-top:20px;
-}
-
-@media print{
-    button{
-        display:none;
-    }
-
-    body{
-        background:white;
-    }
-}
-
-</style>
-
+        @media print {
+            body {
+                background: white;
+            }
+            .no-print-bar {
+                display: none !important;
+            }
+            .page {
+                margin: 0 !important;
+                box-shadow: none !important;
+                width: 210mm;
+                height: 297mm;
+            }
+        }
+    </style>
 </head>
-
 <body>
 
-<div class="a4">
-
-    <div class="front">
-        <img id="front">
-    </div>
-
-    <div class="back">
-        <img id="back">
-    </div>
-
+<div class="no-print-bar">
+    <button class="action-btn" onclick="window.print()">🖨️ Print Now (A4 Sheet)</button>
 </div>
 
-<button onclick="window.print()">
-Print A4
-</button>
+<div class="page">
+    <div class="print-container" id="printContainer">
+        <img id="frontCardImg" class="card-img" style="display:none;" alt="Front Card Side">
+        <img id="backCardImg" class="card-img" style="display:none;" alt="Back Card Side">
+    </div>
+</div>
 
 <script>
+    // Read the explicit image URLs and layout queries from address params
+    const urlParams = new URLSearchParams(window.location.search);
+    const frontUrl = urlParams.get('front');
+    const backUrl = urlParams.get('back');
+    const layoutMode = urlParams.get('layout');
 
-const params =
-    new URLSearchParams(
-        window.location.search
-    );
+    const frontImgEl = document.getElementById('frontCardImg');
+    const backImgEl = document.getElementById('backCardImg');
+    const printContainer = document.getElementById('printContainer');
 
-document.getElementById("front").src =
-    params.get("front");
+    // Populate and structure image fields based on input metrics
+    if (frontUrl) {
+        frontImgEl.src = frontUrl;
+        frontImgEl.style.display = "block";
+    }
 
-document.getElementById("back").src =
-    params.get("back");
+    if (backUrl && backUrl !== "null" && backUrl.trim() !== "") {
+        backImgEl.src = backUrl;
+        backImgEl.style.display = "block";
+    }
 
+    // TOP-CENTERED PAN CARD LAYOUT CONFIGURATION RULE
+    if (layoutMode === 'top-center' || !backUrl || backUrl === "null" || backUrl.trim() === "") {
+        // Center the single card horizontally at the top portion of the page canvas
+        printContainer.style.display = "flex";
+        printContainer.style.justifyContent = "center";
+        printContainer.style.alignItems = "center";
+        printContainer.style.paddingTop = "25mm"; // Standard top-middle alignment matching rule
+        
+        // Ensure the back card frame remains hidden
+        backImgEl.style.display = "none";
+    }
 </script>
+
 </body>
 </html>
