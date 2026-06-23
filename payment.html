@@ -83,7 +83,7 @@ function payNow() {
 
             let updatedSuccessfully = false;
 
-            // STRATEGY 1: Update using the unique Order ID (Most accurate)
+            // STRATEGY 1: Update using the unique Order ID
             if (orderId && orderId !== "undefined") {
                 try {
                     const { data, error } = await client
@@ -106,7 +106,7 @@ function payNow() {
                 }
             }
 
-            // STRATEGY 2: Backup Fallback (If ID matching fails, target the latest order matching the mobile number)
+            // STRATEGY 2: Backup Fallback using mobile number
             if (!updatedSuccessfully && mobile) {
                 try {
                     const { error } = await client
@@ -134,17 +134,10 @@ function payNow() {
                 alert("Warning: Could not update status automatically. Please show payment receipt to counter.");
             }
 
-            // Execute redirect smoothly after database transaction cycle finishes
+            // Execute redirect uniformly to success.html after database cycles conclude
             setTimeout(function() {
-                const printType = localStorage.getItem("printType");
-                if (printType === "id") {
-                    const frontUrl = localStorage.getItem("frontImage");
-                    const backUrl = localStorage.getItem("backImage");
-                    window.location.href = "idpreview.html?front=" + encodeURIComponent(frontUrl) + "&back=" + encodeURIComponent(backUrl);
-                } else {
-                    window.location.href = "success.html";
-                }
-            }, 1500);
+                window.location.href = "success.html";
+            }, 1200);
         },
         theme: { color: "#1976d2" }
     };
