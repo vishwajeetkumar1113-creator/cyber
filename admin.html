@@ -161,17 +161,14 @@
 </div>
 
 <script>
-    // Supabase Credentials Config Setup
     const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Initial load fetch initialization
     window.onload = function() {
         fetchOrders();
     };
 
-    // Main extraction workflow logic query engine
     async function fetchOrders() {
         const tableBody = document.getElementById("ordersTableBody");
         
@@ -187,50 +184,42 @@
         }
 
         if (!orders || orders.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="8" class="no-orders">No print job records found in database query queue matrix.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="8" class="no-orders">No print job records found in database queue queue matrix.</td></tr>`;
             return;
         }
 
-        tableBody.innerHTML = ""; // Empty loader placeholder context rows
+        tableBody.innerHTML = ""; 
 
         orders.forEach(order => {
             const row = document.createElement("tr");
-
-            // Format timestamp neatly
             const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : "N/A";
-            
-            // Payment badge filter handler rules
             const statusClass = order.payment_status === "Completed" ? "badge-completed" : "badge-pending";
 
-            // Determine if the file is a unified generic single Document file upload or structural ID layout template mapping
+            // Identify whether it is an Aadhaar/PAN order or a document print order
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            // Generate Action buttons structure cleanly
             let actionsHtml = "";
 
             if (trueTargetRawSourceUrl) {
                 if (isIdCardOrder) {
-                    // 🌟 STEP 3 FIXED INTEGRATION ENGINE: 
-                    // Safely bundle URL components so strings with raw spaces, slashes or special characters don't break browser rendering pipelines
+                    // 🌟 URL PARAMETER ENCODING SECURE MATCH
                     const encFront = encodeURIComponent(order.front_url || '');
                     const encBack = encodeURIComponent(order.back_url || '');
                     const encSummary = encodeURIComponent(order.print_type || '');
 
-                    // Generates clean URL parameters matching idpreview.html structures natively
+                    // Passes variables cleanly into the target preview layout logic
                     const a4LinkUrl = `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}`;
                     
                     actionsHtml += `<a href="${a4LinkUrl}" target="_blank" class="action-btn preview-btn">👁️ A4 Preview</a>`;
                 } else {
-                    // Standard explicit structural fallback link formatting rules for basic standalone document files
+                    // Falls back to direct documentation files presentation link logic
                     actionsHtml += `<a href="${trueTargetRawSourceUrl}" target="_blank" class="action-btn preview-btn">👁️ View Doc</a>`;
                 }
                 
-                // Add explicit direct file object file downloader link handler 
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
-            // Dynamic mark complete lifecycle action button injector
             if (order.payment_status !== "Completed") {
                 actionsHtml += `<button onclick="markAsCompleted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
             }
@@ -250,7 +239,6 @@
         });
     }
 
-    // Dynamic backend manual data updater call
     async function markAsCompleted(orderId) {
         if (!confirm("Are you sure you want to mark this print order task complete?")) return;
 
@@ -263,11 +251,10 @@
             alert("Update operation failed: " + error.message);
         } else {
             alert("Order marked completed successfully!");
-            fetchOrders(); // Reload the query data list immediately
+            fetchOrders(); 
         }
     }
 
-    // Helper secure sanitation mapping rules preventing HTML injection vulnerabilities inside string outputs
     function escapeHtml(str) {
         if (!str) return '';
         return str.toString()
@@ -275,7 +262,7 @@
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+            .replace(/'/g, "&#039 bridge;");
     }
 </script>
 
