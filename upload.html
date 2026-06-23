@@ -115,16 +115,15 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let currentlyLoadedFileURL = null;
 let currentFileType = "";
 let cachedFileObject = null;
-let totalDetectedPDFPages = 1; // Tracks actual total pages of uploaded PDF globally
+let totalDetectedPDFPages = 1; 
 
 async function handleFileSelectionChange() {
     resetFileCache();
     const fileInput = document.getElementById("file").files[0];
-    totalDetectedPDFPages = 1; // Reset default count
+    totalDetectedPDFPages = 1; 
 
     if (fileInput && fileInput.type === "application/pdf") {
         try {
-            // Read PDF directly on selection to detect exact multi-page bounds instantly
             const fileArrayBuffer = await fileInput.arrayBuffer();
             const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
             totalDetectedPDFPages = srcPdf.getPageCount();
@@ -168,6 +167,7 @@ async function previewDocument() {
         let targetPage = 1;
         let cleanInput = pageInput.replace(/\s+/g, '').toLowerCase();
 
+        // Dynamic targeting calculation based on custom page layout arrays
         if (cleanInput !== "all" && cleanInput !== "") {
             let firstSegment = cleanInput.split(",")[0];
             if (firstSegment.includes("-")) {
@@ -177,41 +177,36 @@ async function previewDocument() {
             }
         }
 
-        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        // Enforce boundary parameters dynamically across rendering processes
+        if (targetPage < 1) targetPage = 1;
+        if (targetPage > totalDetectedPDFPages) targetPage = totalDetectedPDFPages;
 
-        if (isMobileDevice) {
-            previewContainer.innerHTML = "<span>Loading mobile preview...</span>";
-            try {
-                const fileArrayBuffer = await cachedFileObject.arrayBuffer();
-                const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
-                const pdf = await loadingTask.promise;
-                
-                if (targetPage < 1) targetPage = 1;
-                if (targetPage > pdf.numPages) targetPage = pdf.numPages;
+        // Force both mobile canvas engines and standard desktop views to track the dynamic targets
+        try {
+            const fileArrayBuffer = await cachedFileObject.arrayBuffer();
+            const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
+            const pdf = await loadingTask.promise;
+            
+            const page = await pdf.getPage(targetPage);
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const viewport = page.getViewport({ scale: 1.2 }); // Balanced rendering scale to protect device performance
 
-                const page = await pdf.getPage(targetPage);
-                
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                const viewport = page.getViewport({ scale: 1.5 });
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
 
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-
-                const renderContext = {
-                    canvasContext: context,
-                    viewport: viewport
-                };
-                
-                previewContainer.innerHTML = "";
-                previewContainer.appendChild(canvas);
-                await page.render(renderContext).promise;
-            } catch (err) {
-                console.error("Mobile rendering issue:", err);
-                previewContainer.innerHTML = "<span>Preview ready (Document Loaded)</span>";
-            }
-        } else {
-            previewContainer.innerHTML = `<iframe src="${currentlyLoadedFileURL}#page=${targetPage}&view=FitH"></iframe>`;
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+            };
+            
+            previewContainer.innerHTML = "";
+            previewContainer.appendChild(canvas);
+            await page.render(renderContext).promise;
+        } catch (err) {
+            console.error("Rendering dynamic target error:", err);
+            previewContainer.innerHTML = "<span>Preview Generation Exception</span>";
         }
     } else {
         previewContainer.innerHTML = "<span>Preview not supported for this file type</span>";
@@ -262,7 +257,7 @@ function calculate() {
     let price = parseInt(document.getElementById("type").value);
     
     if (copies < 1) copies = 1;
-    let totalPages = totalDetectedPDFPages; // Use the actual detected page length instead of fallback 1
+    let totalPages = totalDetectedPDFPages; 
 
     let selectedPages = parsePageSelection(pageInput);
     if (selectedPages !== null) {
@@ -316,116 +311,4 @@ async function submitOrder() {
     const type = document.getElementById("type").value;
     
     let displayPriceText = document.getElementById("total").innerHTML;
-    let amount = parseInt(displayPriceText.replace("Total: ₹", ""));
-
-    let finalFileToUpload = file;
-    let calculatedIntegerPages = totalDetectedPDFPages;
-    let isBlackAndWhite = (type == 5); 
-
-    if (file.type.startsWith("image/") && isBlackAndWhite) {
-        alert("Processing high resolution image...");
-        finalFileToUpload = await new Promise((resolve) => {
-            const img = new Image();
-            const objectUrl = URL.createObjectURL(file);
-            img.src = objectUrl;
-            img.onload = function() {
-                const grayCanvas = convertImageToGrayscale(img);
-                URL.revokeObjectURL(objectUrl);
-                grayCanvas.toBlob((blob) => {
-                    const processedFile = new File([blob], file.name, { type: "image/jpeg" });
-                    resolve(processedFile);
-                }, "image/jpeg", 1.0);
-            };
-        });
-    }
-
-    if (file.type === "application/pdf") {
-        let pageNumbersList = parsePageSelection(pages);
-        
-        try {
-            alert("Processing PDF layout... Please wait.");
-            
-            const fileArrayBuffer = await file.arrayBuffer();
-            const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
-            const extractedPdf = await PDFLib.PDFDocument.create();
-            
-            let totalDocPagesCount = srcPdf.getPageCount();
-            let dynamicIndicesToKeep = [];
-
-            if (pageNumbersList !== null && pageNumbersList.length > 0) {
-                calculatedIntegerPages = pageNumbersList.length;
-                dynamicIndicesToKeep = pageNumbersList
-                    .map(p => p - 1)
-                    .filter(idx => idx >= 0 && idx < totalDocPagesCount);
-            } else {
-                calculatedIntegerPages = totalDocPagesCount;
-                for (let i = 0; i < totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
-            }
-
-            if (dynamicIndicesToKeep.length > 0) {
-                const copiedPages = await extractedPdf.copyPages(srcPdf, dynamicIndicesToKeep);
-                copiedPages.forEach((page) => extractedPdf.addPage(page));
-                
-                if (isBlackAndWhite) {
-                    const targetPages = extractedPdf.getPages();
-                    targetPages.forEach(page => {
-                        page.pushOperators(
-                            PDFLib.pdfdoc.PDFOperator.of('cmd_set_color_space_gray', [
-                                PDFLib.PDFName.of('DeviceGray')
-                            ])
-                        );
-                    });
-                }
-                
-                const savedPdfBytes = await extractedPdf.save();
-                finalFileToUpload = new Blob([savedPdfBytes], { type: "application/pdf" });
-            }
-        } catch (pdfError) {
-            console.error("PDF-LIB system error:", pdfError);
-        }
-    }
-
-    alert("Uploading clean document... Please wait.");
-
-    const namePrefix = isBlackAndWhite ? "bw_" : "color_";
-    const fileName = Date.now() + "_" + namePrefix + file.name;
-    
-    const { error: uploadError } = await client.storage.from("documents").upload(fileName, finalFileToUpload);
-
-    if (uploadError) { alert(uploadError.message); return; }
-
-    const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
-
-    const baseType = (isBlackAndWhite ? "Black & White" : "Color");
-    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
-
-    const { data: insertedOrder, error } = await client.from("orders").insert([
-        {
-            customer_name: name,
-            mobile: mobile,
-            pages: calculatedIntegerPages, 
-            print_type: detailedPrintSummary, 
-            amount: amount,
-            file_url: fileUrl,
-            payment_status: "Pending", 
-            payment_id: ""
-        }
-    ]).select();
-
-    if (error) {
-        alert(error.message);
-    } else {
-        localStorage.setItem("amount", amount);
-        localStorage.setItem("mobile", mobile);
-        localStorage.setItem("printType", "document");
-        
-        if (insertedOrder && insertedOrder.length > 0) {
-            localStorage.setItem("current_order_id", insertedOrder[0].id); 
-        }
-        window.location.href = "payment.html";
-    }
-}
-</script>
-
-</body>
-</html>
+    let amount = parseInt(displayPriceText.replace("Total: ₹", "
