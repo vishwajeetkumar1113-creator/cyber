@@ -6,17 +6,40 @@
     <title>Secure Checkout - Select Payment Method</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f6f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
         .payment-container {
             max-width: 450px;
-            margin: 40px auto;
-            padding: 25px;
+            width: 100%;
+            padding: 30px;
             background: #ffffff;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
             text-align: center;
         }
+
+        h2 {
+            color: #333;
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
         .amount-display {
-            font-size: 26px;
+            font-size: 28px;
             font-weight: bold;
             color: #1976d2;
             margin: 20px 0;
@@ -25,6 +48,7 @@
             border-radius: 8px;
             border: 2px dashed #1976d2;
         }
+
         .pay-btn {
             display: block;
             width: 100%;
@@ -36,20 +60,26 @@
             border: none;
             cursor: pointer;
             transition: all 0.2s ease;
+            text-decoration: none;
+            text-align: center;
         }
+
         .rzp-btn {
             color: white;
             background: #3399cc;
             box-shadow: 0 4px 12px rgba(51, 153, 204, 0.3);
         }
+
         .rzp-btn:hover {
             background: #287a9e;
         }
+
         .cash-btn {
             color: white;
             background-color: #28a745;
             box-shadow: 0 4px 12px rgba(40, 167, 69, 0.25);
         }
+
         .cash-btn:hover {
             background-color: #218838;
         }
@@ -59,16 +89,16 @@
 
 <div class="payment-container">
     <h2>Select Payment Method</h2>
-    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance balance parameters.</p>
+    <p style="color: #666; font-size: 14px;">Choose how you want to pay for your print order.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <button class="pay-btn rzp-btn" onclick="openRazorpayCheckout(event)">💳 PAY ONLINE NOW</button>
+    <button class="pay-btn rzp-btn" onclick="openCashfreeCheckout(event)">💳 PAY ONLINE NOW</button>
     
     <button class="pay-btn cash-btn" onclick="processCashPayment(event)">💵 PAY WITH CASH AT COUNTER</button>
 </div>
 
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
@@ -79,12 +109,16 @@
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // Initialize Cashfree Instance Profile Interface
+    // ⚠️ Remember to change "sandbox" string to "production" when using your live active tokens
+    const cashfree = Cashfree({ mode: "sandbox" }); 
+
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
     };
 
-    // 🌐 OPTION 1: ONLINE GATEWAY ENGINE ROUTE
-    function openRazorpayCheckout(e) {
+    // 🌐 ONLINE PAYMENT ENGINE (CASHFREE INTEGRATION)
+    async function openCashfreeCheckout(e) {
         e.preventDefault();
 
         if (billingAmount === "0" || billingAmount === "") {
@@ -92,44 +126,44 @@
             return;
         }
 
-        const amountInPaise = parseFloat(billingAmount) * 100;
+        try {
+            /* ⚠️ SERVER-SIDE BACKEND SESSION HOOK REFERENCE NOTE:
+              Cashfree requests require a server endpoint execution layer to pass a secure payment token down.
+              Replace the placeholder key string below with your generated backend response object mapping variables.
+            */
+            const paymentSessionId = "YOUR_CASHFREE_PAYMENT_SESSION_ID"; 
 
-        const options = {
-            "key": "rzp_live_T5K9Isn4Ds0Qrx", // ⚠️ Put your live/test Razorpay Key ID here
-            "amount": amountInPaise.toString(),
-            "currency": "INR",
-            "name": "Digital Print Shop",
-            "description": "Payment for Order #" + (targetOrderId || "Bulk"),
-            "handler": async function (response) {
-                try {
-                    if (targetOrderId) {
-                        // Automatically update status variables straight to Paid state
-                        await client
-                            .from("orders")
-                            .update({ payment_status: "Paid" })
-                            .eq("id", targetOrderId);
-                    }
-                    localStorage.setItem("last_payment_method", "Razorpay Gateway");
-                    window.location.href = "success.html";
-                } catch (err) {
-                    console.error("Database connection failure context: ", err);
-                    window.location.href = "success.html";
+            if (paymentSessionId === "YOUR_CASHFREE_PAYMENT_SESSION_ID") {
+                alert("Configuration Needed: Please paste your dynamic secure Cashfree backend paymentSessionId inside this code routine context block.");
+                return;
+            }
+
+            // Launch the overlay modal directly inside the current active window view
+            let checkoutOptions = {
+                paymentSessionId: paymentSessionId,
+                redirectTarget: "_self" 
+            };
+            
+            cashfree.checkout(checkoutOptions).then(function(result) {
+                if(result.error) {
+                    console.error("Cashfree operational execution interrupt logged:", result.error);
+                    alert("Gateway Notification: " + result.error.message);
                 }
-            },
-            "theme": { "color": "#3399cc" }
-        };
+            });
 
-        const rzp = new Razorpay(options);
-        rzp.open();
+        } catch (gatewayErr) {
+            console.error("Cashfree initialization interface failure profile:", gatewayErr);
+            alert("Unable to route layout transaction values down into Cashfree systems.");
+        }
     }
 
-    // 🏦 OPTION 2: CASH AT COUNTER BACKEND REGISTRATION FLOW
+    // 🏦 CASH AT COUNTER REGISTRATION FLOW
     async function processCashPayment(e) {
         e.preventDefault();
         
         try {
             if (targetOrderId) {
-                // Update tracking profile to alert admin queue layout monitor matrix
+                // Keep the exact verified column name structure 'payment_status'
                 await client
                     .from("orders")
                     .update({ payment_status: "Cash Payment Pending" })
