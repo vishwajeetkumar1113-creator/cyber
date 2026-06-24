@@ -110,14 +110,14 @@
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // Initialize Cashfree Instance Profile Interface
-    // ⚠️ Remember to change "sandbox" string to "production" when using your live active tokens
+    // ⚠️ Note: The sandbox/production mode parameter is automatically managed by your bright-handler edge function logic!
     const cashfree = Cashfree({ mode: "sandbox" }); 
 
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
     };
 
-    // 🌐 ONLINE PAYMENT ENGINE (CASHFREE INTEGRATION)
+    // 🌐 ONLINE PAYMENT ENGINE (ROUTED TO YOUR LIVE SUPABASE EDGE FUNCTION)
     async function openCashfreeCheckout(e) {
         e.preventDefault();
 
@@ -127,18 +127,26 @@
         }
 
         try {
-            /* ⚠️ SERVER-SIDE BACKEND SESSION HOOK REFERENCE NOTE:
-              Cashfree requests require a server endpoint execution layer to pass a secure payment token down.
-              Replace the placeholder key string below with your generated backend response object mapping variables.
-            */
-            const paymentSessionId = "YOUR_CASHFREE_PAYMENT_SESSION_ID"; 
+            // 🚀 Connect directly to your web-deployed bright-handler to handle keys securely
+            const response = await fetch("https://irqlvuphoblgjqysteto.supabase.co/functions/v1/bright-handler", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    amount: billingAmount,
+                    orderId: targetOrderId || ("order_" + Date.now())
+                })
+            });
+            
+            const apiResult = await response.json();
+            const paymentSessionId = apiResult.payment_session_id;
 
-            if (paymentSessionId === "YOUR_CASHFREE_PAYMENT_SESSION_ID") {
-                alert("Configuration Needed: Please paste your dynamic secure Cashfree backend paymentSessionId inside this code routine context block.");
+            if (!paymentSessionId) {
+                console.error("Function error callback data returned:", apiResult);
+                alert("Gateway Error: Could not generate a secure transaction sequence session.");
                 return;
             }
 
-            // Launch the overlay modal directly inside the current active window view
+            // Launch the native Cashfree overlay checkout flow window modal frame
             let checkoutOptions = {
                 paymentSessionId: paymentSessionId,
                 redirectTarget: "_self" 
@@ -146,14 +154,14 @@
             
             cashfree.checkout(checkoutOptions).then(function(result) {
                 if(result.error) {
-                    console.error("Cashfree operational execution interrupt logged:", result.error);
+                    console.error("Checkout execution logged:", result.error);
                     alert("Gateway Notification: " + result.error.message);
                 }
             });
 
         } catch (gatewayErr) {
             console.error("Cashfree initialization interface failure profile:", gatewayErr);
-            alert("Unable to route layout transaction values down into Cashfree systems.");
+            alert("Unable to reach secure verification payment servers. Check connection status.");
         }
     }
 
