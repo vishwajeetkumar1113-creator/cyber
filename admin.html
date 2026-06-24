@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Print Management</title>
     <style>
-        /* ==========================================================================
-           YOUR ORIGINAL STYLE SHEET LAYOUT (UNTOUCHED)
-           ========================================================================== */
+        /* 🌐 SYSTEM INTERACTION STYLES */
         * {
             margin: 0;
             padding: 0;
@@ -69,32 +67,42 @@
             border-radius: 4px;
         }
 
-        /* ==========================================================================
-           PRINT OVERRIDE MECHANISM (REMOVES LINK & TIMING ONLY)
-           ========================================================================== */
+        /* 🖨️ CORE ENGINE: PRINT MANAGEMENT CONTROL */
         @media print {
+            /* 1. Reset physical page definitions to override default browser layouts */
             @page {
-                size: auto;
-                margin: 0mm; /* This completely strips browser headers (URLs) & footers (Time) */
+                size: auto;   /* Maintains aspect ratio scale */
+                margin: 0mm;  /* Hides default browser header links and time footers */
             }
+
+            /* 2. Configure body context layers to render without cutting edges */
             body {
                 background-color: #ffffff !important;
                 padding: 0 !important;
-                margin: 8mm !important; /* Standard layout buffer padding */
+                margin: 8mm !important; /* Internal spacing instead of browser margins */
             }
-            .admin-header, .btn-print {
-                display: none !important; /* Hides the control interface panel from print output */
+
+            /* 3. Drop visibility of control units, buttons, and navigation frames */
+            .admin-header,
+            .btn-print,
+            .no-print {
+                display: none !important;
             }
+
+            /* 4. Force full scale display container optimization */
             .poster-canvas {
                 width: 100% !important;
                 max-width: 100% !important;
                 box-shadow: none !important;
                 padding: 0 !important;
                 margin: 0 !important;
+                background: transparent !important;
             }
+
             .poster-canvas img {
                 width: 100% !important;
                 max-width: 100% !important;
+                border-radius: 0 !important;
             }
         }
     </style>
@@ -106,12 +114,18 @@
             <h2>Online Printing Services</h2>
             <p style="font-size: 13px; color: #bdc3c7;">Poster Dispatch Control Desk</p>
         </div>
-        <button class="btn-print" onclick="window.print()">🖨️ PRINT BANNER NOW</button>
+        <button class="btn-print" onclick="triggerSystemPrint()">🖨️ PRINT BANNER NOW</button>
     </div>
 
     <div class="poster-canvas">
-        <img src="poster_preview.png" alt="Print Poster Banner">
+        <img src="css/poster_preview.png" alt="Print Poster Banner" id="targetPoster">
     </div>
 
+    <script>
+        // 🚀 Print interface engine launcher
+        function triggerSystemPrint() {
+            window.print();
+        }
+    </script>
 </body>
 </html>
