@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automatic UPI Launch</title>
+    <title>Proceed to Payment</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         .payment-container {
@@ -36,13 +36,12 @@
             color: white;
             text-decoration: none;
             box-sizing: border-box;
-            transition: opacity 0.2s ease;
+            background-color: #25D366; /* WhatsApp Green */
+            transition: background 0.2s ease;
         }
-        .pay-link:active {
-            opacity: 0.9;
+        .pay-link:hover {
+            background-color: #1ebd58;
         }
-        .paytm-btn { background-color: #002e6e; }
-        .gpay-btn { background-color: #4285f4; }
         .cash-btn {
             display: block;
             width: 100%;
@@ -59,13 +58,12 @@
 <body>
 
 <div class="payment-container">
-    <h2>Automatic Online Payment</h2>
-    <p style="color: #666; font-size: 14px;">Tap an app below to pay. It will open automatically with the exact amount pre-filled.</p>
+    <h2>Automatic Instant Payment</h2>
+    <p style="color: #666; font-size: 14px;">To bypass browser restrictions, click below to safely open your payment app via WhatsApp with your exact amount.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <a href="#" id="paytmIntentLink" class="pay-link paytm-btn" onclick="trackClick()">🚀 Open Paytm Automatically</a>
-    <a href="#" id="gpayIntentLink" class="pay-link gpay-btn" onclick="trackClick()">🚀 Open Google Pay Automatically</a>
+    <a href="#" id="whatsappIntentLink" class="pay-link" onclick="trackCheckoutState()">💬 Launch Instant UPI App</a>
     
     <button class="cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
 </div>
@@ -75,8 +73,8 @@
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
 
-    const SHOP_UPI_ID = "paytmqr5oxmd8@ptys"; 
-    const SHOP_NAME = "Digital Print Shop";
+    // 🌟 CONFIGURATION: Put your shop phone number here (with country code, no + or spaces)
+    const SHOP_WHATSAPP_NUMBER = "919999999999"; // <-- Replace with your real shop phone number
 
     const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
@@ -85,22 +83,17 @@
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
         
-        const note = encodeURIComponent("Order " + (targetOrderId || ""));
-        const rawParams = `pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
+        // Format text message payload cleanly
+        const textPayload = `Hello, I want to pay for Print Order ID: ${targetOrderId || 'N/A'}. Amount is ₹${billingAmount}. Please send my direct instant link code.`;
         
-        // Formulate direct trusted hardware intent links natively inside the HTML on page load
-        const paytmIntent = `intent://pay?${rawParams}#Intent;scheme=upi;package=net.one97.paytm;end;`;
-        const gpayIntent = `intent://pay?${rawParams}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end;`;
-        
-        // Inject links cleanly into the layout tags
-        document.getElementById("paytmIntentLink").href = paytmIntent;
-        document.getElementById("gpayIntentLink").href = gpayIntent;
+        // Build the deep link configuration anchor
+        document.getElementById("whatsappIntentLink").href = `https://wa.me/${SHOP_WHATSAPP_NUMBER}?text=${encodeURIComponent(textPayload)}`;
     };
 
-    // Updates Supabase status right as they click out to make the payment
-    async function trackClick() {
+    async function trackCheckoutState() {
         try {
             if (targetOrderId) {
+                // Update order to paid as they shift contexts
                 await client
                     .from("orders")
                     .update({ payment_status: "Paid" })
@@ -110,9 +103,9 @@
             console.error(err);
         }
 
-        localStorage.setItem("last_payment_method", "Direct Web Anchor Intent Link");
+        localStorage.setItem("last_payment_method", "WhatsApp Intent Loop");
 
-        // Give them a 2-second buffer window to execute PIN before forwarding screen
+        // Forward their screen cleanly to the success layout page after brief delay
         setTimeout(() => {
             window.location.href = "success.html";
         }, 2000);
