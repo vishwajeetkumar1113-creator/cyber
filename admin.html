@@ -213,13 +213,14 @@
             
             let payBadgeClass = "badge-unpaid";
             let isPaidSuccess = false;
+            let isCashPending = false;
             
             if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
                 payBadgeClass = "badge-paid";
                 isPaidSuccess = true;
-            } else if (lowerPay === "cash payment pending") {
+            } else if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
                 payBadgeClass = "badge-cash";
-                isPaidSuccess = true; 
+                isCashPending = true; 
             }
 
             const prntStatus = order.print_status || 'Pending';
@@ -228,6 +229,7 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
+            // Online transactions auto-print safely. Cash queues require your manual button trigger event click.
             if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
                 triggerAutomaticHardwarePrint(order);
             }
@@ -239,6 +241,7 @@
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
+            // 🌟 FIXED: Keep "Mark Paid" enabled if the transaction is pending cash settlement at counter
             if (!isPaidSuccess) {
                 actionsHtml += `<button onclick="markAsPaid('${order.id}')" class="action-btn pay-btn">💰 Mark Paid</button>`;
             }
@@ -266,7 +269,7 @@
     async function triggerAutomaticHardwarePrint(order) {
         if (isProcessingPrintJob) return;
         isProcessingPrintJob = true; 
-        console.log("Auto-Print Triggered for Order ID:", order.id);
+        console.log("Printing Order ID:", order.id);
 
         const iframe = document.getElementById("silentPrintFrame");
         const isIdCard = order.front_url && order.front_url !== "";
@@ -290,7 +293,6 @@
                 
                 const currentFileType = order.file_type || "";
                 
-                // 🌟 REMOVES HEADERS AND FOOTERS VIA INJECTED PRINT MARGIN RULES
                 if (currentFileType.includes('image')) {
                     frameDoc.write(`
                         <html>
@@ -333,6 +335,7 @@
             }
         }
 
+        // 🌟 Gives Firefox clean processing space to buffer the background link content strings safely
         setTimeout(async () => {
             try {
                 iframe.contentWindow.focus();
