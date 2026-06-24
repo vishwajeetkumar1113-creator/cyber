@@ -212,15 +212,16 @@
             const lowerPay = payStatus.toLowerCase();
             
             let payBadgeClass = "badge-unpaid";
+            let displayStatusText = payStatus;
             let isPaidSuccess = false;
-            let isCashPending = false;
             
             if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
                 payBadgeClass = "badge-paid";
                 isPaidSuccess = true;
             } else if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
                 payBadgeClass = "badge-cash";
-                isCashPending = true; 
+                displayStatusText = "Cash Payment Pending"; // 🌟 Forces status text formatting on dashboard
+                isPaidSuccess = false; 
             }
 
             const prntStatus = order.print_status || 'Pending';
@@ -229,7 +230,6 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            // Online transactions auto-print safely. Cash queues require your manual button trigger event click.
             if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
                 triggerAutomaticHardwarePrint(order);
             }
@@ -241,7 +241,6 @@
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
-            // 🌟 FIXED: Keep "Mark Paid" enabled if the transaction is pending cash settlement at counter
             if (!isPaidSuccess) {
                 actionsHtml += `<button onclick="markAsPaid('${order.id}')" class="action-btn pay-btn">💰 Mark Paid</button>`;
             }
@@ -257,7 +256,7 @@
                 <td><span style="font-size:12px; color:#555;">${escapeHtml(order.print_type || 'Document Print')}</span></td>
                 <td>${order.pages || 1}</td>
                 <td><strong>₹${order.amount || 0}</strong></td>
-                <td><span class="badge ${payBadgeClass}">${escapeHtml(payStatus)}</span></td>
+                <td><span class="badge ${payBadgeClass}">${escapeHtml(displayStatusText)}</span></td>
                 <td><span class="badge ${prntBadgeClass}">${escapeHtml(prntStatus)}</span></td>
                 <td>${actionsHtml}</td>
             `;
@@ -335,7 +334,6 @@
             }
         }
 
-        // 🌟 Gives Firefox clean processing space to buffer the background link content strings safely
         setTimeout(async () => {
             try {
                 iframe.contentWindow.focus();
