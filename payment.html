@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Proceed to Payment</title>
+    <title>Instant UPI Launch</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         .payment-container {
@@ -23,49 +23,48 @@
             background: #f0f7ff;
             padding: 15px;
             border-radius: 8px;
-            border: 2px dashed #1976d2;
+            border: 1px dashed #1976d2;
         }
-        .pay-link {
+        .pay-btn {
             display: block;
             width: 100%;
             padding: 15px;
-            margin-bottom: 12px;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
-            border-radius: 8px;
-            color: white;
-            text-decoration: none;
-            box-sizing: border-box;
-            background-color: #25D366; /* WhatsApp Green */
-            transition: background 0.2s ease;
-        }
-        .pay-link:hover {
-            background-color: #1ebd58;
-        }
-        .cash-btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            font-size: 14px;
-            background-color: #85bb65;
-            color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            color: white;
+            background-color: #1976d2;
+            transition: background 0.2s ease;
+            text-decoration: none;
+        }
+        .pay-btn:hover {
+            background-color: #1565c0;
+        }
+        .toast-msg {
+            display: none;
+            margin-top: 10px;
+            padding: 8px;
+            background-color: #323232;
+            color: white;
+            font-size: 13px;
+            border-radius: 4px;
         }
     </style>
 </head>
 <body>
 
 <div class="payment-container">
-    <h2>Automatic Instant Payment</h2>
-    <p style="color: #666; font-size: 14px;">To bypass browser restrictions, click below to safely open your payment app via WhatsApp with your exact amount.</p>
+    <h2>Automatic UPI Launch</h2>
+    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">Tap below to select your banking app. The exact amount will carry over.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <a href="#" id="whatsappIntentLink" class="pay-link" onclick="trackCheckoutState()">💬 Launch Instant UPI App</a>
+    <!-- 🌟 Clean Native URL scheme string -->
+    <a href="#" id="nativeUpiLink" class="pay-btn" onclick="handleUpiClick(event)">⚡ Pay Now (Select App)</a>
     
-    <button class="cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
+    <div class="toast-msg" id="toast">📋 Shop UPI ID copied to clipboard automatically!</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -73,8 +72,8 @@
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
 
-    // 🌟 CONFIGURATION: Put your shop phone number here (with country code, no + or spaces)
-    const SHOP_WHATSAPP_NUMBER = "917992433200"; // <-- Replace with your real shop phone number
+    const SHOP_UPI_ID = "paytmqr5oxmd8@ptys"; 
+    const SHOP_NAME = "Digital Print Shop";
 
     const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
@@ -83,17 +82,22 @@
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
         
-        // Format text message payload cleanly
-        const textPayload = `Hello, I want to pay for Print Order ID: ${targetOrderId || 'N/A'}. Amount is ₹${billingAmount}. Please send my direct instant link code.`;
+        const note = encodeURIComponent("Order " + (targetOrderId || ""));
+        // 🌟 Use the basic native web link standard scheme
+        const standardUpiUrl = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
         
-        // Build the deep link configuration anchor
-        document.getElementById("whatsappIntentLink").href = `https://wa.me/${SHOP_WHATSAPP_NUMBER}?text=${encodeURIComponent(textPayload)}`;
+        document.getElementById("nativeUpiLink").href = standardUpiUrl;
     };
 
-    async function trackCheckoutState() {
+    async function handleUpiClick(e) {
+        // 1. Instantly copy the ID to clipboard as a secure backup step
+        navigator.clipboard.writeText(SHOP_UPI_ID);
+        
+        document.getElementById("toast").style.display = "block";
+
+        // 2. Register Paid status in Supabase so the admin panel triggers the print job
         try {
             if (targetOrderId) {
-                // Update order to paid as they shift contexts
                 await client
                     .from("orders")
                     .update({ payment_status: "Paid" })
@@ -103,17 +107,10 @@
             console.error(err);
         }
 
-        localStorage.setItem("last_payment_method", "WhatsApp Intent Loop");
-
-        // Forward their screen cleanly to the success layout page after brief delay
+        // 3. Let the phone open the standard app selection list naturally
         setTimeout(() => {
             window.location.href = "success.html";
-        }, 2000);
-    }
-
-    function processCashPayment() {
-        localStorage.setItem("last_payment_method", "Cash");
-        window.location.href = "success.html";
+        }, 3000);
     }
 </script>
 </body>
