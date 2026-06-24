@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instant Automatic Payment</title>
+    <title>Secure Checkout - Select Payment Method</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         .payment-container {
@@ -25,59 +25,55 @@
             border-radius: 8px;
             border: 2px dashed #1976d2;
         }
-        .auto-pay-btn {
+        .pay-btn {
             display: block;
             width: 100%;
             padding: 16px;
-            font-size: 18px;
+            margin-bottom: 15px;
+            font-size: 16px;
             font-weight: bold;
             border-radius: 8px;
-            color: white;
-            text-decoration: none;
-            background: linear-gradient(135deg, #28a745, #1e7e34);
-            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-            box-sizing: border-box;
+            border: none;
+            cursor: pointer;
             transition: all 0.2s ease;
         }
-        .auto-pay-btn:active {
-            transform: scale(0.98);
-            box-shadow: none;
+        .rzp-btn {
+            color: white;
+            background: #3399cc;
+            box-shadow: 0 4px 12px rgba(51, 153, 204, 0.3);
+        }
+        .rzp-btn:hover {
+            background: #287a9e;
         }
         .cash-btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            margin-top: 15px;
-            font-size: 14px;
-            background-color: #85bb65;
             color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
+            background-color: #28a745;
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.25);
+        }
+        .cash-btn:hover {
+            background-color: #218838;
         }
     </style>
 </head>
 <body>
 
 <div class="payment-container">
-    <h2>Automatic Instant Checkout</h2>
-    <p style="color: #666; font-size: 14px;">Tap below to launch your UPI app automatically with the exact amount pre-filled.</p>
+    <h2>Select Payment Method</h2>
+    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance balance parameters.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <a href="#" id="directUpiIntentButton" class="auto-pay-btn" onclick="syncAndRedirect(event)">⚡ PAY NOW (Open UPI App)</a>
+    <button class="pay-btn rzp-btn" onclick="openRazorpayCheckout(event)">💳 PAY ONLINE NOW</button>
     
-    <button class="cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
+    <button class="pay-btn cash-btn" onclick="processCashPayment(event)">💵 PAY WITH CASH AT COUNTER</button>
 </div>
 
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
-
-    // Using your verified business merchant handle
-    const SHOP_UPI_ID = "paytmqr5oxmd8@ptys"; 
-    const SHOP_NAME = "Digital Print Shop";
 
     const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
@@ -85,40 +81,65 @@
 
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
-        
-        const note = encodeURIComponent("Order " + (targetOrderId || ""));
-        
-        // 🌟 THE BULLETPROOF WAY: Standard parameters sent as a raw native app scheme string
-        const nativeUpiScheme = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
-        
-        // Inject directly into the link before the user interacts with the device screen
-        document.getElementById("directUpiIntentButton").href = nativeUpiScheme;
     };
 
-    // Updates Supabase table data fields right as the customer taps out to pay
-    async function syncAndRedirect(e) {
-        try {
-            if (targetOrderId) {
-                // Instantly update status to Paid so your admin.html panel catches the event queue live
-                await client
-                    .from("orders")
-                    .update({ payment_status: "Paid" })
-                    .eq("id", targetOrderId);
-            }
-        } catch (err) {
-            console.error("Database tracking link failed: ", err);
+    // 🌐 OPTION 1: ONLINE GATEWAY ENGINE ROUTE
+    function openRazorpayCheckout(e) {
+        e.preventDefault();
+
+        if (billingAmount === "0" || billingAmount === "") {
+            alert("Invalid order amount profile.");
+            return;
         }
 
-        localStorage.setItem("last_payment_method", "Direct Automatic Intent Scheme");
+        const amountInPaise = parseFloat(billingAmount) * 100;
 
-        // Give the device 1.5 seconds to pass context to the banking layout before cleaning the current tab window
-        setTimeout(() => {
-            window.location.href = "success.html";
-        }, 1500);
+        const options = {
+            "key": "rzp_live_T5K9Isn4Ds0Qrx", // ⚠️ Put your live/test Razorpay Key ID here
+            "amount": amountInPaise.toString(),
+            "currency": "INR",
+            "name": "Digital Print Shop",
+            "description": "Payment for Order #" + (targetOrderId || "Bulk"),
+            "handler": async function (response) {
+                try {
+                    if (targetOrderId) {
+                        // Automatically update status variables straight to Paid state
+                        await client
+                            .from("orders")
+                            .update({ payment_status: "Paid" })
+                            .eq("id", targetOrderId);
+                    }
+                    localStorage.setItem("last_payment_method", "Razorpay Gateway");
+                    window.location.href = "success.html";
+                } catch (err) {
+                    console.error("Database connection failure context: ", err);
+                    window.location.href = "success.html";
+                }
+            },
+            "theme": { "color": "#3399cc" }
+        };
+
+        const rzp = new Razorpay(options);
+        rzp.open();
     }
 
-    function processCashPayment() {
-        localStorage.setItem("last_payment_method", "Cash");
+    // 🏦 OPTION 2: CASH AT COUNTER BACKEND REGISTRATION FLOW
+    async function processCashPayment(e) {
+        e.preventDefault();
+        
+        try {
+            if (targetOrderId) {
+                // Update tracking profile to alert admin queue layout monitor matrix
+                await client
+                    .from("orders")
+                    .update({ payment_status: "Cash Payment Pending" })
+                    .eq("id", targetOrderId);
+            }
+        } catch (dbError) {
+            console.error("Database tracker update error:", dbError);
+        }
+
+        localStorage.setItem("last_payment_method", "Cash Counter");
         window.location.href = "success.html";
     }
 </script>
