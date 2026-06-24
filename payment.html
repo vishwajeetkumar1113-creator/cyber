@@ -94,7 +94,6 @@
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
     <button class="pay-btn rzp-btn" onclick="openCashfreeCheckout(event)">💳 PAY ONLINE NOW</button>
-    
     <button class="pay-btn cash-btn" onclick="processCashPayment(event)">💵 PAY WITH CASH AT COUNTER</button>
 </div>
 
@@ -109,17 +108,12 @@
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // ⚠️ REPLACE these strings with your actual Cashfree Dashboard Credentials directly!
-    const CASHFREE_APP_ID = "13h4KShaXik8KoSSZRZcScXYpbTG6rRoTT";
-    const CASHFREE_SECRET_KEY = "cfsk_ma_prod_fefa2a0e21ebda9536aa5e218fdc68db_c8b59e84";
-
     const cashfree = Cashfree({ mode: "sandbox" }); 
 
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
     };
 
-    // 🌐 DIRECT frontend request flow - bypassing the Supabase Edge Function gateway completely
     async function openCashfreeCheckout(e) {
         e.preventDefault();
 
@@ -129,36 +123,28 @@
         }
 
         try {
-            // Hit Cashfree Sandbox directly from the browser sandbox container
-            const response = await fetch("https://sandbox.cashfree.com/pg/orders", {
+            // 🛡️ Sending a completely clean request with absolutely NO security headers.
+            // Since JWT is disabled on the dashboard, it will slide right through to your code!
+            const response = await fetch("https://irqlvuphoblgjqysteto.supabase.co/functions/v1/bright-handler", {
                 method: "POST",
-                headers: {
-                    "x-client-id": CASHFREE_APP_ID,
-                    "x-client-secret": CASHFREE_SECRET_KEY,
-                    "x-api-version": "2023-08-01",
+                headers: { 
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    order_amount: parseFloat(billingAmount),
-                    order_currency: "INR",
-                    order_id: targetOrderId || ("order_" + Date.now()),
-                    customer_details: {
-                        customer_id: "cust_" + Date.now(),
-                        customer_phone: "9999999999"
-                    }
+                    amount: billingAmount.toString(),
+                    orderId: targetOrderId || ("order_" + Date.now())
                 })
             });
             
-            const data = await response.json();
-            const paymentSessionId = data.payment_session_id;
+            const apiResult = await response.json();
+            const paymentSessionId = apiResult.payment_session_id;
 
             if (!paymentSessionId) {
-                console.error("Direct Cashfree API Error Response:", data);
-                alert("Gateway Error: " + (data.message || "Could not generate transaction session directly."));
+                console.error("Function response details:", apiResult);
+                alert("Gateway Error: Could not generate a secure transaction sequence session.");
                 return;
             }
 
-            // Launch Cashfree overlay checkout flow window modal
             let checkoutOptions = {
                 paymentSessionId: paymentSessionId,
                 redirectTarget: "_self" 
@@ -166,21 +152,19 @@
             
             cashfree.checkout(checkoutOptions).then(function(result) {
                 if(result.error) {
-                    console.error("Checkout execution logged:", result.error);
+                    console.error("Checkout window error:", result.error);
                     alert("Gateway Notification: " + result.error.message);
                 }
             });
 
         } catch (gatewayErr) {
-            console.error("Direct network connection failure profile:", gatewayErr);
-            alert("Unable to reach secure verification payment servers.");
+            console.error("Network communication error:", gatewayErr);
+            alert("Unable to reach secure payment verification servers.");
         }
     }
 
-    // 🏦 CASH AT COUNTER REGISTRATION FLOW
     async function processCashPayment(e) {
         e.preventDefault();
-        
         try {
             if (targetOrderId) {
                 await client
@@ -189,9 +173,8 @@
                     .eq("id", targetOrderId);
             }
         } catch (dbError) {
-            console.error("Database tracker update error:", dbError);
+            console.error("Database tracking error:", dbError);
         }
-
         localStorage.setItem("last_payment_method", "Cash Counter");
         window.location.href = "cash.html";
     }
