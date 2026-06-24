@@ -32,7 +32,6 @@
             transition: all 0.4s ease;
         }
 
-        /* 🟡 Pending State Design Styles */
         .status-icon-pending {
             width: 80px;
             height: 80px;
@@ -53,7 +52,6 @@
             margin-bottom: 10px;
         }
 
-        /* 🟢 Success State Design Styles */
         .status-card.success-active {
             border-top: 8px solid #28a745;
         }
@@ -130,29 +128,49 @@
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Pull targeted reference key values directly out of local memory stack
     const currentOrderId = localStorage.getItem("current_order_id");
 
     window.onload = function() {
         if (!currentOrderId) {
-            console.warn("No active tracking order ID detected inside local memory context.");
+            console.warn("No active order ID found in storage.");
             return;
         }
         
-        // Connect live webhook stream to watch this specific customer record cell parameters
+        // Check current database status immediately in case it was already updated
+        checkCurrentStatus();
+        
+        // Start live realtime listening stream
         listenForAdminPaymentApproval();
     };
 
+    // 🌟 New: Instantly checks status if they refresh the page
+    async function checkCurrentStatus() {
+        const { data, error } = await client
+            .from("orders")
+            .select("payment_status")
+            .eq("id", currentOrderId)
+            .single();
+
+        if (data) {
+            const currentStatus = (data.payment_status || '').toLowerCase().trim();
+            if (currentStatus === 'paid' || currentStatus === 'success' || currentStatus === 'completed') {
+                showPaymentSuccessScreen();
+            }
+        }
+    }
+
+    // 🌟 Fixed: Broader real-time event capture logic
     function listenForAdminPaymentApproval() {
         client
             .channel('cash-status-stream')
             .on('postgres_changes', { 
                 event: 'UPDATE', 
                 schema: 'public', 
-                table: 'orders', 
-                filter: `id=eq.${currentOrderId}` 
+                table: 'orders',
+                filter: `id=eq.${currentOrderId}`
             }, payload => {
-                const updatedStatus = (payload.new.payment_status || '').toLowerCase();
+                console.log("Realtime status change received:", payload.new.payment_status);
+                const updatedStatus = (payload.new.payment_status || '').toLowerCase().trim();
                 
                 if (updatedStatus === 'paid' || updatedStatus === 'success' || updatedStatus === 'completed') {
                     showPaymentSuccessScreen();
@@ -162,7 +180,6 @@
     }
 
     function showPaymentSuccessScreen() {
-        // Toggle elements visibility profiles instantly using DOM manipulation paths
         document.getElementById("pendingArea").style.display = "none";
         
         document.getElementById("successIcon").style.display = "flex";
