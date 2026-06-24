@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Payment Method</title>
+    <title>Automatic Payment Engine</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         .payment-container {
@@ -15,146 +15,91 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             text-align: center;
         }
-
-        h2 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-
         .amount-display {
-            font-size: 24px;
+            font-size: 26px;
             font-weight: bold;
             color: #1976d2;
-            margin: 20px 0;
+            margin: 15px 0;
             background: #f0f7ff;
-            padding: 12px;
+            padding: 15px;
             border-radius: 8px;
-            border: 1px dashed #1976d2;
+            border: 2px dashed #1976d2;
         }
-
-        .pay-btn {
+        .qr-wrapper img {
+            width: 240px;
+            height: 240px;
             display: block;
-            width: 100%;
-            padding: 14px;
-            margin-bottom: 12px;
-            font-size: 16px;
-            font-weight: bold;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s ease, transform 0.1s ease;
-            color: white;
+            margin: 0 auto;
         }
-
-        .pay-btn:active {
-            transform: scale(0.98);
-        }
-
-        .online-btn {
-            background-color: #28a745;
-        }
-
-        .online-btn:hover {
-            background-color: #218838;
-        }
-
-        .cash-btn {
-            background-color: #85bb65; 
-            border: 2px solid #73a953;
-        }
-
-        .cash-btn:hover {
-            background-color: #6e9e51;
-        }
-
-        .cancel-link {
-            display: inline-block;
+        .status-box {
             margin-top: 15px;
-            color: #666;
-            text-decoration: none;
+            padding: 10px;
+            background: #fff3cd;
+            color: #856404;
+            border-radius: 6px;
             font-size: 14px;
-        }
-
-        .cancel-link:hover {
-            text-decoration: underline;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
 <div class="payment-container">
-    <h2>Complete Your Order</h2>
-    <p style="color: #666;">Please select your preferred payment mode below.</p>
-    
-    <div class="amount-display" id="priceDisplay">Total Amount: ₹0</div>
+    <h2>Scan & Pay to Print</h2>
+    <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <button class="pay-btn online-btn" onclick="processOnlinePayment()">💳 Pay Online (UPI Instant)</button>
-    
-    <button class="pay-btn cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
+    <div class="qr-wrapper">
+        <img id="upiQrImage" src="" alt="Generating QR Code...">
+    </div>
 
-    <a href="index.html" class="cancel-link">❌ Cancel & Abandon Order</a>
+    <div class="status-box" id="statusMessage">
+        ⏳ Waiting for your payment... Do not close this page.
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <script>
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
-    const customerMobile = localStorage.getItem("mobile");
 
-    // 🌟 CONFIGURATION: Change this to your actual shop's UPI ID/VPA and Business Name
-    const SHOP_UPI_ID = "paytmqr5oxmd8@ptys"; // <-- Put your GPay/PhonePe/Paytm UPI ID here
-    const SHOP_NAME = "Digital Print Shop"; // <-- Put your shop name here
+    const SHOP_UPI_ID = "paytmqr5oxmd8@ptys"; 
+    const SHOP_NAME = "Digital Print Shop";
 
     const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     window.onload = function() {
-        document.getElementById("priceDisplay").innerText = "Total Amount: ₹" + billingAmount;
+        document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
+        
+        const note = encodeURIComponent("OrderID_" + (targetOrderId || ""));
+        const upiString = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
+        
+        document.getElementById("upiQrImage").src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(upiString)}`;
+
+        // Start checking the database automatically every 3 seconds to see if the phone caught the payment
+        setInterval(checkPaymentStatus, 3000);
     };
 
-    // 🌟 FIXED ONLINE PAYMENT ROUTING VIA DYNAMIC UPI INTENT
-    async function processOnlinePayment() {
-        if (billingAmount === "0" || billingAmount === "") {
-            alert("Invalid checkout amount.");
-            return;
+    async function checkPaymentStatus() {
+        if (!targetOrderId) return;
+
+        const { data, error } = await client
+            .from("orders")
+            .select("payment_status")
+            .eq("id", targetOrderId)
+            .single();
+
+        if (data && data.payment_status === "Paid") {
+            document.getElementById("statusMessage").innerHTML = "🎉 Payment Verified! Redirecting...";
+            document.getElementById("statusMessage").style.background = "#d4edda";
+            document.getElementById("statusMessage").style.color = "#155724";
+            
+            setTimeout(() => {
+                window.location.href = "success.html";
+            }, 1500);
         }
-
-        // Generate a standard deep-linked UPI URI scheme
-        const note = encodeURIComponent("Print Job Order " + (targetOrderId || ""));
-        const upiUrl = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
-
-        // Automatically update payment status to "Success" in Supabase so the automated print queue triggers immediately upon clicking link
-        try {
-            if (targetOrderId) {
-                await client
-                    .from("orders")
-                    .update({ payment_status: "Success" })
-                    .eq("id", targetOrderId);
-            }
-        } catch (err) {
-            console.error("Database status tracking failure:", err);
-        }
-
-        localStorage.setItem("last_payment_method", "Online UPI");
-
-        // Redirect directly to UPI gateway handler. 
-        // On phones, this opens Google Pay / PhonePe / Paytm instantly with the exact correct amount filled out!
-        window.location.href = upiUrl;
-
-        // Fallback: If they are on a desktop, send them directly to the success screen after a brief delay
-        setTimeout(() => {
-            window.location.href = "success.html";
-        }, 1000);
-    }
-
-    function processCashPayment() {
-        if (!confirm("Are you sure you want to pay using cash at the shop counter? Your document will print once marked by management.")) return;
-        localStorage.setItem("last_payment_method", "Cash");
-        window.location.href = "success.html";
     }
 </script>
-
 </body>
 </html>
