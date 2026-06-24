@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Checkout - Select Payment Method</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Cash Payment Status</title>
     <style>
         * {
             margin: 0;
@@ -22,167 +21,174 @@
             padding: 20px;
         }
 
-        .payment-container {
+        .status-card {
+            background: #ffffff;
             max-width: 450px;
             width: 100%;
-            padding: 30px;
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            padding: 40px 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
             text-align: center;
+            transition: all 0.4s ease;
         }
 
-        h2 {
-            color: #333;
-            font-size: 22px;
-            margin-bottom: 8px;
+        .status-icon-pending {
+            width: 80px;
+            height: 80px;
+            background-color: #fff3cd;
+            color: #856404;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            margin: 0 auto 20px auto;
+            border: 3px solid #ffeeba;
         }
 
-        .amount-display {
-            font-size: 28px;
-            font-weight: bold;
-            color: #1976d2;
-            margin: 20px 0;
-            background: #f0f7ff;
-            padding: 15px;
-            border-radius: 8px;
-            border: 2px dashed #1976d2;
+        .title-pending {
+            color: #856404;
+            font-size: 24px;
+            margin-bottom: 10px;
         }
 
-        .pay-btn {
+        .status-card.success-active {
+            border-top: 8px solid #28a745;
+        }
+
+        .status-icon-success {
+            width: 80px;
+            height: 80px;
+            background-color: #d4edda;
+            color: #155724;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            margin: 0 auto 20px auto;
+            border: 3px solid #c3e6cb;
+            display: none;
+        }
+
+        .title-success {
+            color: #155724;
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: none;
+        }
+
+        .message {
+            color: #666;
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .btn-new-order {
             display: block;
             width: 100%;
-            padding: 16px;
-            margin-bottom: 15px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s ease;
+            background-color: #1976d2;
+            color: white;
             text-decoration: none;
-            text-align: center;
+            padding: 14px;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(25, 118, 210, 0.2);
+            transition: background 0.2s ease;
         }
 
-        .rzp-btn {
-            color: white;
-            background: #3399cc;
-            box-shadow: 0 4px 12px rgba(51, 153, 204, 0.3);
-        }
-
-        .rzp-btn:hover {
-            background: #287a9e;
-        }
-
-        .cash-btn {
-            color: white;
-            background-color: #28a745;
-            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.25);
-        }
-
-        .cash-btn:hover {
-            background-color: #218838;
+        .btn-new-order:hover {
+            background-color: #1565c0;
         }
     </style>
 </head>
 <body>
 
-<div class="payment-container">
-    <h2>Select Payment Method</h2>
-    <p style="color: #666; font-size: 14px;">Choose how you want to pay for your print order.</p>
-    
-    <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
+<div class="status-card" id="statusCard">
+    <div id="pendingArea">
+        <div class="status-icon-pending">⏳</div>
+        <h2 class="title-pending">Payment is Pending</h2>
+    </div>
 
-    <button class="pay-btn rzp-btn" onclick="openCashfreeCheckout(event)">💳 PAY ONLINE NOW</button>
-    
-    <button class="pay-btn cash-btn" onclick="processCashPayment(event)">💵 PAY WITH CASH AT COUNTER</button>
+    <div id="successArea">
+        <div class="status-icon-success" id="successIcon">✓</div>
+        <h2 class="title-success" id="successTitle">Payment Successfully Done</h2>
+    </div>
+
+    <p class="message" id="statusMessage">Please visit the shop counter now to pay cash. Keep this window open; it updates automatically the moment your bill is settled.</p>
+
+    <a href="index.html" class="btn-new-order">➕ Add New Order</a>
 </div>
 
-<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <script>
-    const billingAmount = localStorage.getItem("amount") || "0";
-    const targetOrderId = localStorage.getItem("current_order_id");
-
     const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Initialize Cashfree Instance Profile Interface
-    // ⚠️ Note: The sandbox/production mode parameter is automatically managed by your bright-handler edge function logic!
-    const cashfree = Cashfree({ mode: "sandbox" }); 
+    let currentOrderId = localStorage.getItem("current_order_id");
 
     window.onload = function() {
-        document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
-    };
-
-    // 🌐 ONLINE PAYMENT ENGINE (ROUTED TO YOUR LIVE SUPABASE EDGE FUNCTION)
-    async function openCashfreeCheckout(e) {
-        e.preventDefault();
-
-        if (billingAmount === "0" || billingAmount === "") {
-            alert("Invalid order amount profile.");
+        if (!currentOrderId) {
+            currentOrderId = localStorage.getItem("orderId") || localStorage.getItem("last_order_id");
+        }
+        
+        if (!currentOrderId) {
+            document.getElementById("statusMessage").innerText = "Notice: Waiting for order tracking payload context. Please stay on this page.";
             return;
         }
+        
+        checkCurrentStatus();
+        listenForAdminPaymentApproval();
+        setInterval(checkCurrentStatus, 3000); 
+    };
 
+    async function checkCurrentStatus() {
+        if (!currentOrderId) return;
         try {
-            // 🚀 Connect directly to your web-deployed bright-handler to handle keys securely
-            const response = await fetch("https://irqlvuphoblgjqysteto.supabase.co/functions/v1/bright-handler", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    amount: billingAmount,
-                    orderId: targetOrderId || ("order_" + Date.now())
-                })
-            });
-            
-            const apiResult = await response.json();
-            const paymentSessionId = apiResult.payment_session_id;
+            const { data, error } = await client
+                .from("orders")
+                .select("payment_status")
+                .eq("id", currentOrderId)
+                .maybeSingle(); 
 
-            if (!paymentSessionId) {
-                console.error("Function error callback data returned:", apiResult);
-                alert("Gateway Error: Could not generate a secure transaction sequence session.");
-                return;
-            }
-
-            // Launch the native Cashfree overlay checkout flow window modal frame
-            let checkoutOptions = {
-                paymentSessionId: paymentSessionId,
-                redirectTarget: "_self" 
-            };
-            
-            cashfree.checkout(checkoutOptions).then(function(result) {
-                if(result.error) {
-                    console.error("Checkout execution logged:", result.error);
-                    alert("Gateway Notification: " + result.error.message);
+            if (data) {
+                const currentStatus = (data.payment_status || '').toLowerCase().trim();
+                if (currentStatus === 'paid' || currentStatus === 'success' || currentStatus === 'completed') {
+                    showPaymentSuccessScreen();
                 }
-            });
-
-        } catch (gatewayErr) {
-            console.error("Cashfree initialization interface failure profile:", gatewayErr);
-            alert("Unable to reach secure verification payment servers. Check connection status.");
+            }
+        } catch (err) {
+            console.error("Polled check status error:", err);
         }
     }
 
-    // 🏦 CASH AT COUNTER REGISTRATION FLOW
-    async function processCashPayment(e) {
-        e.preventDefault();
-        
-        try {
-            if (targetOrderId) {
-                // Keep the exact verified column name structure 'payment_status'
-                await client
-                    .from("orders")
-                    .update({ payment_status: "Cash Payment Pending" })
-                    .eq("id", targetOrderId);
-            }
-        } catch (dbError) {
-            console.error("Database tracker update error:", dbError);
-        }
+    function listenForAdminPaymentApproval() {
+        client
+            .channel('cash-status-stream')
+            .on('postgres_changes', { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'orders',
+                filter: `id=eq.${currentOrderId}`
+            }, payload => {
+                const updatedStatus = (payload.new.payment_status || '').toLowerCase().trim();
+                if (updatedStatus === 'paid' || updatedStatus === 'success' || updatedStatus === 'completed') {
+                    showPaymentSuccessScreen();
+                }
+            })
+            .subscribe();
+    }
 
-        localStorage.setItem("last_payment_method", "Cash Counter");
-        window.location.href = "cash.html";
+    function showPaymentSuccessScreen() {
+        document.getElementById("pendingArea").style.display = "none";
+        document.getElementById("successIcon").style.display = "flex";
+        document.getElementById("successTitle").style.display = "block";
+        document.getElementById("statusCard").classList.add("success-active");
+        document.getElementById("statusMessage").innerText = "Thank you! Your cash payment has been processed and your print files are sent directly to the machine queue.";
+        document.getElementById("statusMessage").style.color = "#155724";
     }
 </script>
 </body>
