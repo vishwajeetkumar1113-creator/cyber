@@ -212,14 +212,16 @@
             const lowerPay = payStatus.toLowerCase();
             
             let payBadgeClass = "badge-unpaid";
+            let displayStatusText = payStatus;
             let isPaidSuccess = false;
             
             if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
                 payBadgeClass = "badge-paid";
                 isPaidSuccess = true;
-            } else if (lowerPay === "cash payment pending") {
+            } else if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
                 payBadgeClass = "badge-cash";
-                isPaidSuccess = true; 
+                displayStatusText = "Cash Payment Pending"; // 🌟 Forces status text formatting on dashboard
+                isPaidSuccess = false; 
             }
 
             const prntStatus = order.print_status || 'Pending';
@@ -254,7 +256,7 @@
                 <td><span style="font-size:12px; color:#555;">${escapeHtml(order.print_type || 'Document Print')}</span></td>
                 <td>${order.pages || 1}</td>
                 <td><strong>₹${order.amount || 0}</strong></td>
-                <td><span class="badge ${payBadgeClass}">${escapeHtml(payStatus)}</span></td>
+                <td><span class="badge ${payBadgeClass}">${escapeHtml(displayStatusText)}</span></td>
                 <td><span class="badge ${prntBadgeClass}">${escapeHtml(prntStatus)}</span></td>
                 <td>${actionsHtml}</td>
             `;
@@ -266,7 +268,7 @@
     async function triggerAutomaticHardwarePrint(order) {
         if (isProcessingPrintJob) return;
         isProcessingPrintJob = true; 
-        console.log("Auto-Print Triggered for Order ID:", order.id);
+        console.log("Printing Order ID:", order.id);
 
         const iframe = document.getElementById("silentPrintFrame");
         const isIdCard = order.front_url && order.front_url !== "";
@@ -290,7 +292,6 @@
                 
                 const currentFileType = order.file_type || "";
                 
-                // 🌟 REMOVES HEADERS AND FOOTERS VIA INJECTED PRINT MARGIN RULES
                 if (currentFileType.includes('image')) {
                     frameDoc.write(`
                         <html>
