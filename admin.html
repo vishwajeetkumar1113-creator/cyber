@@ -3,349 +3,225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Print Shop Admin Control Panel</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Admin Dashboard - Digital Print Shop</title>
+    <link rel="stylesheet" href="css/style.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
         body {
+            font-family: 'Segoe UI', Arial, sans-serif;
             background-color: #f4f6f9;
-            color: #333;
+            margin: 0;
             padding: 20px;
         }
-
         .dashboard-container {
-            max-width: 1350px;
+            max-width: 1200px;
             margin: 0 auto;
             background: #ffffff;
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
             border-bottom: 2px solid #eaeaea;
-            padding-bottom: 20px;
-            margin-bottom: 25px;
+            padding-bottom: 10px;
         }
-
-        .header h1 {
-            color: #1976d2;
-            font-size: 28px;
-        }
-
-        .auto-print-badge {
-            background-color: #28a745;
-            color: white;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: bold;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
-        }
-
-        .refresh-btn {
-            background-color: #1976d2;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            margin-top: 20px;
         }
-
         th, td {
-            padding: 14px 16px;
-            border-bottom: 1px solid #eeeeee;
-            font-size: 14px;
+            padding: 12px 15px;
             text-align: left;
+            border-bottom: 1px solid #ddd;
         }
-
         th {
-            background-color: #f8f9fa;
-            color: #555;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 12px;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .badge-pending { background-color: #ffe699; color: #806000; }
-        .badge-completed { background-color: #c6efce; color: #006100; }
-        .badge-unpaid { background-color: #f8d7da; color: #721c24; }
-        .badge-paid { background-color: #c6efce; color: #006100; }
-
-        .action-btn {
-            padding: 6px 12px;
-            font-size: 13px;
-            font-weight: bold;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 5px;
-            text-decoration: none;
-            display: inline-block;
+            background-color: #1976d2;
             color: white;
         }
-
-        .print-btn { background-color: #28a745; }
-        .download-btn { background-color: #17a2b8; }
-        .pay-btn { background-color: #007bff; }
-        .complete-btn { background-color: #ffc107; color: #212529; }
-        .no-orders { text-align: center; padding: 40px; color: #777; }
+        tr:hover {
+            background-color: #f1f5f9;
+        }
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .status-paid { background-color: #d4edda; color: #155724; }
+        .status-pending { background-color: #fff3cd; color: #856404; }
+        .status-cash { background-color: #cce5ff; color: #004085; }
         
-        #silentPrintFrame {
-            position: absolute;
-            width: 0;
-            height: 0;
+        .print-btn {
+            background-color: #28a745;
+            color: white;
             border: none;
-            visibility: hidden;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s ease;
+        }
+        .print-btn:hover {
+            background-color: #218838;
         }
     </style>
 </head>
 <body>
 
 <div class="dashboard-container">
-    <div class="header">
-        <div>
-            <h1>Print Shop Admin Control Panel</h1>
-            <p style="font-size:12px; color:#666; margin-top:4px;">Scanning data matrix loops dynamically...</p>
-        </div>
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <span class="auto-print-badge">🟢 AUTO-PRINT ENGAGED</span>
-            <button class="refresh-btn" onclick="fetchOrders()">🔄 Refresh Orders</button>
-        </div>
-    </div>
+    <h1>🖨️ Live Print Shop Order Queue</h1>
+    <p>Incoming customer files sync here in real-time. Paid items can be spooled directly to the hardware queue.</p>
 
-    <div class="orders-table-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    <th>Created At</th>
-                    <th>Customer Name</th>
-                    <th>Mobile</th>
-                    <th>Print Details</th>
-                    <th>Pages / Copies</th>
-                    <th>Amount</th>
-                    <th>Payment Status</th>
-                    <th>Print Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="ordersTableBody">
-                <tr>
-                    <td colspan="9" class="no-orders">Loading print queue dataset...</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
+    <table id="ordersTable">
+        <thead>
+            <tr>
+                <th>Order ID</th>
+                <th>Amount</th>
+                <th>Payment Status</th>
+                <th>File Action</th>
+            </tr>
+        </thead>
+        <tbody id="ordersBody">
+            <tr>
+                <td colspan="4" style="text-align: center; color: #888;">Connecting to live stream synchronization channel...</td>
+            </tr>
+        </tbody>
+    </table>
 </div>
 
-<iframe id="silentPrintFrame"></iframe>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
     const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let isProcessingPrintJob = false; 
-
     window.onload = function() {
-        fetchOrders();
-        setInterval(fetchOrders, 5000); 
+        loadIncomingOrdersTable();
+        listenToLiveOrderUpdates();
     };
 
-    async function fetchOrders() {
-        const tableBody = document.getElementById("ordersTableBody");
-        
+    // 1. Initial Load of Database Table Content
+    async function loadIncomingOrdersTable() {
         const { data: orders, error } = await client
             .from("orders")
             .select("*")
             .order("created_at", { ascending: false });
 
         if (error) {
-            console.error("Database connection dropped:", error);
+            console.error("Error fetching orders:", error);
             return;
         }
+        renderTableRows(orders);
+    }
+
+    // 2. Real-Time Listener (Auto-updates layout instantly when payment clears)
+    function listenToLiveOrderUpdates() {
+        client
+            .channel('schema-db-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+                console.log('Change received!', payload);
+                loadIncomingOrdersTable(); // Refresh dataset on change
+            })
+            .subscribe();
+    }
+
+    // 3. Render Data Strings into Table Rows
+    function renderTableRows(orders) {
+        const tbody = document.getElementById("ordersBody");
+        tbody.innerHTML = "";
 
         if (!orders || orders.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="9" class="no-orders">No print job records found.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;">No active print requests found.</td></tr>`;
             return;
         }
 
-        tableBody.innerHTML = ""; 
-
         orders.forEach(order => {
-            const row = document.createElement("tr");
-            const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : "N/A";
-            
-            const payStatus = (order.payment_status || 'Pending').trim();
-            const lowerPay = payStatus.toLowerCase();
-            
-            let payBadgeClass = "badge-unpaid";
-            let isPaidSuccess = false;
-            if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
-                payBadgeClass = "badge-paid";
-                isPaidSuccess = true;
-            }
+            let badgeClass = "status-pending";
+            if (order.payment_status === "Paid") badgeClass = "status-paid";
+            if (order.payment_status === "Cash Payment Pending") badgeClass = "status-cash";
 
-            const prntStatus = order.print_status || 'Pending';
-            const prntBadgeClass = prntStatus === "Completed" ? "badge-completed" : "badge-pending";
-
-            const isIdCardOrder = order.front_url && order.front_url !== "";
-            const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
-
-            // BACKGROUND AUTO-INTERCEPT ENGINES
-            if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
-                triggerAutomaticHardwarePrint(order);
-            }
-
-            let actionsHtml = "";
-            if (trueTargetRawSourceUrl) {
-                actionsHtml += `<button onclick="triggerAutomaticHardwarePrint(${JSON.stringify(order).replace(/"/g, '&quot;')})" class="action-btn print-btn">🖨️ Print Now</button>`;
-                actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
-            }
-
-            if (!isPaidSuccess) {
-                actionsHtml += `<button onclick="markAsPaid('${order.id}')" class="action-btn pay-btn">💰 Mark Paid</button>`;
-            }
-
-            if (prntStatus !== "Completed") {
-                actionsHtml += `<button onclick="markAsPrinted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
-            }
-
-            row.innerHTML = `
-                <td>${dateStr}</td>
-                <td><strong>${escapeHtml(order.customer_name)}</strong></td>
-                <td>${escapeHtml(order.mobile)}</td>
-                <td><span style="font-size:12px; color:#555;">${escapeHtml(order.print_type || 'Document Print')}</span></td>
-                <td>${order.pages || 1}</td>
-                <td><strong>₹${order.amount || 0}</strong></td>
-                <td><span class="badge ${payBadgeClass}">${escapeHtml(payStatus)}</span></td>
-                <td><span class="badge ${prntBadgeClass}">${escapeHtml(prntStatus)}</span></td>
-                <td>${actionsHtml}</td>
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><strong>#${order.id.substring(0, 8)}...</strong></td>
+                <td>₹${order.amount || '0'}</td>
+                <td><span class="status-badge ${badgeClass}">${order.payment_status}</span></td>
+                <td>
+                    <button class="print-btn" onclick="fetchAndPrintFile('${order.file_url}', '${order.file_type}')">🖨️ Direct Print</button>
+                </td>
             `;
-
-            tableBody.appendChild(row);
+            tbody.appendChild(tr);
         });
     }
 
-    // 🌟 BULLETPROOF CORS-BYPASS PRINTING ENGINE
-    async function triggerAutomaticHardwarePrint(order) {
-        if (isProcessingPrintJob) return;
-        isProcessingPrintJob = true; 
-        console.log("Auto-Print Triggered for Order ID:", order.id);
-
-        const iframe = document.getElementById("silentPrintFrame");
-        const isIdCard = order.front_url && order.front_url !== "";
-        
-        let targetPrintLayoutUrl = "";
-
-        if (isIdCard) {
-            const encFront = encodeURIComponent(order.front_url || '');
-            const encBack = encodeURIComponent(order.back_url || '');
-            const encSummary = encodeURIComponent(order.print_type || '');
-            targetPrintLayoutUrl = `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}&autoplay=true`;
-            
-            // For ID previews hosted on your own server, load into iframe immediately
-            iframe.src = targetPrintLayoutUrl;
-        } else {
-            // 🌟 BYPASS MECHANISM: Fetches raw file data directly to completely drop cross-domain restrictions
-            try {
-                const response = await fetch(order.file_url);
-                const blob = await response.blob();
-                // Generate local execution blob path link sequence
-                targetPrintLayoutUrl = URL.createObjectURL(blob);
-                iframe.src = targetPrintLayoutUrl;
-            } catch (fetchError) {
-                console.error("CORS asset streaming failure payload:", fetchError);
-                // Fallback option avoids getting locked out if streaming hangs
-                window.open(order.file_url, '_blank');
-                isProcessingPrintJob = false;
-                return;
-            }
+    // 4. Download Asset Content and Convert to Blob Profile Link
+    async function fetchAndPrintFile(fileUrl, fileType) {
+        if (!fileUrl) {
+            alert("No file attachment mapped to this tracking target.");
+            return;
         }
 
-        iframe.onload = async function() {
-            try {
-                iframe.contentWindow.focus();
-                iframe.contentWindow.print();
+        try {
+            const response = await fetch(fileUrl);
+            const blobData = await response.blob();
+            
+            // Generate a secure temporary system object path configuration link
+            const secureBlobUrl = URL.createObjectURL(blobData);
+            
+            // Execute the Firefox-safe hardware printing engine call sequence
+            executeFirefoxSafePrint(secureBlobUrl, fileType);
+        } catch (err) {
+            console.error("Storage download failure profile details:", err);
+            alert("Unable to fetch asset file from storage layer.");
+        }
+    }
+
+    // 🌟 5. THE FIX FOR FIREFOX PRINT ENGINE LAYOUT BLOCKS
+    function executeFirefoxSafePrint(blobUrl, fileType) {
+        // Create an isolated iframe layout structure
+        const printFrame = document.createElement('iframe');
+        
+        // Hide the engine wrapper elements completely from active viewports
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        
+        document.body.appendChild(printFrame);
+
+        // Handle image assets differently than PDF sheets to bypass Firefox wrapper blocks
+        if (fileType && fileType.includes('image')) {
+            const frameDoc = printFrame.contentWindow.document;
+            frameDoc.open();
+            frameDoc.write(`
+                <html>
+                <body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center;">
+                    <img src="${blobUrl}" style="max-width:100%; max-height:100%; object-fit:contain;" onload="window.focus(); window.print();">
+                </body>
+                </html>
+            `);
+            frameDoc.close();
+        } else {
+            // Standard Document processing paths
+            printFrame.src = blobUrl;
+        }
+        
+        // Give Firefox a structural rendering delay buffer frame to populate layout before printing
+        printFrame.onload = function() {
+            setTimeout(() => {
+                printFrame.contentWindow.focus();
+                printFrame.contentWindow.print();
                 
-                // Instantly sync order completion down inside Supabase
-                const { error } = await client
-                    .from("orders")
-                    .update({ print_status: "Completed", printed: true })
-                    .eq("id", order.id);
-
-                if (error) console.error("Database update sync error:", error);
-            } catch (err) {
-                console.error("Hardware pipeline assignment failed layout warning:", err);
-            } finally {
-                // Free memory resources cleanly
-                if(!isIdCard && targetPrintLayoutUrl.startsWith("blob:")) {
-                    URL.revokeObjectURL(targetPrintLayoutUrl);
-                }
+                // Tear down and clean up DOM framework reference points
                 setTimeout(() => {
-                    isProcessingPrintJob = false;
-                    fetchOrders(); 
-                }, 1500);
-            }
+                    document.body.removeChild(printFrame);
+                    URL.revokeObjectURL(blobUrl); // Safely clean up memory strings
+                }, 2000);
+            }, 600); // 600ms delays keep Firefox from loading blank pages
         };
-    }
-
-    async function markAsPaid(orderId) {
-        const { error } = await client
-            .from("orders")
-            .update({ payment_status: "Paid" })
-            .eq("id", orderId);
-
-        if (error) alert("Payment update failed: " + error.message);
-        fetchOrders();
-    }
-
-    async function markAsPrinted(orderId) {
-        const { error } = await client
-            .from("orders")
-            .update({ print_status: "Completed", printed: true })
-            .eq("id", orderId);
-
-        if (error) alert("Error updating status: " + error.message);
-        fetchOrders(); 
-    }
-
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.toString()
-            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 </script>
 </body>
