@@ -1,12 +1,4 @@
-Here is your complete, updated **`admin.html`** file.
 
-The issue is that Firefox blocks raw `blob:` strings inside the frame and forces an immediate preview before content loads, resulting in that blank white screen.
-
-To resolve this while keeping your style **100% untouched**, the print engine has been modified to wrap standard document/image files dynamically into a clean HTML viewport inside the iframe, applying a **600ms render delay** to give Firefox time to pull the binary data before firing `print()`.
-
-### Fixed `admin.html`
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
