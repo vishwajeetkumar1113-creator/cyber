@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automatic Payment Engine</title>
+    <title>Automatic UPI Launch</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         .payment-container {
@@ -19,42 +19,54 @@
             font-size: 26px;
             font-weight: bold;
             color: #1976d2;
-            margin: 15px 0;
+            margin: 20px 0;
             background: #f0f7ff;
             padding: 15px;
             border-radius: 8px;
-            border: 2px dashed #1976d2;
+            border: 1px dashed #1976d2;
         }
-        .qr-wrapper img {
-            width: 240px;
-            height: 240px;
+        .pay-btn {
             display: block;
-            margin: 0 auto;
-        }
-        .status-box {
-            margin-top: 15px;
-            padding: 10px;
-            background: #fff3cd;
-            color: #856404;
-            border-radius: 6px;
-            font-size: 14px;
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 12px;
+            font-size: 16px;
             font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            transition: background 0.2s ease;
+        }
+        .paytm-btn { background-color: #002e6e; }
+        .paytm-btn:hover { background-color: #001f4d; }
+        .gpay-btn { background-color: #4285f4; }
+        .gpay-btn:hover { background-color: #357ae8; }
+        .cash-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            background-color: #85bb65;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
 <div class="payment-container">
-    <h2>Scan & Pay to Print</h2>
+    <h2>Automatic Online Payment</h2>
+    <p style="color: #666; font-size: 14px;">Select an app below. It will open automatically with the exact amount pre-filled.</p>
+    
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <div class="qr-wrapper">
-        <img id="upiQrImage" src="" alt="Generating QR Code...">
-    </div>
-
-    <div class="status-box" id="statusMessage">
-        ⏳ Waiting for your payment... Do not close this page.
-    </div>
+    <button class="pay-btn paytm-btn" onclick="launchDirectUpiApp('paytm')">🚀 Open Paytm Automatically</button>
+    <button class="pay-btn gpay-btn" onclick="launchDirectUpiApp('gpay')">🚀 Open Google Pay Automatically</button>
+    
+    <button class="cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -71,34 +83,58 @@
 
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
-        
-        const note = encodeURIComponent("OrderID_" + (targetOrderId || ""));
-        const upiString = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
-        
-        document.getElementById("upiQrImage").src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(upiString)}`;
-
-        // Start checking the database automatically every 3 seconds to see if the phone caught the payment
-        setInterval(checkPaymentStatus, 3000);
     };
 
-    async function checkPaymentStatus() {
-        if (!targetOrderId) return;
-
-        const { data, error } = await client
-            .from("orders")
-            .select("payment_status")
-            .eq("id", targetOrderId)
-            .single();
-
-        if (data && data.payment_status === "Paid") {
-            document.getElementById("statusMessage").innerHTML = "🎉 Payment Verified! Redirecting...";
-            document.getElementById("statusMessage").style.background = "#d4edda";
-            document.getElementById("statusMessage").style.color = "#155724";
-            
-            setTimeout(() => {
-                window.location.href = "success.html";
-            }, 1500);
+    // 🌟 DIRECT HIGH-TRUST APP LAUNCHER ENGINE
+    async function launchDirectUpiApp(appName) {
+        if (billingAmount === "0" || billingAmount === "") {
+            alert("Invalid checkout amount.");
+            return;
         }
+
+        const note = encodeURIComponent("Order " + (targetOrderId || ""));
+        const rawParams = `pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
+        
+        let intentUrl = "";
+
+        // Force Android to bypass the general selector tray and open the specific app directly
+        if (appName === 'paytm') {
+            intentUrl = `intent://pay?${rawParams}#Intent;scheme=upi;package=net.one97.paytm;end;`;
+        } else if (appName === 'gpay') {
+            intentUrl = `intent://pay?${rawParams}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end;`;
+        }
+
+        // Instantly mark as paid in the database so the printer catches it
+        try {
+            if (targetOrderId) {
+                await client
+                    .from("orders")
+                    .update({ payment_status: "Paid" })
+                    .eq("id", targetOrderId);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+
+        localStorage.setItem("last_payment_method", "Auto App Launch (" + appName + ")");
+
+        // Check if user is on mobile
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (isMobile) {
+            window.location.href = intentUrl;
+        } else {
+            window.location.href = "success.html";
+        }
+
+        // Failsafe redirect to success page
+        setTimeout(() => {
+            window.location.href = "success.html";
+        }, 1500);
+    }
+
+    function processCashPayment() {
+        localStorage.setItem("last_payment_method", "Cash");
+        window.location.href = "success.html";
     }
 </script>
 </body>
