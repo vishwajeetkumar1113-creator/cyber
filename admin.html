@@ -212,7 +212,7 @@
             
             let payBadgeClass = "badge-unpaid";
             let isPaidSuccess = false;
-            if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
+            if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed" || lowerPay === "cash payment pending") {
                 payBadgeClass = "badge-paid";
                 isPaidSuccess = true;
             }
@@ -258,7 +258,7 @@
         });
     }
 
-    // 🌟 BULLETPROOF CORS-BYPASS PRINTING ENGINE
+    // 🌟 REWRITTEN BULLETPROOF FIREFOX BALANCED PRINT ENGINE
     async function triggerAutomaticHardwarePrint(order) {
         if (isProcessingPrintJob) return;
         isProcessingPrintJob = true; 
@@ -266,7 +266,6 @@
 
         const iframe = document.getElementById("silentPrintFrame");
         const isIdCard = order.front_url && order.front_url !== "";
-        
         let targetPrintLayoutUrl = "";
 
         if (isIdCard) {
@@ -275,31 +274,48 @@
             const encSummary = encodeURIComponent(order.print_type || '');
             targetPrintLayoutUrl = `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}&autoplay=true`;
             
-            // For ID previews hosted on your own server, load into iframe immediately
             iframe.src = targetPrintLayoutUrl;
         } else {
-            // 🌟 BYPASS MECHANISM: Fetches raw file data directly to completely drop cross-domain restrictions
             try {
                 const response = await fetch(order.file_url);
                 const blob = await response.blob();
-                // Generate local execution blob path link sequence
                 targetPrintLayoutUrl = URL.createObjectURL(blob);
-                iframe.src = targetPrintLayoutUrl;
+                
+                // 🌟 FIREFOX SECURE LAYER: Mount code dynamically to load binary data correctly
+                const frameDoc = iframe.contentWindow.document;
+                frameDoc.open();
+                if (order.file_type && order.file_type.includes('image')) {
+                    frameDoc.write(`
+                        <html>
+                        <body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center;">
+                            <img src="${targetPrintLayoutUrl}" style="max-width:100%; max-height:100%; object-fit:contain;">
+                        </body>
+                        </html>
+                    `);
+                } else {
+                    frameDoc.write(`
+                        <html>
+                        <body style="margin:0; padding:0;">
+                            <embed src="${targetPrintLayoutUrl}" type="application/pdf" width="100%" height="100%"></embed>
+                        </body>
+                        </html>
+                    `);
+                }
+                frameDoc.close();
             } catch (fetchError) {
                 console.error("CORS asset streaming failure payload:", fetchError);
-                // Fallback option avoids getting locked out if streaming hangs
                 window.open(order.file_url, '_blank');
                 isProcessingPrintJob = false;
                 return;
             }
         }
 
-        iframe.onload = async function() {
+        // 🌟 Wait for the iframe structure layout execution environment to be entirely ready
+        setTimeout(async () => {
             try {
                 iframe.contentWindow.focus();
                 iframe.contentWindow.print();
                 
-                // Instantly sync order completion down inside Supabase
                 const { error } = await client
                     .from("orders")
                     .update({ print_status: "Completed", printed: true })
@@ -309,44 +325,5 @@
             } catch (err) {
                 console.error("Hardware pipeline assignment failed layout warning:", err);
             } finally {
-                // Free memory resources cleanly
                 if(!isIdCard && targetPrintLayoutUrl.startsWith("blob:")) {
-                    URL.revokeObjectURL(targetPrintLayoutUrl);
-                }
-                setTimeout(() => {
-                    isProcessingPrintJob = false;
-                    fetchOrders(); 
-                }, 1500);
-            }
-        };
-    }
-
-    async function markAsPaid(orderId) {
-        const { error } = await client
-            .from("orders")
-            .update({ payment_status: "Paid" })
-            .eq("id", orderId);
-
-        if (error) alert("Payment update failed: " + error.message);
-        fetchOrders();
-    }
-
-    async function markAsPrinted(orderId) {
-        const { error } = await client
-            .from("orders")
-            .update({ print_status: "Completed", printed: true })
-            .eq("id", orderId);
-
-        if (error) alert("Error updating status: " + error.message);
-        fetchOrders(); 
-    }
-
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.toString()
-            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    }
-</script>
-</body>
-</html>
+                    URL.
