@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instant UPI Launch</title>
+    <title>Instant Automatic Payment</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         .payment-container {
@@ -23,48 +23,51 @@
             background: #f0f7ff;
             padding: 15px;
             border-radius: 8px;
-            border: 1px dashed #1976d2;
+            border: 2px dashed #1976d2;
         }
-        .pay-btn {
+        .auto-pay-btn {
             display: block;
             width: 100%;
-            padding: 15px;
+            padding: 16px;
             font-size: 18px;
             font-weight: bold;
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            background: linear-gradient(135deg, #28a745, #1e7e34);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+        .auto-pay-btn:active {
+            transform: scale(0.98);
+            box-shadow: none;
+        }
+        .cash-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 14px;
+            background-color: #85bb65;
+            color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            color: white;
-            background-color: #1976d2;
-            transition: background 0.2s ease;
-            text-decoration: none;
-        }
-        .pay-btn:hover {
-            background-color: #1565c0;
-        }
-        .toast-msg {
-            display: none;
-            margin-top: 10px;
-            padding: 8px;
-            background-color: #323232;
-            color: white;
-            font-size: 13px;
-            border-radius: 4px;
         }
     </style>
 </head>
 <body>
 
 <div class="payment-container">
-    <h2>Automatic UPI Launch</h2>
-    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">Tap below to select your banking app. The exact amount will carry over.</p>
+    <h2>Automatic Instant Checkout</h2>
+    <p style="color: #666; font-size: 14px;">Tap below to launch your UPI app automatically with the exact amount pre-filled.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <!-- 🌟 Clean Native URL scheme string -->
-    <a href="#" id="nativeUpiLink" class="pay-btn" onclick="handleUpiClick(event)">⚡ Pay Now (Select App)</a>
+    <a href="#" id="directUpiIntentButton" class="auto-pay-btn" onclick="syncAndRedirect(event)">⚡ PAY NOW (Open UPI App)</a>
     
-    <div class="toast-msg" id="toast">📋 Shop UPI ID copied to clipboard automatically!</div>
+    <button class="cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -72,6 +75,7 @@
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
 
+    // Using your verified business merchant handle
     const SHOP_UPI_ID = "paytmqr5oxmd8@ptys"; 
     const SHOP_NAME = "Digital Print Shop";
 
@@ -83,34 +87,39 @@
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
         
         const note = encodeURIComponent("Order " + (targetOrderId || ""));
-        // 🌟 Use the basic native web link standard scheme
-        const standardUpiUrl = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
         
-        document.getElementById("nativeUpiLink").href = standardUpiUrl;
+        // 🌟 THE BULLETPROOF WAY: Standard parameters sent as a raw native app scheme string
+        const nativeUpiScheme = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
+        
+        // Inject directly into the link before the user interacts with the device screen
+        document.getElementById("directUpiIntentButton").href = nativeUpiScheme;
     };
 
-    async function handleUpiClick(e) {
-        // 1. Instantly copy the ID to clipboard as a secure backup step
-        navigator.clipboard.writeText(SHOP_UPI_ID);
-        
-        document.getElementById("toast").style.display = "block";
-
-        // 2. Register Paid status in Supabase so the admin panel triggers the print job
+    // Updates Supabase table data fields right as the customer taps out to pay
+    async function syncAndRedirect(e) {
         try {
             if (targetOrderId) {
+                // Instantly update status to Paid so your admin.html panel catches the event queue live
                 await client
                     .from("orders")
                     .update({ payment_status: "Paid" })
                     .eq("id", targetOrderId);
             }
         } catch (err) {
-            console.error(err);
+            console.error("Database tracking link failed: ", err);
         }
 
-        // 3. Let the phone open the standard app selection list naturally
+        localStorage.setItem("last_payment_method", "Direct Automatic Intent Scheme");
+
+        // Give the device 1.5 seconds to pass context to the banking layout before cleaning the current tab window
         setTimeout(() => {
             window.location.href = "success.html";
-        }, 3000);
+        }, 1500);
+    }
+
+    function processCashPayment() {
+        localStorage.setItem("last_payment_method", "Cash");
+        window.location.href = "success.html";
     }
 </script>
 </body>
