@@ -32,6 +32,7 @@
             transition: all 0.4s ease;
         }
 
+        /* 🟡 Pending State Design Styles */
         .status-icon-pending {
             width: 80px;
             height: 80px;
@@ -52,8 +53,10 @@
             margin-bottom: 10px;
         }
 
+        /* 🟢 Success State Design Styles */
         .status-card.success-active {
             border-top: 8px solid #28a745;
+            box-shadow: 0 10px 40px rgba(40, 167, 69, 0.15);
         }
 
         .status-icon-success {
@@ -128,38 +131,69 @@
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const currentOrderId = localStorage.getItem("current_order_id");
+    // Try reading tracking token variables from session store layout
+    let currentOrderId = localStorage.getItem("current_order_id");
 
     window.onload = function() {
+        console.log("🔍 Checking Saved Order ID:", currentOrderId);
+        
+        // Dynamic key fallback discovery loop
         if (!currentOrderId) {
-            console.warn("No active order ID found in storage.");
+            currentOrderId = localStorage.getItem("orderId") || localStorage.getItem("last_order_id");
+            console.log("🔄 Fallback alternative key match result:", currentOrderId);
+        }
+        
+        if (!currentOrderId) {
+            document.getElementById("statusMessage").innerText = "Notice: Waiting for order tracking context data. Please keep this screen open.";
+            
+            // Auto-detect if storage key appears late
+            const memoryHookLoop = setInterval(() => {
+                currentOrderId = localStorage.getItem("current_order_id") || localStorage.getItem("orderId");
+                if (currentOrderId) {
+                    console.log("🚀 Found ID dynamically via interval stream:", currentOrderId);
+                    clearInterval(memoryHookLoop);
+                    runTrackingEngine();
+                }
+            }, 1000);
             return;
         }
         
-        // Check current database status immediately in case it was already updated
-        checkCurrentStatus();
-        
-        // Start live realtime listening stream
-        listenForAdminPaymentApproval();
+        runTrackingEngine();
     };
 
-    // 🌟 New: Instantly checks status if they refresh the page
-    async function checkCurrentStatus() {
-        const { data, error } = await client
-            .from("orders")
-            .select("payment_status")
-            .eq("id", currentOrderId)
-            .single();
+    function runTrackingEngine() {
+        // Run verification steps instantly on lifecycle mount
+        checkCurrentStatus();
+        
+        // Turn on real-time broadcast stream channels
+        listenForAdminPaymentApproval();
+        
+        // 3-second secure fallback polling loop ensures view matches database state
+        setInterval(checkCurrentStatus, 3000);
+    }
 
-        if (data) {
-            const currentStatus = (data.payment_status || '').toLowerCase().trim();
-            if (currentStatus === 'paid' || currentStatus === 'success' || currentStatus === 'completed') {
-                showPaymentSuccessScreen();
+    async function checkCurrentStatus() {
+        if (!currentOrderId) return;
+
+        try {
+            const { data, error } = await client
+                .from("orders")
+                .select("payment_status")
+                .eq("id", currentOrderId)
+                .maybeSingle(); 
+
+            if (data) {
+                console.log("📊 Database payment_status check response:", data.payment_status);
+                const currentStatus = (data.payment_status || '').toLowerCase().trim();
+                if (currentStatus === 'paid' || currentStatus === 'success' || currentStatus === 'completed') {
+                    showPaymentSuccessScreen();
+                }
             }
+        } catch (err) {
+            console.error("Polling stream exception alert:", err);
         }
     }
 
-    // 🌟 Fixed: Broader real-time event capture logic
     function listenForAdminPaymentApproval() {
         client
             .channel('cash-status-stream')
@@ -169,9 +203,8 @@
                 table: 'orders',
                 filter: `id=eq.${currentOrderId}`
             }, payload => {
-                console.log("Realtime status change received:", payload.new.payment_status);
+                console.log("⚡ Real-time update string capture event:", payload.new.payment_status);
                 const updatedStatus = (payload.new.payment_status || '').toLowerCase().trim();
-                
                 if (updatedStatus === 'paid' || updatedStatus === 'success' || updatedStatus === 'completed') {
                     showPaymentSuccessScreen();
                 }
