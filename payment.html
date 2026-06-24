@@ -115,7 +115,7 @@
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
     };
 
-    // 🌐 ONLINE PAYMENT ENGINE (WITH PERMANENT AUTHENTICATION HEADER)
+    // 🌐 ONLINE PAYMENT ENGINE (WITH EXPLICIT AUTHENTICATION HEADERS)
     async function openCashfreeCheckout(e) {
         e.preventDefault();
 
@@ -130,7 +130,8 @@
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",
-                    // 🔒 Added authorization token to bypass the 401 error completely
+                    // 🔒 Both keys are now present to guarantee security gateway clearance:
+                    "apikey": SUPABASE_KEY,
                     "Authorization": "Bearer " + SUPABASE_KEY 
                 },
                 body: JSON.stringify({
