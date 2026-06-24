@@ -6,40 +6,17 @@
     <title>Secure Checkout - Select Payment Method</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            background-color: #f4f6f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
         .payment-container {
             max-width: 450px;
-            width: 100%;
-            padding: 30px;
+            margin: 40px auto;
+            padding: 25px;
             background: #ffffff;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             text-align: center;
         }
-
-        h2 {
-            color: #333;
-            font-size: 22px;
-            margin-bottom: 8px;
-        }
-
         .amount-display {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: bold;
             color: #1976d2;
             margin: 20px 0;
@@ -48,7 +25,6 @@
             border-radius: 8px;
             border: 2px dashed #1976d2;
         }
-
         .pay-btn {
             display: block;
             width: 100%;
@@ -60,26 +36,20 @@
             border: none;
             cursor: pointer;
             transition: all 0.2s ease;
-            text-decoration: none;
-            text-align: center;
         }
-
         .rzp-btn {
             color: white;
             background: #3399cc;
             box-shadow: 0 4px 12px rgba(51, 153, 204, 0.3);
         }
-
         .rzp-btn:hover {
             background: #287a9e;
         }
-
         .cash-btn {
             color: white;
             background-color: #28a745;
             box-shadow: 0 4px 12px rgba(40, 167, 69, 0.25);
         }
-
         .cash-btn:hover {
             background-color: #218838;
         }
@@ -89,15 +59,16 @@
 
 <div class="payment-container">
     <h2>Select Payment Method</h2>
-    <p style="color: #666; font-size: 14px;">Choose how you want to pay for your print order.</p>
+    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance balance parameters.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <button class="pay-btn rzp-btn" onclick="openCashfreeCheckout(event)">💳 PAY ONLINE NOW</button>
+    <button class="pay-btn rzp-btn" onclick="openRazorpayCheckout(event)">💳 PAY ONLINE NOW</button>
+    
     <button class="pay-btn cash-btn" onclick="processCashPayment(event)">💵 PAY WITH CASH AT COUNTER</button>
 </div>
 
-<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
@@ -108,14 +79,12 @@
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 🚀 UPDATED: Set mode to "production" to accept real payments with live keys
-    const cashfree = Cashfree({ mode: "production" }); 
-
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
     };
 
-    async function openCashfreeCheckout(e) {
+    // 🌐 OPTION 1: ONLINE GATEWAY ENGINE ROUTE
+    function openRazorpayCheckout(e) {
         e.preventDefault();
 
         if (billingAmount === "0" || billingAmount === "") {
@@ -123,58 +92,53 @@
             return;
         }
 
-        try {
-            // Clean public request passing completely outside the 401 gate
-            const response = await fetch("https://irqlvuphoblgjqysteto.supabase.co/functions/v1/bright-handler", {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    amount: billingAmount.toString(),
-                    orderId: targetOrderId || ("order_" + Date.now())
-                })
-            });
-            
-            const apiResult = await response.json();
-            const paymentSessionId = apiResult.payment_session_id;
+        const amountInPaise = parseFloat(billingAmount) * 100;
 
-            if (!paymentSessionId) {
-                console.error("Function error details:", apiResult);
-                alert("Gateway Error: Could not generate a secure transaction sequence session.");
-                return;
-            }
-
-            let checkoutOptions = {
-                paymentSessionId: paymentSessionId,
-                redirectTarget: "_self" 
-            };
-            
-            cashfree.checkout(checkoutOptions).then(function(result) {
-                if(result.error) {
-                    console.error("Checkout execution logged:", result.error);
-                    alert("Gateway Notification: " + result.error.message);
+        const options = {
+            "key": "rzp_live_T5K9Isn4Ds0Qrx", // ⚠️ Put your live/test Razorpay Key ID here
+            "amount": amountInPaise.toString(),
+            "currency": "INR",
+            "name": "Digital Print Shop",
+            "description": "Payment for Order #" + (targetOrderId || "Bulk"),
+            "handler": async function (response) {
+                try {
+                    if (targetOrderId) {
+                        // Automatically update status variables straight to Paid state
+                        await client
+                            .from("orders")
+                            .update({ payment_status: "Paid" })
+                            .eq("id", targetOrderId);
+                    }
+                    localStorage.setItem("last_payment_method", "Razorpay Gateway");
+                    window.location.href = "success.html";
+                } catch (err) {
+                    console.error("Database connection failure context: ", err);
+                    window.location.href = "success.html";
                 }
-            });
+            },
+            "theme": { "color": "#3399cc" }
+        };
 
-        } catch (gatewayErr) {
-            console.error("Connection failure:", gatewayErr);
-            alert("Unable to reach secure payment verification servers.");
-        }
+        const rzp = new Razorpay(options);
+        rzp.open();
     }
 
+    // 🏦 OPTION 2: CASH AT COUNTER BACKEND REGISTRATION FLOW
     async function processCashPayment(e) {
         e.preventDefault();
+        
         try {
             if (targetOrderId) {
+                // Update tracking profile to alert admin queue layout monitor matrix
                 await client
                     .from("orders")
                     .update({ payment_status: "Cash Payment Pending" })
                     .eq("id", targetOrderId);
             }
         } catch (dbError) {
-            console.error("Database status tracking tracker error:", dbError);
+            console.error("Database tracker update error:", dbError);
         }
+
         localStorage.setItem("last_payment_method", "Cash Counter");
         window.location.href = "cash.html";
     }
