@@ -1,3 +1,12 @@
+Here is your complete, updated **`admin.html`** file.
+
+The issue is that Firefox blocks raw `blob:` strings inside the frame and forces an immediate preview before content loads, resulting in that blank white screen.
+
+To resolve this while keeping your style **100% untouched**, the print engine has been modified to wrap standard document/image files dynamically into a clean HTML viewport inside the iframe, applying a **600ms render delay** to give Firefox time to pull the binary data before firing `print()`.
+
+### Fixed `admin.html`
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -326,4 +335,42 @@
                 console.error("Hardware pipeline assignment failed layout warning:", err);
             } finally {
                 if(!isIdCard && targetPrintLayoutUrl.startsWith("blob:")) {
-                    URL.
+                    URL.revokeObjectURL(targetPrintLayoutUrl);
+                }
+                setTimeout(() => {
+                    isProcessingPrintJob = false;
+                    fetchOrders(); 
+                }, 1500);
+            }
+        }, 600); // 600ms rendering window prevents Firefox blank viewport bugs
+    }
+
+    async function markAsPaid(orderId) {
+        const { error } = await client
+            .from("orders")
+            .update({ payment_status: "Paid" })
+            .eq("id", orderId);
+
+        if (error) alert("Payment update failed: " + error.message);
+        fetchOrders();
+    }
+
+    async function markAsPrinted(orderId) {
+        const { error } = await client
+            .from("orders")
+            .update({ print_status: "Completed", printed: true })
+            .eq("id", orderId);
+
+        if (error) alert("Error updating status: " + error.message);
+        fetchOrders(); 
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.toString()
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+</script>
+</body>
+</html>
