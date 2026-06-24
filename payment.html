@@ -115,7 +115,7 @@
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
     };
 
-    // 🌐 ONLINE PAYMENT ENGINE (ROUTED TO YOUR LIVE SUPABASE EDGE FUNCTION)
+    // 🌐 ONLINE PAYMENT ENGINE (WITH PERMANENT AUTHENTICATION HEADER)
     async function openCashfreeCheckout(e) {
         e.preventDefault();
 
@@ -125,10 +125,14 @@
         }
 
         try {
-            // Connecting straight to your bright-handler function
+            // Fetch token from your bright-handler edge function
             const response = await fetch("https://irqlvuphoblgjqysteto.supabase.co/functions/v1/bright-handler", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    // 🔒 Added authorization token to bypass the 401 error completely
+                    "Authorization": "Bearer " + SUPABASE_KEY 
+                },
                 body: JSON.stringify({
                     amount: billingAmount.toString(),
                     orderId: targetOrderId || ("order_" + Date.now())
