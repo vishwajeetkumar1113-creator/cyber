@@ -23,25 +23,26 @@
             background: #f0f7ff;
             padding: 15px;
             border-radius: 8px;
-            border: 1px dashed #1976d2;
+            border: 2px dashed #1976d2;
         }
-        .pay-btn {
+        .pay-link {
             display: block;
             width: 100%;
             padding: 15px;
             margin-bottom: 12px;
             font-size: 16px;
             font-weight: bold;
-            border: none;
             border-radius: 8px;
-            cursor: pointer;
             color: white;
-            transition: background 0.2s ease;
+            text-decoration: none;
+            box-sizing: border-box;
+            transition: opacity 0.2s ease;
+        }
+        .pay-link:active {
+            opacity: 0.9;
         }
         .paytm-btn { background-color: #002e6e; }
-        .paytm-btn:hover { background-color: #001f4d; }
         .gpay-btn { background-color: #4285f4; }
-        .gpay-btn:hover { background-color: #357ae8; }
         .cash-btn {
             display: block;
             width: 100%;
@@ -59,12 +60,12 @@
 
 <div class="payment-container">
     <h2>Automatic Online Payment</h2>
-    <p style="color: #666; font-size: 14px;">Select an app below. It will open automatically with the exact amount pre-filled.</p>
+    <p style="color: #666; font-size: 14px;">Tap an app below to pay. It will open automatically with the exact amount pre-filled.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
-    <button class="pay-btn paytm-btn" onclick="launchDirectUpiApp('paytm')">🚀 Open Paytm Automatically</button>
-    <button class="pay-btn gpay-btn" onclick="launchDirectUpiApp('gpay')">🚀 Open Google Pay Automatically</button>
+    <a href="#" id="paytmIntentLink" class="pay-link paytm-btn" onclick="trackClick()">🚀 Open Paytm Automatically</a>
+    <a href="#" id="gpayIntentLink" class="pay-link gpay-btn" onclick="trackClick()">🚀 Open Google Pay Automatically</a>
     
     <button class="cash-btn" onclick="processCashPayment()">💵 Pay with Cash at Counter</button>
 </div>
@@ -83,28 +84,21 @@
 
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
-    };
-
-    // 🌟 DIRECT HIGH-TRUST APP LAUNCHER ENGINE
-    async function launchDirectUpiApp(appName) {
-        if (billingAmount === "0" || billingAmount === "") {
-            alert("Invalid checkout amount.");
-            return;
-        }
-
+        
         const note = encodeURIComponent("Order " + (targetOrderId || ""));
         const rawParams = `pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${billingAmount}&cu=INR&tn=${note}`;
         
-        let intentUrl = "";
+        // Formulate direct trusted hardware intent links natively inside the HTML on page load
+        const paytmIntent = `intent://pay?${rawParams}#Intent;scheme=upi;package=net.one97.paytm;end;`;
+        const gpayIntent = `intent://pay?${rawParams}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end;`;
+        
+        // Inject links cleanly into the layout tags
+        document.getElementById("paytmIntentLink").href = paytmIntent;
+        document.getElementById("gpayIntentLink").href = gpayIntent;
+    };
 
-        // Force Android to bypass the general selector tray and open the specific app directly
-        if (appName === 'paytm') {
-            intentUrl = `intent://pay?${rawParams}#Intent;scheme=upi;package=net.one97.paytm;end;`;
-        } else if (appName === 'gpay') {
-            intentUrl = `intent://pay?${rawParams}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end;`;
-        }
-
-        // Instantly mark as paid in the database so the printer catches it
+    // Updates Supabase status right as they click out to make the payment
+    async function trackClick() {
         try {
             if (targetOrderId) {
                 await client
@@ -116,20 +110,12 @@
             console.error(err);
         }
 
-        localStorage.setItem("last_payment_method", "Auto App Launch (" + appName + ")");
+        localStorage.setItem("last_payment_method", "Direct Web Anchor Intent Link");
 
-        // Check if user is on mobile
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (isMobile) {
-            window.location.href = intentUrl;
-        } else {
-            window.location.href = "success.html";
-        }
-
-        // Failsafe redirect to success page
+        // Give them a 2-second buffer window to execute PIN before forwarding screen
         setTimeout(() => {
             window.location.href = "success.html";
-        }, 1500);
+        }, 2000);
     }
 
     function processCashPayment() {
