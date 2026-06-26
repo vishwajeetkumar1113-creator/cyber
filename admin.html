@@ -150,7 +150,8 @@
         <table>
             <thead>
                 <tr>
-                    <th>Created At</th>
+                    <th>Order ID</th>
+                    <th>Time / Date</th>
                     <th>Customer Name</th>
                     <th>Mobile</th>
                     <th>Print Details</th>
@@ -163,7 +164,7 @@
             </thead>
             <tbody id="ordersTableBody">
                 <tr>
-                    <td colspan="9" class="no-orders">Loading print queue dataset...</td>
+                    <td colspan="10" class="no-orders">Loading print queue dataset...</td>
                 </tr>
             </tbody>
         </table>
@@ -198,7 +199,7 @@
         }
 
         if (!orders || orders.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="9" class="no-orders">No print job records found.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="10" class="no-orders">No print job records found.</td></tr>`;
             return;
         }
 
@@ -206,7 +207,17 @@
 
         orders.forEach(order => {
             const row = document.createElement("tr");
-            const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : "N/A";
+            
+            // ⏰ LOCAL INDIAN TIME FORMATTING PIPELINE (Brings exact time alignment)
+            let formattedTimeStr = "N/A";
+            if (order.created_at) {
+                const orderDate = new Date(order.created_at);
+                formattedTimeStr = orderDate.toLocaleString('en-IN', {
+                    dateStyle: 'short',
+                    timeStyle: 'medium',
+                    hour12: true
+                });
+            }
             
             const payStatus = (order.payment_status || 'Pending').trim();
             const lowerPay = payStatus.toLowerCase();
@@ -249,8 +260,10 @@
                 actionsHtml += `<button onclick="markAsPrinted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
             }
 
+            // Expanded 10 columns map grid matrix layout table inject
             row.innerHTML = `
-                <td>${dateStr}</td>
+                <td><strong>#${order.id}</strong></td>
+                <td style="white-space: nowrap; font-weight: 500; color: #555;">${formattedTimeStr}</td>
                 <td><strong>${escapeHtml(order.customer_name)}</strong></td>
                 <td>${escapeHtml(order.mobile)}</td>
                 <td><span style="font-size:12px; color:#555;">${escapeHtml(order.print_type || 'Document Print')}</span></td>
