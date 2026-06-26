@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Print Shop Admin Control Panel</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- 📄 PDF.JS INTEGRATION FOR MULTI-PAGE RASTERIZATION PRINTING -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <!-- 🟢 CONFIG.JS LINK INTEGRATION FOR WHITE-LABEL SELLING -->
     <script src="config.js"></script>
     <style>
         * {
@@ -175,13 +178,12 @@
 <iframe id="silentPrintFrame"></iframe>
 
 <script>
-    // 🟢 DYNAMIC SECURE CONFIGURATION INJECTION
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
     const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     let isProcessingPrintJob = false; 
 
     window.onload = function() {
-        // Apply store custom heading dynamically from config.js
         if(window.SITE_CONFIG.STORE_NAME) {
             document.getElementById("dashboardTitle").innerText = window.SITE_CONFIG.STORE_NAME;
         }
@@ -249,6 +251,7 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
+            // Automation hardware driver routing trigger
             if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
                 triggerAutomaticHardwarePrint(order);
             }
@@ -312,33 +315,16 @@
                 
                 const currentFileType = order.file_type || "";
                 
-                if (currentFileType.includes('image')) {
+                if (currentFileType.includes('image') || order.file_url.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) {
                     frameDoc.write(`
                         <html>
                         <head>
                             <style>
                                 @media print {
                                     @page { size: auto; margin: 0mm; }
-                                    html, body { 
-                                        margin: 0 !important; 
-                                        padding: 0 !important; 
-                                        height: 100% !important; 
-                                        overflow: hidden !important; 
-                                    }
-                                    body {
-                                        display: flex !important;
-                                        justify-content: center !important;
-                                        align-items: center !important;
-                                        padding: 5mm !important;
-                                        box-sizing: border-box !important;
-                                    }
-                                    img {
-                                        max-width: 95% !important;
-                                        max-height: 92vh !important;
-                                        object-fit: contain !important;
-                                        page-break-inside: avoid !important;
-                                        break-inside: avoid !important;
-                                    }
+                                    html, body { margin: 0 !important; padding: 0 !important; height: 100% !important; overflow: hidden !important; }
+                                    body { display: flex !important; justify-content: center !important; align-items: center !important; padding: 5mm !important; box-sizing: border-box !important; }
+                                    img { max-width: 95% !important; max-height: 92vh !important; object-fit: contain !important; page-break-inside: avoid !important; break-inside: avoid !important; }
                                 }
                             </style>
                         </head>
@@ -347,29 +333,68 @@
                         </body>
                         </html>
                     `);
+                    frameDoc.close();
+                    executeIframePrintAction(iframe, targetPrintLayoutUrl, isIdCard, order.id);
                 } else {
+                    // ✅ COMPLETE MULTI-PAGE PDF RASTERIZATION LAYER OVERRIDE
                     frameDoc.write(`
                         <html>
                         <head>
                             <style>
+                                body { margin: 0; padding: 0; background: white; }
+                                .pdf-page-canvas { width: 100%; height: auto; display: block; page-break-after: always; break-after: page; }
                                 @media print {
                                     @page { size: auto; margin: 0mm; }
-                                    html, body { 
-                                        margin: 0 !important; 
-                                        padding: 0 !important; 
-                                        height: 100% !important; 
-                                        overflow: hidden !important; 
-                                    }
+                                    html, body { margin: 0 !important; padding: 0 !important; }
+                                    .pdf-page-canvas { page-break-after: always; break-after: page; }
                                 }
                             </style>
+                            <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"><\/script>
                         </head>
-                        <body style="margin:0; padding:0;">
-                            <embed src="${targetPrintLayoutUrl}" type="application/pdf" width="100%" height="100%"></embed>
+                        <body>
+                            <div id="canvasContainer"></div>
+                            <script>
+                                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+                                async function renderFullPdfPages() {
+                                    try {
+                                        const loadingTask = pdfjsLib.getDocument('${targetPrintLayoutUrl}');
+                                        const pdf = await loadingTask.promise;
+                                        const container = document.getElementById('canvasContainer');
+                                        
+                                        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                                            const page = await pdf.getPage(pageNum);
+                                            const viewport = page.getViewport({ scale: 2.0 }); // Crisp print scale matching 300DPI
+                                            const canvas = document.createElement('canvas');
+                                            canvas.className = 'pdf-page-canvas';
+                                            canvas.width = viewport.width;
+                                            canvas.height = viewport.height;
+                                            container.appendChild(canvas);
+                                            
+                                            const context = canvas.getContext('2d');
+                                            await page.render({ canvasContext: context, viewport: viewport }).promise;
+                                        }
+                                        // Dispatch ready event up to parent system window context loop
+                                        window.parent.postMessage({ status: 'pdf_render_ready', orderId: '${order.id}' }, '*');
+                                    } catch(err) {
+                                        console.error('Child layout builder execution failure:', err);
+                                    }
+                                }
+                                renderFullPdfPages();
+                            <\/script>
                         </body>
                         </html>
                     `);
+                    frameDoc.close();
+
+                    // Event listener to wait until all pages are rendered to canvas tags
+                    const handleMessageSignal = async function(event) {
+                        if (event.data && event.data.status === 'pdf_render_ready' && event.data.orderId == order.id) {
+                            window.removeEventListener('message', handleMessageSignal);
+                            executeIframePrintAction(iframe, targetPrintLayoutUrl, isIdCard, order.id);
+                        }
+                    };
+                    window.addEventListener('message', handleMessageSignal);
                 }
-                frameDoc.close();
             } catch (fetchError) {
                 console.error("CORS asset streaming failure payload:", fetchError);
                 window.open(order.file_url, '_blank');
@@ -377,7 +402,9 @@
                 return;
             }
         }
+    }
 
+    function executeIframePrintAction(iframe, targetPrintLayoutUrl, isIdCard, orderId) {
         setTimeout(async () => {
             try {
                 iframe.contentWindow.focus();
@@ -386,7 +413,7 @@
                 const { error } = await client
                     .from("orders")
                     .update({ print_status: "Completed", printed: true })
-                    .eq("id", order.id);
+                    .eq("id", orderId);
 
                 if (error) console.error("Database update sync error:", error);
             } catch (err) {
