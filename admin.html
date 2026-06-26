@@ -208,7 +208,6 @@
         orders.forEach(order => {
             const row = document.createElement("tr");
             
-            // ⏰ LOCAL INDIAN TIME FORMATTING PIPELINE (Brings exact time alignment)
             let formattedTimeStr = "N/A";
             if (order.created_at) {
                 const orderDate = new Date(order.created_at);
@@ -226,8 +225,14 @@
             let displayStatusText = payStatus;
             let isPaidSuccess = false;
             
+            // 📊 SMART STATUS VISUAL SPLIT LOGIC
             if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
                 payBadgeClass = "badge-paid";
+                displayStatusText = "Paid Online"; // 💳 Online verification mapping text
+                isPaidSuccess = true;
+            } else if (lowerPay === "paid cash" || lowerPay === "cash_paid") {
+                payBadgeClass = "badge-paid";
+                displayStatusText = "Paid Cash";   // 💵 Counter verification cash text
                 isPaidSuccess = true;
             } else if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
                 payBadgeClass = "badge-cash";
@@ -252,7 +257,8 @@
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
-            if (!isPaidSuccess) {
+            // Only show 'Mark Paid' button if it is in pending state
+            if (!isPaidSuccess && (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash")) {
                 actionsHtml += `<button onclick="markAsPaid('${order.id}')" class="action-btn pay-btn">💰 Mark Paid</button>`;
             }
 
@@ -260,7 +266,6 @@
                 actionsHtml += `<button onclick="markAsPrinted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
             }
 
-            // Expanded 10 columns map grid matrix layout table inject
             row.innerHTML = `
                 <td><strong>#${order.id}</strong></td>
                 <td style="white-space: nowrap; font-weight: 500; color: #555;">${formattedTimeStr}</td>
@@ -397,9 +402,10 @@
     }
 
     async function markAsPaid(orderId) {
+        // 🔄 Change status to 'Paid Cash' when verified at counter
         const { error } = await client
             .from("orders")
-            .update({ payment_status: "Paid" })
+            .update({ payment_status: "Paid Cash" })
             .eq("id", orderId);
 
         if (error) alert("Payment update failed: " + error.message);
