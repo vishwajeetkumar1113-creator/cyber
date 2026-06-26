@@ -70,14 +70,14 @@
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 
 <script>
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
 
-    const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
-    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // 🟢 DYNAMIC SECURE CONFIGURATION INJECTION FROM CONFIG.JS
+    const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
@@ -98,12 +98,11 @@
             "key": "rzp_live_T5K9Isn4Ds0Qrx", // ⚠️ Put your live/test Razorpay Key ID here
             "amount": amountInPaise.toString(),
             "currency": "INR",
-            "name": "Digital Print Shop",
+            "name": window.SITE_CONFIG.STORE_NAME || "Digital Print Shop",
             "description": "Payment for Order #" + (targetOrderId || "Bulk"),
             "handler": async function (response) {
                 try {
                     if (targetOrderId) {
-                        // Automatically update status variables straight to Paid state
                         await client
                             .from("orders")
                             .update({ payment_status: "Paid" })
@@ -129,7 +128,6 @@
         
         try {
             if (targetOrderId) {
-                // Update tracking profile to alert admin queue layout monitor matrix
                 await client
                     .from("orders")
                     .update({ payment_status: "Cash Payment Pending" })
