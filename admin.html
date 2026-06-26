@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Print Shop Admin Control Panel</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- 📄 PDF.JS INTEGRATION FOR MULTI-PAGE RASTERIZATION PRINTING -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <!-- 🟢 CONFIG.JS LINK INTEGRATION FOR WHITE-LABEL SELLING -->
     <script src="config.js"></script>
     <style>
         * {
@@ -106,7 +104,7 @@
         .badge-completed { background-color: #c6efce; color: #006100; }
         .badge-unpaid { background-color: #f8d7da; color: #721c24; }
         .badge-paid { background-color: #c6efce; color: #006100; }
-        .badge-cash { background-color: #cce5ff; color: #004085; }
+        .badge-cash { background-color: #cce5ff; color: #00404a5; }
 
         .action-btn {
             padding: 6px 12px;
@@ -251,7 +249,6 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            // Automation hardware driver routing trigger
             if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
                 triggerAutomaticHardwarePrint(order);
             }
@@ -314,29 +311,10 @@
                 frameDoc.open();
                 
                 const currentFileType = order.file_type || "";
+                const isPdf = order.file_url.toLowerCase().includes('.pdf') || (order.print_type && order.print_type.toLowerCase().includes('page'));
                 
-                if (currentFileType.includes('image') || order.file_url.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) {
-                    frameDoc.write(`
-                        <html>
-                        <head>
-                            <style>
-                                @media print {
-                                    @page { size: auto; margin: 0mm; }
-                                    html, body { margin: 0 !important; padding: 0 !important; height: 100% !important; overflow: hidden !important; }
-                                    body { display: flex !important; justify-content: center !important; align-items: center !important; padding: 5mm !important; box-sizing: border-box !important; }
-                                    img { max-width: 95% !important; max-height: 92vh !important; object-fit: contain !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-                                }
-                            </style>
-                        </head>
-                        <body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center;">
-                            <img src="${targetPrintLayoutUrl}">
-                        </body>
-                        </html>
-                    `);
-                    frameDoc.close();
-                    executeIframePrintAction(iframe, targetPrintLayoutUrl, isIdCard, order.id);
-                } else {
-                    // ✅ COMPLETE MULTI-PAGE PDF RASTERIZATION LAYER OVERRIDE
+                // ✅ FIXED STRICT DISPATCH GATEWAY: If it has PDF features, isolate completely from image routing paths
+                if (isPdf) {
                     frameDoc.write(`
                         <html>
                         <head>
@@ -363,7 +341,7 @@
                                         
                                         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                                             const page = await pdf.getPage(pageNum);
-                                            const viewport = page.getViewport({ scale: 2.0 }); // Crisp print scale matching 300DPI
+                                            const viewport = page.getViewport({ scale: 2.0 }); 
                                             const canvas = document.createElement('canvas');
                                             canvas.className = 'pdf-page-canvas';
                                             canvas.width = viewport.width;
@@ -373,10 +351,9 @@
                                             const context = canvas.getContext('2d');
                                             await page.render({ canvasContext: context, viewport: viewport }).promise;
                                         }
-                                        // Dispatch ready event up to parent system window context loop
                                         window.parent.postMessage({ status: 'pdf_render_ready', orderId: '${order.id}' }, '*');
                                     } catch(err) {
-                                        console.error('Child layout builder execution failure:', err);
+                                        console.error('Child layout builder failure:', err);
                                     }
                                 }
                                 renderFullPdfPages();
@@ -386,7 +363,6 @@
                     `);
                     frameDoc.close();
 
-                    // Event listener to wait until all pages are rendered to canvas tags
                     const handleMessageSignal = async function(event) {
                         if (event.data && event.data.status === 'pdf_render_ready' && event.data.orderId == order.id) {
                             window.removeEventListener('message', handleMessageSignal);
@@ -394,6 +370,27 @@
                         }
                     };
                     window.addEventListener('message', handleMessageSignal);
+                } else {
+                    // Standard image file path
+                    frameDoc.write(`
+                        <html>
+                        <head>
+                            <style>
+                                @media print {
+                                    @page { size: auto; margin: 0mm; }
+                                    html, body { margin: 0 !important; padding: 0 !important; height: 100% !important; overflow: hidden !important; }
+                                    body { display: flex !important; justify-content: center !important; align-items: center !important; padding: 5mm !important; box-sizing: border-box !important; }
+                                    img { max-width: 95% !important; max-height: 92vh !important; object-fit: contain !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+                                }
+                            </style>
+                        </head>
+                        <body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center;">
+                            <img src="${targetPrintLayoutUrl}">
+                        </body>
+                        </html>
+                    `);
+                    frameDoc.close();
+                    executeIframePrintAction(iframe, targetPrintLayoutUrl, isIdCard, order.id);
                 }
             } catch (fetchError) {
                 console.error("CORS asset streaming failure payload:", fetchError);
