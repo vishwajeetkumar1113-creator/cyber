@@ -7,6 +7,7 @@
     <title>PAN Card Print</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         .canvas-container {
             position: relative;
@@ -191,9 +192,8 @@
 </div>
 
 <script>
-const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
-const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
-const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// 🟢 DYNAMIC SECURE CONFIGURATION INJECTION FROM CONFIG.JS
+const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
 let frontBlob = null;
 
@@ -628,7 +628,7 @@ async function submitPAN() {
         pages: copiesInput, 
         amount: totalAmountCalculation,
         front_url: frontUrl, 
-        back_url: "", // Back URL left intentionally blank for single-sided mapping
+        back_url: "", 
         payment_status: "Pending", 
         payment_id: ""
     }]).select();
@@ -636,10 +636,10 @@ async function submitPAN() {
     if (error) { alert(error.message); return; }
 
     localStorage.setItem("frontImage", frontUrl);
-    localStorage.setItem("backImage", ""); // Set to empty string for payment logic routing
+    localStorage.setItem("backImage", ""); 
     localStorage.setItem("amount", totalAmountCalculation);
     localStorage.setItem("mobile", mobile);
-    localStorage.setItem("printType", "id"); // Uses id system fallback routing to uniform checkout targets
+    localStorage.setItem("printType", "id"); 
     
     if (insertedOrder && insertedOrder.length > 0) {
         localStorage.setItem("current_order_id", insertedOrder[0].id); 
