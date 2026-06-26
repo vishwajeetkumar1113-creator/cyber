@@ -343,7 +343,6 @@ function convertImageToGrayscale(imageElement) {
     return canvas;
 }
 
-// 🟢 DYNAMIC SECURE CONFIGURATION INJECTION FROM CONFIG.JS
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
 async function submitOrder() {
@@ -412,7 +411,7 @@ async function submitOrder() {
         finalMimeType = "application/pdf";
         
         try {
-            alert("Isolating pages and converting layout formats... Please wait.");
+            alert("Isolating selected pages and converting layouts... Please wait.");
             
             const fileArrayBuffer = await originalFileHandle.arrayBuffer();
             const loadingTask = pdfjsLib.getDocument({ data: fileArrayBuffer });
@@ -476,7 +475,7 @@ async function submitOrder() {
                 return;
             }
         } catch (pdfError) {
-            console.error("PDF generation flat raster routine crash:", pdfError);
+            print("PDF segmentation crash:", pdfError);
             alert("Error isolating pages. Upload aborted.");
             return;
         }
@@ -487,7 +486,7 @@ async function submitOrder() {
         return;
     }
 
-    alert("Uploading clean document to database... Please wait.");
+    alert("Uploading optimized file to database... Please wait.");
 
     const namePrefix = isBlackAndWhite ? "bw_" : "color_";
     let targetExtension = originalFileHandle.type === "application/pdf" ? ".pdf" : ".jpg";
@@ -510,7 +509,8 @@ async function submitOrder() {
         {
             customer_name: name,
             mobile: mobile,
-            pages: calculatedIntegerPages, 
+            // ✅ COPIES COUNT LOCK: Pushes 'copies' data metric strictly into the 'pages' data array attribute
+            pages: parseInt(copies) || 1, 
             print_type: detailedPrintSummary, 
             amount: amount,
             file_url: fileUrl,
