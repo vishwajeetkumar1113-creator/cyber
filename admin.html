@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Print Shop Admin Control Panel</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         * {
             margin: 0;
@@ -137,7 +138,7 @@
 <div class="dashboard-container">
     <div class="header">
         <div>
-            <h1>Print Shop Admin Control Panel</h1>
+            <h1 id="dashboardTitle">Print Shop Admin Control Panel</h1>
             <p style="font-size:12px; color:#666; margin-top:4px;">Scanning data matrix loops dynamically...</p>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
@@ -174,13 +175,16 @@
 <iframe id="silentPrintFrame"></iframe>
 
 <script>
-    const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
-    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // 🟢 DYNAMIC SECURE CONFIGURATION INJECTION
+    const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     let isProcessingPrintJob = false; 
 
     window.onload = function() {
+        // Apply store custom heading dynamically from config.js
+        if(window.SITE_CONFIG.STORE_NAME) {
+            document.getElementById("dashboardTitle").innerText = window.SITE_CONFIG.STORE_NAME;
+        }
         fetchOrders();
         setInterval(fetchOrders, 5000); 
     };
@@ -225,14 +229,13 @@
             let displayStatusText = payStatus;
             let isPaidSuccess = false;
             
-            // 📊 SMART STATUS VISUAL SPLIT LOGIC
             if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
                 payBadgeClass = "badge-paid";
-                displayStatusText = "Paid Online"; // 💳 Online verification mapping text
+                displayStatusText = "Paid Online"; 
                 isPaidSuccess = true;
             } else if (lowerPay === "paid cash" || lowerPay === "cash_paid") {
                 payBadgeClass = "badge-paid";
-                displayStatusText = "Paid Cash";   // 💵 Counter verification cash text
+                displayStatusText = "Paid Cash";   
                 isPaidSuccess = true;
             } else if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
                 payBadgeClass = "badge-cash";
@@ -257,7 +260,6 @@
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
-            // Only show 'Mark Paid' button if it is in pending state
             if (!isPaidSuccess && (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash")) {
                 actionsHtml += `<button onclick="markAsPaid('${order.id}')" class="action-btn pay-btn">💰 Mark Paid</button>`;
             }
@@ -402,7 +404,6 @@
     }
 
     async function markAsPaid(orderId) {
-        // 🔄 Change status to 'Paid Cash' when verified at counter
         const { error } = await client
             .from("orders")
             .update({ payment_status: "Paid Cash" })
