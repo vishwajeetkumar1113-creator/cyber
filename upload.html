@@ -110,6 +110,15 @@
     </div>
 
     <div class="input-group">
+        <label>Pages Per Sheet (Layout):</label>
+        <select id="layout_mode" onchange="calculate()">
+            <option value="1">1 Page Per Sheet (Standard)</option>
+            <option value="2">2 Pages Per Sheet (Save Paper Mode)</option>
+            <option value="4">4 Pages Per Sheet (Chit / Notes Grid)</option>
+        </select>
+    </div>
+
+    <div class="input-group">
         <label>Print Type:</label>
         <select id="type" onchange="calculate(); applyPreviewFilter();">
             <option value="5">Black & White (₹5 / page)</option>
@@ -309,6 +318,7 @@ function calculate() {
     let pageInput = document.getElementById("pages").value.trim();
     let copies = parseInt(document.getElementById("copies").value) || 1;
     let price = parseInt(document.getElementById("type").value);
+    let layoutDivisor = parseInt(document.getElementById("layout_mode").value) || 1;
     
     if (copies < 1) copies = 1;
     let totalPages = totalDetectedPDFPages; 
@@ -318,7 +328,10 @@ function calculate() {
         totalPages = selectedPages.length > 0 ? selectedPages.length : totalDetectedPDFPages;
     }
 
-    let finalAmount = totalPages * price * copies;
+    // 🟢 OPTIMIZED PRICE MATRIX: Automatically divides sheets based on layout density (e.g. 2 pages = half price sheets count)
+    let calculatedSheets = Math.ceil(totalPages / layoutDivisor);
+    let finalAmount = calculatedSheets * price * copies;
+    
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
 }
 
@@ -361,6 +374,7 @@ async function submitOrder() {
 
     const copies = document.getElementById("copies").value.trim();
     const type = document.getElementById("type").value;
+    const chosenLayout = document.getElementById("layout_mode").value;
     
     let displayPriceText = document.getElementById("total").innerHTML;
     let amount = parseInt(displayPriceText.replace("Total: ₹", ""));
@@ -475,7 +489,7 @@ async function submitOrder() {
                 return;
             }
         } catch (pdfError) {
-            print("PDF segmentation crash:", pdfError);
+            console.error("PDF segmentation crash:", pdfError);
             alert("Error isolating pages. Upload aborted.");
             return;
         }
@@ -503,19 +517,20 @@ async function submitOrder() {
     const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
 
     const baseType = (isBlackAndWhite ? "Black & White" : "Color");
-    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies]`;
+    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies | Layout: ${chosenLayout}-up]`;
 
     const { data: insertedOrder, error } = await client.from("orders").insert([
         {
             customer_name: name,
             mobile: mobile,
-            // ✅ COPIES COUNT LOCK: Pushes 'copies' data metric strictly into the 'pages' data array attribute
             pages: parseInt(copies) || 1, 
             print_type: detailedPrintSummary, 
             amount: amount,
             file_url: fileUrl,
             payment_status: "Pending", 
-            payment_id: ""
+            payment_id: "",
+            // ✅ REGISTERING LAYOUT ATTRIBUTE: Pushes selection code into the database layout context field
+            layout_mode: parseInt(chosenLayout) || 1
         }
     ]).select();
 
