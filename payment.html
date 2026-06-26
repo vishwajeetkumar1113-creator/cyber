@@ -103,9 +103,10 @@
             "handler": async function (response) {
                 try {
                     if (targetOrderId) {
+                        // ✅ FIXED STATUS ALIGNMENT: Updates status to 'Success' so cash.html instantly triggers green tick screen
                         await client
                             .from("orders")
-                            .update({ payment_status: "Paid" })
+                            .update({ payment_status: "Success" })
                             .eq("id", targetOrderId);
                     }
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
