@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cash Payment Status</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         * {
             margin: 0;
@@ -139,16 +141,13 @@
     <div class="debug-box" id="debugTrackingId">Tracking ID: Loading...</div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-    const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
-    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // 🟢 DYNAMIC SECURE CONFIGURATION INJECTION FROM CONFIG.JS
+    const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     let currentOrderId = null;
 
     function getSavedOrderId() {
-        // Alag-alag possible names se key dhoondhne ka logic
         return localStorage.getItem("current_order_id") || 
                localStorage.getItem("orderId") || 
                localStorage.getItem("last_order_id");
@@ -162,7 +161,6 @@
             debugBox.innerText = "Tracking ID: NOT FOUND (localStorage is empty!)";
             debugBox.style.color = "red";
             
-            // Loop chalu rakhein agar storage baad me update ho
             const storageCheckInterval = setInterval(() => {
                 currentOrderId = getSavedOrderId();
                 if (currentOrderId) {
