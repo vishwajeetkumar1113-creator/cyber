@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -7,6 +7,7 @@
     <title>ID Card Print (Perspective Tool)</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         * {
             touch-action: manipulation;
@@ -227,9 +228,8 @@
 </div>
 
 <script>
-const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
-const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
-const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// 🟢 DYNAMIC SECURE CONFIGURATION INJECTION FROM CONFIG.JS
+const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
 let frontBlob = null;
 let backBlob = null;
@@ -500,7 +500,7 @@ async function submitID() {
     let totalAmountCalculation = copiesInput * baseRate;
 
     const printLabel = isBw ? "Black & White" : "Color";
-    const cardLayoutText = backUrl ? `Aadhaar - ${printLabel} [${copiesInput} Copies]` : `PAN - ${printLabel} [${copiesInput} Copies]`;
+    const cardLayoutText = backUrl ? `Document ID - ${printLabel} [${copiesInput} Copies]` : `Single ID - ${printLabel} [${copiesInput} Copies]`;
 
     const { data: insertedOrder, error } = await client.from("orders").insert([{
         customer_name: name, mobile: mobile, print_type: cardLayoutText, pages: copiesInput, amount: totalAmountCalculation,
@@ -532,23 +532,19 @@ async function submitID() {
         };
     }
 
-    // Touch Start Engine Interceptor
     canvas.addEventListener('touchstart', function(e) {
         const s = engine[side]; if (!s.img) return;
         
         if (e.touches.length === 2) {
-            // 🌟 TWO-FINGER ZOOM INITIATION
             s.activeCorner = -1;
             s.isPanning = false;
             s.lastTouchDist = Math.hypot(
                 e.touches[0].clientX - e.touches[1].clientX,
                 e.touches[0].clientY - e.touches[1].clientY
             );
-            // Center focal point tracking for panning while zooming
             s.lastTouchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
             s.lastTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         } else if (e.touches.length === 1) {
-            // SINGLE-FINGER CORNER SELECTION OR PANNING
             const pos = getCanvasCoordinates(e);
             s.activeCorner = s.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 45);
             
@@ -560,13 +556,11 @@ async function submitID() {
         }
     }, { passive: false });
 
-    // Touch Movement Tracking Engine
     canvas.addEventListener('touchmove', function(e) {
         const s = engine[side]; if (!s.img) return;
-        if (e.cancelable) e.preventDefault(); // Stop mobile window scroll interference
+        if (e.cancelable) e.preventDefault(); 
 
         if (e.touches.length === 2) {
-            // 🌟 PINCH TO ZOOM CALCULATION
             const currentDist = Math.hypot(
                 e.touches[0].clientX - e.touches[1].clientX,
                 e.touches[0].clientY - e.touches[1].clientY
@@ -576,9 +570,8 @@ async function submitID() {
 
             let scaleFactor = currentDist / s.lastTouchDist;
             let newZoom = s.zoom * scaleFactor;
-            newZoom = Math.max(1, Math.min(8, newZoom)); // Restrict boundaries between 1x and 8x zoom
+            newZoom = Math.max(1, Math.min(8, newZoom)); 
 
-            // Adjust offset anchors around finger center point cleanly
             const rect = canvas.getBoundingClientRect();
             const canvasCenterX = (currentX - rect.left) * (canvas.width / rect.width);
             const canvasCenterY = (currentY - rect.top) * (canvas.height / rect.height);
@@ -586,7 +579,6 @@ async function submitID() {
             s.offsetX = canvasCenterX - (canvasCenterX - s.offsetX) * (newZoom / s.zoom);
             s.offsetY = canvasCenterY - (canvasCenterY - s.offsetY) * (newZoom / s.zoom);
             
-            // Apply layout values
             s.zoom = newZoom;
             s.offsetX += (currentX - s.lastTouchX);
             s.offsetY += (currentY - s.lastTouchY);
@@ -598,7 +590,6 @@ async function submitID() {
             if (s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
             draw(side);
         } else if (e.touches.length === 1) {
-            // SINGLE FINGER HANDLING CORNER DRAG OR POSITION PAN
             if (s.activeCorner !== -1) {
                 const pos = getCanvasCoordinates(e);
                 s.corners[s.activeCorner] = { x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) };
@@ -613,13 +604,11 @@ async function submitID() {
         }
     }, { passive: false });
 
-    // Touch End Routine Reset
     window.addEventListener('touchend', function() { 
         engine[side].activeCorner = -1; 
         engine[side].isPanning = false; 
     });
 
-    // Desktop Click Mouse Event Fallback Links
     canvas.addEventListener('mousedown', function(e) {
         const s = engine[side]; if (!s.img) return;
         const pos = getCanvasCoordinates(e);
@@ -640,7 +629,6 @@ async function submitID() {
     });
     window.addEventListener('mouseup', function() { engine[side].activeCorner = -1; engine[side].isPanning = false; });
 
-    // Mouse Wheel Desktop Scroll Zoom Loop
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const s = engine[side]; if (!s.img) return;
