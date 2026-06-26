@@ -15,6 +15,7 @@
         body {
             background-color: #f4f6f9;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -105,6 +106,17 @@
         .btn-new-order:hover {
             background-color: #1565c0;
         }
+
+        /* 🔍 Debug Box Style */
+        .debug-box {
+            margin-top: 15px;
+            font-size: 11px;
+            color: #888;
+            background: #eee;
+            padding: 5px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
@@ -123,6 +135,8 @@
     <p class="message" id="statusMessage">Please visit the shop counter now to pay cash. Keep this window open; it updates automatically the moment your bill is settled.</p>
 
     <a href="index.html" class="btn-new-order">➕ Add New Order</a>
+    
+    <div class="debug-box" id="debugTrackingId">Tracking ID: Loading...</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -131,30 +145,38 @@
     const SUPABASE_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let currentOrderId = localStorage.getItem("current_order_id");
+    let currentOrderId = null;
+
+    function getSavedOrderId() {
+        // Alag-alag possible names se key dhoondhne ka logic
+        return localStorage.getItem("current_order_id") || 
+               localStorage.getItem("orderId") || 
+               localStorage.getItem("last_order_id");
+    }
 
     window.onload = function() {
-        console.log("🔍 Checking Saved Order ID:", currentOrderId);
+        currentOrderId = getSavedOrderId();
+        const debugBox = document.getElementById("debugTrackingId");
         
         if (!currentOrderId) {
-            currentOrderId = localStorage.getItem("orderId") || localStorage.getItem("last_order_id");
-            console.log("🔄 Fallback alternative key match result:", currentOrderId);
-        }
-        
-        if (!currentOrderId) {
-            document.getElementById("statusMessage").innerText = "Notice: Waiting for order tracking context data. Please keep this screen open.";
+            debugBox.innerText = "Tracking ID: NOT FOUND (localStorage is empty!)";
+            debugBox.style.color = "red";
             
-            const memoryHookLoop = setInterval(() => {
-                currentOrderId = localStorage.getItem("current_order_id") || localStorage.getItem("orderId");
+            // Loop chalu rakhein agar storage baad me update ho
+            const storageCheckInterval = setInterval(() => {
+                currentOrderId = getSavedOrderId();
                 if (currentOrderId) {
-                    console.log("🚀 Found ID dynamically via interval stream:", currentOrderId);
-                    clearInterval(memoryHookLoop);
+                    clearInterval(storageCheckInterval);
+                    debugBox.innerText = "Tracking ID: #" + currentOrderId;
+                    debugBox.style.color = "green";
                     runTrackingEngine();
                 }
             }, 1000);
             return;
         }
         
+        debugBox.innerText = "Tracking ID: #" + currentOrderId;
+        debugBox.style.color = "green";
         runTrackingEngine();
     };
 
@@ -175,20 +197,20 @@
                 .maybeSingle(); 
 
             if (data) {
-                console.log("📊 Database payment_status check response:", data.payment_status);
+                console.log("📊 Polling status:", data.payment_status);
                 const currentStatus = (data.payment_status || '').toLowerCase().trim();
-                
-                // ✅ UPDATED ARCHITECTURE: Synergized to instantly accept 'paid cash' strings
                 if (currentStatus === 'paid' || currentStatus === 'success' || currentStatus === 'completed' || currentStatus === 'paid cash') {
                     showPaymentSuccessScreen();
                 }
             }
         } catch (err) {
-            console.error("Polling stream exception alert:", err);
+            console.error("Polling error:", err);
         }
     }
 
     function listenForAdminPaymentApproval() {
+        if (!currentOrderId) return;
+        
         client
             .channel('cash-status-stream')
             .on('postgres_changes', { 
@@ -197,10 +219,8 @@
                 table: 'orders',
                 filter: `id=eq.${currentOrderId}`
             }, payload => {
-                console.log("⚡ Real-time update string capture event:", payload.new.payment_status);
+                console.log("⚡ Real-time change:", payload.new.payment_status);
                 const updatedStatus = (payload.new.payment_status || '').toLowerCase().trim();
-                
-                // ✅ UPDATED ARCHITECTURE: Broadened network channel gateway to listen for 'paid cash'
                 if (updatedStatus === 'paid' || updatedStatus === 'success' || updatedStatus === 'completed' || updatedStatus === 'paid cash') {
                     showPaymentSuccessScreen();
                 }
@@ -210,11 +230,9 @@
 
     function showPaymentSuccessScreen() {
         document.getElementById("pendingArea").style.display = "none";
-        
         document.getElementById("successIcon").style.display = "flex";
         document.getElementById("successTitle").style.display = "block";
         document.getElementById("statusCard").classList.add("success-active");
-        
         document.getElementById("statusMessage").innerText = "Thank you! Your cash payment has been processed and your print files are sent directly to the machine queue.";
         document.getElementById("statusMessage").style.color = "#155724";
     }
