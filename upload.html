@@ -422,7 +422,7 @@ async function submitOrder() {
             alert("Processing pages and optimizing document structure...");
             const fileArrayBuffer = await originalFileHandle.arrayBuffer();
             
-            // Core PDF Library setup
+            // 🟢 FIXED NATIVE EMBED TRACKING: Switch from embedPages to copyPages architecture
             const sourcePdfDoc = await PDFLib.PDFDocument.load(fileArrayBuffer);
             let pageNumbersList = parsePageSelection(pages);
             let totalDocPagesCount = sourcePdfDoc.getPageCount();
@@ -434,18 +434,17 @@ async function submitOrder() {
                 for (let i = 0; i < totalDocPagesCount; i++) dynamicIndicesToKeep.push(i);
             }
 
-            // Create fresh output file
             const outputPdfDoc = await PDFLib.PDFDocument.create();
 
-            // 🟢 AUTOMATIC FRONT-END 4-ON-1 MATRIX GENERATOR BLOCK
             if (chosenLayout === "4") {
                 alert("Generating automatic 4-on-1 straight grid sheets... Please wait.");
                 
-                for (let i = 0; i < dynamicIndicesToKeep.length; i += 4) {
-                    // Create standard sharp Portrait A4 master sheet (595 x 842 points)
-                    const blankPage = outputPdfDoc.addPage([595, 842]);
+                // Copy source elements safely to avoid context undefined error loops
+                const copiedPages = await outputPdfDoc.copyPages(sourcePdfDoc, dynamicIndicesToKeep);
+                
+                for (let i = 0; i < copiedPages.length; i += 4) {
+                    const blankPage = outputPdfDoc.addPage([595, 842]); // Sharp A4 Portrait Sheet
                     
-                    // Box grid boundaries mapping (Squeezed 5px safe zero margin matrix)
                     const matrixPositions = [
                         { x: 5, y: 424, w: 290, h: 413 },   // Top Left
                         { x: 300, y: 424, w: 290, h: 413 }, // Top Right
@@ -454,14 +453,12 @@ async function submitOrder() {
                     ];
 
                     for (let gridIdx = 0; gridIdx < 4; gridIdx++) {
-                        if (i + gridIdx < dynamicIndicesToKeep.length) {
-                            const actualPageIdx = dynamicIndicesToKeep[i + gridIdx];
-                            
-                            // Embed current source page securely into target index reference layout
-                            const [embeddedPage] = await outputPdfDoc.embedPages([sourcePdfDoc], [actualPageIdx]);
+                        if (i + gridIdx < copiedPages.length) {
+                            const targetPage = copiedPages[i + gridIdx];
                             const pos = matrixPositions[gridIdx];
                             
-                            blankPage.drawPage(embeddedPage, {
+                            // Draws the copied page reference accurately inside specified bounding boxes
+                            blankPage.drawPage(targetPage, {
                                 x: pos.x,
                                 y: pos.y,
                                 width: pos.w,
@@ -471,7 +468,7 @@ async function submitOrder() {
                     }
                 }
             } else {
-                // Standard single page sequence mapping
+                // Standard default pages routing
                 const copiedPages = await outputPdfDoc.copyPages(sourcePdfDoc, dynamicIndicesToKeep);
                 copiedPages.forEach((page) => outputPdfDoc.addPage(page));
             }
