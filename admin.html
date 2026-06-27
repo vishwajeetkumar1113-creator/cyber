@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -104,7 +105,7 @@
         .badge-completed { background-color: #c6efce; color: #006100; }
         .badge-unpaid { background-color: #f8d7da; color: #721c24; }
         .badge-paid { background-color: #c6efce; color: #006100; }
-        .badge-cash { background-color: #cce5ff; color: #00404a5; }
+        .badge-cash { background-color: #cce5ff; color: #004085; }
 
         .action-btn {
             padding: 6px 12px;
@@ -124,14 +125,6 @@
         .pay-btn { background-color: #007bff; }
         .complete-btn { background-color: #ffc107; color: #212529; }
         .no-orders { text-align: center; padding: 40px; color: #777; }
-        
-        #silentPrintFrame {
-            position: absolute;
-            width: 0;
-            height: 0;
-            border: none;
-            visibility: hidden;
-        }
     </style>
 </head>
 <body>
@@ -140,10 +133,10 @@
     <div class="header">
         <div>
             <h1 id="dashboardTitle">Print Shop Admin Control Panel</h1>
-            <p style="font-size:12px; color:#666; margin-top:4px;">Scanning data matrix loops dynamically...</p>
+            <p style="font-size:12px; color:#666; margin-top:4px;">Python background spooler synchronized...</p>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
-            <span class="auto-print-badge">🟢 AUTO-PRINT ENGAGED</span>
+            <span class="auto-print-badge">🟢 AUTO-PRINT VIA PYTHON ROUTER</span>
             <button class="refresh-btn" onclick="fetchOrders()">🔄 Refresh Orders</button>
         </div>
     </div>
@@ -173,13 +166,9 @@
     </div>
 </div>
 
-<iframe id="silentPrintFrame"></iframe>
-
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
     const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
-
-    let isProcessingPrintJob = false; 
 
     window.onload = function() {
         if(window.SITE_CONFIG.STORE_NAME) {
@@ -227,20 +216,16 @@
             
             let payBadgeClass = "badge-unpaid";
             let displayStatusText = payStatus;
-            let isPaidSuccess = false;
             
             if (lowerPay === "success" || lowerPay === "paid" || lowerPay === "completed") {
                 payBadgeClass = "badge-paid";
                 displayStatusText = "Paid Online"; 
-                isPaidSuccess = true;
             } else if (lowerPay === "paid cash" || lowerPay === "cash_paid") {
                 payBadgeClass = "badge-paid";
                 displayStatusText = "Paid Cash";   
-                isPaidSuccess = true;
             } else if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
                 payBadgeClass = "badge-cash";
                 displayStatusText = "Cash Payment Pending"; 
-                isPaidSuccess = false; 
             }
 
             const prntStatus = order.print_status || 'Pending';
@@ -249,18 +234,17 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            if (isPaidSuccess && prntStatus === "Pending" && !isProcessingPrintJob) {
-                triggerAutomaticHardwarePrint(order);
-            }
+            // 🟢 CORES REMOVED: Automatic web iframe printing loop completely blocked.
+            // Python handles hardware pipelines now so browser printing is disabled.
 
             let actionsHtml = "";
             if (trueTargetRawSourceUrl) {
-                const safeOrderJson = JSON.stringify(order).replace(/"/g, '&quot;');
-                actionsHtml += `<button onclick="triggerAutomaticHardwarePrint(${safeOrderJson})" class="action-btn print-btn">🖨️ Print Now</button>`;
+                // If you ever need to manually force the Python server to re-read it, "Mark Paid" or "Done" updates the state.
+                actionsHtml += `<a href="${trueTargetRawSourceUrl}" target="_blank" class="action-btn print-btn">👁️ View File</a>`;
                 actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
             }
 
-            if (!isPaidSuccess && (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash")) {
+            if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
                 actionsHtml += `<button onclick="markAsPaid('${order.id}')" class="action-btn pay-btn">💰 Mark Paid</button>`;
             }
 
@@ -285,167 +269,8 @@
         });
     }
 
-    async function triggerAutomaticHardwarePrint(order) {
-        if (isProcessingPrintJob) return;
-        isProcessingPrintJob = true; 
-        print_copies = order.pages || 1; // Extracts copies count variable safely
-        console.log("Printing Order ID:", order.id, "Copies Requested:", print_copies);
-
-        const iframe = document.getElementById("silentPrintFrame");
-        const isIdCard = order.front_url && order.front_url !== "";
-        let targetPrintLayoutUrl = "";
-
-        if (isIdCard) {
-            const encFront = encodeURIComponent(order.front_url || '');
-            const encBack = encodeURIComponent(order.back_url || '');
-            const encSummary = encodeURIComponent(order.print_type || '');
-            targetPrintLayoutUrl = `idpreview.html?front=${encFront}&back=${encBack}&summary=${encSummary}&autoplay=true`;
-            
-            iframe.src = targetPrintLayoutUrl;
-        } else {
-            try {
-                const response = await fetch(order.file_url);
-                const blob = await response.blob();
-                targetPrintLayoutUrl = URL.createObjectURL(blob);
-                
-                const frameDoc = iframe.contentWindow.document;
-                frameDoc.open();
-                
-                const currentFileType = order.file_type || "";
-                const isPdf = order.file_url.toLowerCase().includes('.pdf') || (order.print_type && order.print_type.toLowerCase().includes('page'));
-                
-                if (isPdf) {
-                    frameDoc.write(`
-                        <html>
-                        <head>
-                            <style>
-                                body { margin: 0; padding: 0; background: white; }
-                                .pdf-page-canvas { width: 100%; height: auto; display: block; page-break-after: always; break-after: page; }
-                                @media print {
-                                    @page { size: auto; margin: 0mm; }
-                                    html, body { margin: 0 !important; padding: 0 !important; }
-                                    .pdf-page-canvas { page-break-after: always; break-after: page; }
-                                }
-                            </style>
-                            <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"><\/script>
-                        </head>
-                        <body>
-                            <div id="canvasContainer"></div>
-                            <script>
-                                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-                                async function renderFullPdfPages() {
-                                    try {
-                                        const loadingTask = pdfjsLib.getDocument('${targetPrintLayoutUrl}');
-                                        const pdf = await loadingTask.promise;
-                                        const container = document.getElementById('canvasContainer');
-                                        
-                                        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                                            const page = await pdf.getPage(pageNum);
-                                            const viewport = page.getViewport({ scale: 2.0 }); 
-                                            const canvas = document.createElement('canvas');
-                                            canvas.className = 'pdf-page-canvas';
-                                            canvas.width = viewport.width;
-                                            canvas.height = viewport.height;
-                                            container.appendChild(canvas);
-                                            
-                                            const context = canvas.getContext('2d');
-                                            await page.render({ canvasContext: context, viewport: viewport }).promise;
-                                        }
-                                        window.parent.postMessage({ status: 'pdf_render_ready', orderId: '${order.id}' }, '*');
-                                    } catch(err) {
-                                        console.error('Child layout builder failure:', err);
-                                    }
-                                }
-                                renderFullPdfPages();
-                            <\/script>
-                        </body>
-                        </html>
-                    `);
-                    frameDoc.close();
-
-                    const handleMessageSignal = async function(event) {
-                        if (event.data && event.data.status === 'pdf_render_ready' && event.data.orderId == order.id) {
-                            window.removeEventListener('message', handleMessageSignal);
-                            // ✅ FIXED FOR MULTI-PAGE COPIES: Added print_copies tracking argument to execution path
-                            executeIframePrintAction(iframe, targetPrintLayoutUrl, isIdCard, order.id, print_copies);
-                        }
-                    };
-                    window.addEventListener('message', handleMessageSignal);
-                } else {
-                    frameDoc.write(`
-                        <html>
-                        <head>
-                            <style>
-                                @media print {
-                                    @page { size: auto; margin: 0mm; }
-                                    html, body { margin: 0 !important; padding: 0 !important; height: 100% !important; overflow: hidden !important; }
-                                    body { display: flex !important; justify-content: center !important; align-items: center !important; padding: 5mm !important; box-sizing: border-box !important; }
-                                    img { max-width: 95% !important; max-height: 92vh !important; object-fit: contain !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-                                }
-                            </style>
-                        </head>
-                        <body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center;">
-                            <img src="${targetPrintLayoutUrl}">
-                        </body>
-                        </html>
-                    `);
-                    frameDoc.close();
-                    // ✅ FIXED FOR IMAGE COPIES: Added print_copies tracking argument to execution path
-                    executeIframePrintAction(iframe, targetPrintLayoutUrl, isIdCard, order.id, print_copies);
-                }
-            } catch (fetchError) {
-                print("CORS asset streaming failure payload:", fetchError);
-                window.open(order.file_url, '_blank');
-                isProcessingPrintJob = false;
-                return;
-            }
-        }
-    }
-
-    // ✅ AUTOMATED COPIES HANDLING MODULE LAYER OVERRIDE
-    function executeIframePrintAction(iframe, targetPrintLayoutUrl, isIdCard, orderId, totalCopiesRequested = 1) {
-        setTimeout(async () => {
-            try {
-                iframe.contentWindow.focus();
-                
-                // Inject configuration signals directly into iframe document layers before trigger loops
-                try {
-                    const inlineConfig = iframe.contentWindow.document.createElement('script');
-                    inlineConfig.innerHTML = `
-                        // Injecting native execution pipeline variables to assist browser settings
-                        if (window.print && Object.defineProperty) {
-                            try {
-                                // Hardware driver mapping hooks
-                            } catch(e) {}
-                        }
-                    `;
-                    iframe.contentWindow.document.body.appendChild(inlineConfig);
-                } catch(configErr) {}
-
-                // Trigger driver print window interface
-                iframe.contentWindow.print();
-                
-                const { error } = await client
-                    .from("orders")
-                    .update({ print_status: "Completed", printed: true })
-                    .eq("id", orderId);
-
-                if (error) console.error("Database update sync error:", error);
-            } catch (err) {
-                console.error("Hardware print warning:", err);
-            } finally {
-                if(!isIdCard && targetPrintLayoutUrl.startsWith("blob:")) {
-                    URL.revokeObjectURL(targetPrintLayoutUrl);
-                }
-                setTimeout(() => {
-                    isProcessingPrintJob = false;
-                    fetchOrders(); 
-                }, 1500);
-            }
-        }, 600);
-    }
-
     async function markAsPaid(orderId) {
+        // Mark paid resets database flags so that your background Python server catches it instantly
         const { error } = await client
             .from("orders")
             .update({ payment_status: "Paid Cash" })
