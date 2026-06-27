@@ -422,7 +422,6 @@ async function submitOrder() {
             alert("Processing pages and optimizing document structure...");
             const fileArrayBuffer = await originalFileHandle.arrayBuffer();
             
-            // 🟢 FIXED NATIVE EMBED TRACKING: Switch from embedPages to copyPages architecture
             const sourcePdfDoc = await PDFLib.PDFDocument.load(fileArrayBuffer);
             let pageNumbersList = parsePageSelection(pages);
             let totalDocPagesCount = sourcePdfDoc.getPageCount();
@@ -439,11 +438,11 @@ async function submitOrder() {
             if (chosenLayout === "4") {
                 alert("Generating automatic 4-on-1 straight grid sheets... Please wait.");
                 
-                // Copy source elements safely to avoid context undefined error loops
+                // 🟢 FIXED: copyPages karke unhe outputPdfDoc par embed karwa rahe hain sahi format mein
                 const copiedPages = await outputPdfDoc.copyPages(sourcePdfDoc, dynamicIndicesToKeep);
                 
                 for (let i = 0; i < copiedPages.length; i += 4) {
-                    const blankPage = outputPdfDoc.addPage([595, 842]); // Sharp A4 Portrait Sheet
+                    const blankPage = outputPdfDoc.addPage([595, 842]); // Standard A4 Portrait
                     
                     const matrixPositions = [
                         { x: 5, y: 424, w: 290, h: 413 },   // Top Left
@@ -455,10 +454,12 @@ async function submitOrder() {
                     for (let gridIdx = 0; gridIdx < 4; gridIdx++) {
                         if (i + gridIdx < copiedPages.length) {
                             const targetPage = copiedPages[i + gridIdx];
+                            
+                            // 🟢 FIXED ENGINE WIRE: .embedPage call kiya hai target embedding ko validate karne ke liye
+                            const embeddedLayoutPage = await outputPdfDoc.embedPage(targetPage);
                             const pos = matrixPositions[gridIdx];
                             
-                            // Draws the copied page reference accurately inside specified bounding boxes
-                            blankPage.drawPage(targetPage, {
+                            blankPage.drawPage(embeddedLayoutPage, {
                                 x: pos.x,
                                 y: pos.y,
                                 width: pos.w,
@@ -468,7 +469,6 @@ async function submitOrder() {
                     }
                 }
             } else {
-                // Standard default pages routing
                 const copiedPages = await outputPdfDoc.copyPages(sourcePdfDoc, dynamicIndicesToKeep);
                 copiedPages.forEach((page) => outputPdfDoc.addPage(page));
             }
