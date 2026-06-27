@@ -77,6 +77,34 @@
         .force-grayscale {
             filter: grayscale(100%) brightness(105%) contrast(105%) !important;
         }
+
+        /* 📄 LIVE PRINT LAYOUT MINI-MAP STYLES */
+        .layout-preview-sheet {
+            width: 120px;
+            height: 165px;
+            background: #ffffff;
+            border: 2px solid #555;
+            border-radius: 4px;
+            margin: 10px auto 0 auto;
+            padding: 6px;
+            box-sizing: border-box;
+            display: grid;
+            gap: 4px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .mini-page-block {
+            background: #e3f2fd;
+            border: 1px dashed #1976d2;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: #1976d2;
+        }
     </style>
 </head>
 
@@ -111,11 +139,18 @@
 
     <div class="input-group">
         <label>Pages Per Sheet (Layout):</label>
-        <select id="layout_mode" onchange="calculate()">
+        <select id="layout_mode" onchange="calculate(); updateLayoutVisualPreview();">
             <option value="1">1 Page Per Sheet (Standard)</option>
             <option value="2">2 Pages Per Sheet (Save Paper Mode)</option>
             <option value="4">4 Pages Per Sheet (Chit / Notes Grid)</option>
         </select>
+        
+        <div id="layoutVisualContainer" style="text-align: center; margin-top: 10px;">
+            <div id="layoutSheetMap" class="layout-preview-sheet" style="grid-template-columns: 1fr;">
+                <div class="mini-page-block">Page 1</div>
+            </div>
+            <span style="font-size: 11px; color: #666; display: block; margin-top: 4px;">Print Layout Target Preview</span>
+        </div>
     </div>
 
     <div class="input-group">
@@ -144,6 +179,29 @@ let currentFileType = "";
 let cachedFileObject = null;
 let totalDetectedPDFPages = 1; 
 let activeRenderTaskId = 0; 
+
+// 📄 LIVE DYNAMIC PRINT GRID STRUCTURING LOGIC
+function updateLayoutVisualPreview() {
+    const layoutMode = document.getElementById("layout_mode").value;
+    const sheetMap = document.getElementById("layoutSheetMap");
+    
+    if (layoutMode === "1") {
+        sheetMap.style.gridTemplateColumns = "1fr";
+        sheetMap.innerHTML = `<div class="mini-page-block">Page 1</div>`;
+    } else if (layoutMode === "2") {
+        sheetMap.style.gridTemplateColumns = "1fr 1fr";
+        sheetMap.innerHTML = `
+            <div class="mini-page-block">Pg 1</div>
+            <div class="mini-page-block">Pg 2</div>`;
+    } else if (layoutMode === "4") {
+        sheetMap.style.gridTemplateColumns = "1fr 1fr";
+        sheetMap.innerHTML = `
+            <div class="mini-page-block">P1</div>
+            <div class="mini-page-block">P2</div>
+            <div class="mini-page-block">P3</div>
+            <div class="mini-page-block">P4</div>`;
+    }
+}
 
 async function handleFileSelectionChange() {
     resetFileCache();
@@ -362,7 +420,6 @@ async function submitOrder() {
     let isBlackAndWhite = (type == 5); 
     let finalMimeType = originalFileHandle.type;
 
-    // --- IMAGE FILE HANDLING PATH ---
     if (originalFileHandle.type.startsWith("image/")) {
         calculatedIntegerPages = 1;
         if (isBlackAndWhite) {
@@ -389,7 +446,6 @@ async function submitOrder() {
                     }
                     ctx.putImageData(imgData, 0, 0);
                     URL.revokeObjectURL(objectUrl);
-                    // 🟢 FIXED: Canvas JPEG rendering quality set to 1.0 (100% Maximum Quality)
                     canvas.toBlob((blob) => resolve(blob), "image/jpeg", 1.0);
                 };
             });
@@ -398,7 +454,6 @@ async function submitOrder() {
         }
     }
 
-    // --- PDF FILE HANDLING PATH ---
     if (originalFileHandle.type === "application/pdf") {
         let pageNumbersList = parsePageSelection(pages);
         finalMimeType = "application/pdf";
@@ -429,7 +484,6 @@ async function submitOrder() {
                     const pageNum = dynamicIndicesToKeep[i];
                     const page = await pdfjsDoc.getPage(pageNum);
                     
-                    // 🟢 FIXED: Scale bumped to 3.0 for ultra-crisp high-density vector rendering
                     const viewport = page.getViewport({ scale: 3.0 }); 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
@@ -450,7 +504,6 @@ async function submitOrder() {
                         ctx.putImageData(imgData, 0, 0);
                     }
 
-                    // 🟢 FIXED: Export set to 1.0 (100% Quality) to avoid text artifact blur
                     const pageImageBase64 = canvas.toDataURL('image/jpeg', 1.0);
                     const embeddedImageObj = await outputPdfDoc.embedJpg(pageImageBase64);
 
