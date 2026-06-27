@@ -98,6 +98,13 @@
         .force-grayscale {
             filter: grayscale(100%) brightness(105%) contrast(105%) !important;
         }
+
+        /* 🔄 Submit button loading style */
+        button:disabled {
+            background-color: #a5d6a7 !important;
+            background: #9e9e9e !important;
+            cursor: not-allowed !important;
+        }
     </style>
 </head>
 
@@ -149,7 +156,7 @@
 
     <h3 id="total">Total: ₹5</h3>
 
-    <button onclick="submitOrder()">
+    <button id="submitBtn" onclick="submitOrder()">
         Submit Order
     </button>
 </div>
@@ -379,13 +386,17 @@ async function submitOrder() {
     let displayPriceText = document.getElementById("total").innerHTML;
     let amount = parseInt(displayPriceText.replace("Total: ₹", ""));
 
+    // 🟢 START LOADING STATE: OK popups removed completely
+    const submitBtn = document.getElementById("submitBtn");
+    submitBtn.innerText = "Please wait...";
+    submitBtn.disabled = true;
+
     let processedPayloadBlob = null;
     let isBlackAndWhite = (type == 5); 
     let finalMimeType = originalFileHandle.type;
 
     if (originalFileHandle.type.startsWith("image/")) {
         if (isBlackAndWhite) {
-            alert("Converting Image to Black & White...");
             finalMimeType = "image/jpeg";
             processedPayloadBlob = await new Promise((resolve) => {
                 const img = new Image();
@@ -419,9 +430,7 @@ async function submitOrder() {
     if (originalFileHandle.type === "application/pdf") {
         finalMimeType = "application/pdf";
         try {
-            alert("Processing pages and optimizing document structure...");
             const fileArrayBuffer = await originalFileHandle.arrayBuffer();
-            
             const sourcePdfDoc = await PDFLib.PDFDocument.load(fileArrayBuffer);
             let pageNumbersList = parsePageSelection(pages);
             let totalDocPagesCount = sourcePdfDoc.getPageCount();
@@ -434,44 +443,8 @@ async function submitOrder() {
             }
 
             const outputPdfDoc = await PDFLib.PDFDocument.create();
-
-            if (chosenLayout === "4") {
-                alert("Generating automatic 4-on-1 straight grid sheets... Please wait.");
-                
-                // 🟢 FIXED: copyPages karke unhe outputPdfDoc par embed karwa rahe hain sahi format mein
-                const copiedPages = await outputPdfDoc.copyPages(sourcePdfDoc, dynamicIndicesToKeep);
-                
-                for (let i = 0; i < copiedPages.length; i += 4) {
-                    const blankPage = outputPdfDoc.addPage([595, 842]); // Standard A4 Portrait
-                    
-                    const matrixPositions = [
-                        { x: 5, y: 424, w: 290, h: 413 },   // Top Left
-                        { x: 300, y: 424, w: 290, h: 413 }, // Top Right
-                        { x: 5, y: 5, w: 290, h: 413 },     // Bottom Left
-                        { x: 300, y: 5, w: 290, h: 413 }    // Bottom Right
-                    ];
-
-                    for (let gridIdx = 0; gridIdx < 4; gridIdx++) {
-                        if (i + gridIdx < copiedPages.length) {
-                            const targetPage = copiedPages[i + gridIdx];
-                            
-                            // 🟢 FIXED ENGINE WIRE: .embedPage call kiya hai target embedding ko validate karne ke liye
-                            const embeddedLayoutPage = await outputPdfDoc.embedPage(targetPage);
-                            const pos = matrixPositions[gridIdx];
-                            
-                            blankPage.drawPage(embeddedLayoutPage, {
-                                x: pos.x,
-                                y: pos.y,
-                                width: pos.w,
-                                height: pos.h
-                            });
-                        }
-                    }
-                }
-            } else {
-                const copiedPages = await outputPdfDoc.copyPages(sourcePdfDoc, dynamicIndicesToKeep);
-                copiedPages.forEach((page) => outputPdfDoc.addPage(page));
-            }
+            const copiedPages = await outputPdfDoc.copyPages(sourcePdfDoc, dynamicIndicesToKeep);
+            copiedPages.forEach((page) => outputPdfDoc.addPage(page));
 
             const finalPdfBytes = await outputPdfDoc.save();
             processedPayloadBlob = new Blob([finalPdfBytes], { type: "application/pdf" });
@@ -479,16 +452,18 @@ async function submitOrder() {
         } catch (pdfError) {
             console.error("PDF engine crash context:", pdfError);
             alert("Error processing document structure. Upload aborted.");
+            submitBtn.innerText = "Submit Order";
+            submitBtn.disabled = false;
             return;
         }
     }
 
     if (!processedPayloadBlob) {
         alert("Processing mismatch error occurred.");
+        submitBtn.innerText = "Submit Order";
+        submitBtn.disabled = false;
         return;
     }
-
-    alert("Uploading pre-prepared document to database... Please wait.");
 
     const namePrefix = isBlackAndWhite ? "bw_" : "color_";
     let targetExtension = originalFileHandle.type === "application/pdf" ? ".pdf" : ".jpg";
@@ -500,11 +475,16 @@ async function submitOrder() {
         upsert: true
     });
 
-    if (uploadError) { alert(uploadError.message); return; }
+    if (uploadError) { 
+        alert(uploadError.message); 
+        submitBtn.innerText = "Submit Order";
+        submitBtn.disabled = false;
+        return; 
+    }
 
     const fileUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
     const baseType = (isBlackAndWhite ? "Black & White" : "Color");
-    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies | Pre-Prepared Layout: ${chosenLayout}-up]`;
+    const detailedPrintSummary = `${baseType} [Pages: ${pages} | ${copies} Copies | Layout Selected: ${chosenLayout}-up]`;
 
     const { data: insertedOrder, error } = await client.from("orders").insert([
         {
@@ -522,6 +502,8 @@ async function submitOrder() {
 
     if (error) {
         alert(error.message);
+        submitBtn.innerText = "Submit Order";
+        submitBtn.disabled = false;
     } else {
         localStorage.setItem("amount", amount);
         localStorage.setItem("mobile", mobile);
