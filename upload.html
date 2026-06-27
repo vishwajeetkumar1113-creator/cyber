@@ -328,32 +328,10 @@ function calculate() {
         totalPages = selectedPages.length > 0 ? selectedPages.length : totalDetectedPDFPages;
     }
 
-    // 🟢 OPTIMIZED PRICE MATRIX: Automatically divides sheets based on layout density (e.g. 2 pages = half price sheets count)
     let calculatedSheets = Math.ceil(totalPages / layoutDivisor);
     let finalAmount = calculatedSheets * price * copies;
     
     document.getElementById("total").innerHTML = "Total: ₹" + finalAmount;
-}
-
-function convertImageToGrayscale(imageElement) {
-    const canvas = document.createElement("canvas");
-    canvas.width = imageElement.naturalWidth || imageElement.width;
-    canvas.height = imageElement.naturalHeight || imageElement.height;
-    const ctx = canvas.getContext("2d");
-    
-    ctx.drawImage(imageElement, 0, 0);
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imgData.data;
-    
-    for (let i = 0; i < data.length; i += 4) {
-        let v = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        data[i]     = v; 
-        data[i + 1] = v; 
-        data[i + 2] = v; 
-    }
-    
-    ctx.putImageData(imgData, 0, 0);
-    return canvas;
 }
 
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
@@ -411,7 +389,8 @@ async function submitOrder() {
                     }
                     ctx.putImageData(imgData, 0, 0);
                     URL.revokeObjectURL(objectUrl);
-                    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.90);
+                    // 🟢 FIXED: Canvas JPEG rendering quality set to 1.0 (100% Maximum Quality)
+                    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 1.0);
                 };
             });
         } else {
@@ -450,7 +429,8 @@ async function submitOrder() {
                     const pageNum = dynamicIndicesToKeep[i];
                     const page = await pdfjsDoc.getPage(pageNum);
                     
-                    const viewport = page.getViewport({ scale: 2.0 }); 
+                    // 🟢 FIXED: Scale bumped to 3.0 for ultra-crisp high-density vector rendering
+                    const viewport = page.getViewport({ scale: 3.0 }); 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     canvas.width = viewport.width;
@@ -470,7 +450,8 @@ async function submitOrder() {
                         ctx.putImageData(imgData, 0, 0);
                     }
 
-                    const pageImageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                    // 🟢 FIXED: Export set to 1.0 (100% Quality) to avoid text artifact blur
+                    const pageImageBase64 = canvas.toDataURL('image/jpeg', 1.0);
                     const embeddedImageObj = await outputPdfDoc.embedJpg(pageImageBase64);
 
                     const pdfPage = outputPdfDoc.addPage([viewport.width, viewport.height]);
@@ -529,7 +510,6 @@ async function submitOrder() {
             file_url: fileUrl,
             payment_status: "Pending", 
             payment_id: "",
-            // ✅ REGISTERING LAYOUT ATTRIBUTE: Pushes selection code into the database layout context field
             layout_mode: parseInt(chosenLayout) || 1
         }
     ]).select();
