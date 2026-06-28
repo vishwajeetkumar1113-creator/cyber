@@ -91,6 +91,10 @@
         e.preventDefault();
 
         const amountInPaise = parseFloat(billingAmount) * 100;
+        let updateFired = false;
+
+        // 🚀 EARLY INTENT CAPTURE: UPI apps khulne se PEHLE hi database ko 'Processing' state me dalo
+        client.from("orders").update({ payment_status: "Processing" }).eq("id", targetOrderId).execute();
 
         const options = {
             "key": "rzp_live_T5K9Isn4Ds0Qrx", 
@@ -101,39 +105,28 @@
             "notes": {
                 "current_order_id": targetOrderId
             },
-            // 🚨 MODIFICATION: Modal behaviour hooks lagaye hain taaki payment framework trigger ho sake
             "modal": {
                 "ondismiss": function() {
-                    console.log("Checkout closed by user context.");
+                    console.log("Checkout overlay sheets dismissed.");
                 }
             },
             "handler": async function (response) {
-                // 🔒 TAB NATIVE UNLOAD LOCK ACTIVE
+                if (updateFired) return;
+                updateFired = true;
+
+                // Tab blocking dynamic sequence 
                 const preventClose = (event) => {
                     event.preventDefault();
-                    event.returnValue = "Saving order status... Please wait.";
+                    event.returnValue = "Locking print session...";
                 };
                 window.addEventListener("beforeunload", preventClose);
 
-                // 🚀 INSTANT DB FIRE PIPELINE (Customer ke app se screen block hone se PEHLE hi direct execution)
                 try {
-                    // Send sync state straight to Supabase API endpoints
-                    await fetch(`${window.SITE_CONFIG.SUPABASE_URL}/rest/v1/orders?id=eq.${targetOrderId}`, {
-                        method: 'PATCH',
-                        headers: {
-                            'apikey': window.SITE_CONFIG.SUPABASE_KEY,
-                            'Authorization': `Bearer ${window.SITE_CONFIG.SUPABASE_KEY}`,
-                            'Content-Type': 'application/json',
-                            'Prefer': 'return=minimal'
-                        },
-                        body: JSON.stringify({ payment_status: "Success" })
-                    });
-
+                    await client.from("orders").update({ payment_status: "Success" }).eq("id", targetOrderId);
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
                     window.removeEventListener("beforeunload", preventClose);
                     window.location.href = "success.html";
                 } catch (err) {
-                    console.error("Direct API patch failure context: ", err);
                     window.removeEventListener("beforeunload", preventClose);
                     window.location.href = "success.html";
                 }
@@ -143,21 +136,36 @@
 
         const rzp = new Razorpay(options);
         rzp.open();
+
+        // ⏱️ BACKGROUND SILENT ATTACK ENGINE (Har 1.5 second me update monitor karega)
+        // Agar customer payment karte hi tab kill kar dega, toh ye checkout frame state se checkmate kar dega
+        const silentPoller = setInterval(async () => {
+            if (updateFired) {
+                clearInterval(silentPoller);
+                return;
+            }
+            
+            // Razorpay internal checkout frame state tracker check
+            if (rzp && rzp.checkout && rzp.checkout.closed === false) {
+                try {
+                    // Check database token status or pre-authenticate link metrics
+                    const { data } = await client.from("orders").select("payment_status").eq("id", targetOrderId).single();
+                    if (data && (data.payment_status === "Success" || data.payment_status === "Paid")) {
+                        updateFired = true;
+                        clearInterval(silentPoller);
+                        window.location.href = "success.html";
+                    }
+                } catch(e) {}
+            }
+        }, 1500);
     }
 
     // 🏦 OPTION 2: CASH AT COUNTER BACKEND REGISTRATION FLOW
     async function processCashPayment(e) {
         e.preventDefault();
-        
         try {
-            await client
-                .from("orders")
-                .update({ payment_status: "Cash Payment Pending" })
-                .eq("id", targetOrderId);
-        } catch (dbError) {
-            console.error("Database tracker update error:", dbError);
-        }
-
+            await client.from("orders").update({ payment_status: "Cash Payment Pending" }).eq("id", targetOrderId);
+        } catch (dbError) {}
         localStorage.setItem("last_payment_method", "Cash Counter");
         window.location.href = "cash.html";
     }
