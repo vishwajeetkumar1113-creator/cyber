@@ -59,7 +59,7 @@
 
 <div class="payment-container">
     <h2>Select Payment Method</h2>
-    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance balance parameters.</p>
+    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance parameters.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
@@ -87,14 +87,18 @@
     };
 
     // 🌐 OPTION 1: ONLINE GATEWAY ENGINE ROUTE
-    function openRazorpayCheckout(e) {
+    async function openRazorpayCheckout(e) {
         e.preventDefault();
 
         const amountInPaise = parseFloat(billingAmount) * 100;
         let updateFired = false;
 
-        // 🚀 EARLY INTENT CAPTURE: UPI apps khulne se PEHLE hi database ko 'Processing' state me dalo
-        client.from("orders").update({ payment_status: "Processing" }).eq("id", targetOrderId).execute();
+        // 🚀 CORRECTED: .execute() hata kar standard format me background sync trigger kiya
+        try {
+            await client.from("orders").update({ payment_status: "Processing" }).eq("id", targetOrderId);
+        } catch (err) {
+            console.error("Initial processing state update skip", err);
+        }
 
         const options = {
             "key": "rzp_live_T5K9Isn4Ds0Qrx", 
@@ -114,7 +118,6 @@
                 if (updateFired) return;
                 updateFired = true;
 
-                // Tab blocking dynamic sequence 
                 const preventClose = (event) => {
                     event.preventDefault();
                     event.returnValue = "Locking print session...";
@@ -137,18 +140,15 @@
         const rzp = new Razorpay(options);
         rzp.open();
 
-        // ⏱️ BACKGROUND SILENT ATTACK ENGINE (Har 1.5 second me update monitor karega)
-        // Agar customer payment karte hi tab kill kar dega, toh ye checkout frame state se checkmate kar dega
+        // ⏱️ SILENT BACKGROUND POLLER 
         const silentPoller = setInterval(async () => {
             if (updateFired) {
                 clearInterval(silentPoller);
                 return;
             }
             
-            // Razorpay internal checkout frame state tracker check
             if (rzp && rzp.checkout && rzp.checkout.closed === false) {
                 try {
-                    // Check database token status or pre-authenticate link metrics
                     const { data } = await client.from("orders").select("payment_status").eq("id", targetOrderId).single();
                     if (data && (data.payment_status === "Success" || data.payment_status === "Paid")) {
                         updateFired = true;
