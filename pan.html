@@ -242,7 +242,7 @@ function handleFileSelect(e) {
             const optimizationCtx = optimizationCanvas.getContext('2d');
             optimizationCtx.drawImage(rawImg, 0, 0, targetWidth, targetHeight);
 
-            const optimizedDataUrl = optimizationCanvas.toDataURL("image/jpeg", 0.92);
+            const optimizedDataUrl = optimizationCanvas.toDataURL("image/jpeg", 0.95);
             
             engine.originalSrc = optimizedDataUrl;
             engine.rotation = 0; 
@@ -509,7 +509,7 @@ function saveSide() {
 
     closeFullscreen();
     const resultCanvas = projectPerspective(engine.img, mappedCorners, 856, 540);
-    frontDataUrl = resultCanvas.toDataURL("image/jpeg");
+    frontDataUrl = resultCanvas.toDataURL("image/jpeg", 0.95);
     
     document.getElementById("frontPreviewImg").src = frontDataUrl;
     document.getElementById("frontPreviewStatus").innerText = "✓ PAN Card Enhanced successfully!";
@@ -518,26 +518,28 @@ function saveSide() {
 }
 
 // ========================================================================
-// 🔲 CENTRAL PAN A4 TOP-MIDDLE MERGER ENGINE WITH SMOOTH ROUNDED CORNERS
+// 🔲 CENTRAL PAN A4 TOP-MIDDLE MERGER ENGINE WITH VERTICAL SPACING CORRECTION
 // ========================================================================
 function generateMergedA4Blob() {
     return new Promise((resolve) => {
         const a4Canvas = document.createElement('canvas');
-        a4Canvas.width = 2480; a4Canvas.height = 3508;
+        a4Canvas.width = 2480; a4Canvas.height = 3508; // Heavy 300 DPI Template
         const ctx = a4Canvas.getContext('2d');
 
-        // Pure white background layout
+        // Solid pure white crisp background layer
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, a4Canvas.width, a4Canvas.height);
 
         const cardImg = new Image();
         cardImg.onload = function() {
-            // CR80 Card Resolution Configuration -> Width: 1010, Height: 640
             const cardW = 1010; const cardH = 640;
-            // X Coordinate setup to match perfect Top-Middle grid alignment
-            const targetX = (a4Canvas.width - cardW) / 2; // Center horizontal axis
-            const targetY = 150; // Top margin
-            const radius = 50; // 50px high-end rounding radius curve
+            
+            // Perfect Center Horizontal Axis
+            const targetX = (a4Canvas.width - cardW) / 2; 
+            
+            // 📐 350px Margin to shift image safely down from top border lines
+            const targetY = 350; 
+            const radius = 50; // PVC Smooth Curved Edges
 
             ctx.save();
             ctx.beginPath();
@@ -556,7 +558,7 @@ function generateMergedA4Blob() {
             ctx.drawImage(cardImg, targetX, targetY, cardW, cardH);
             ctx.restore();
 
-            // Export lossless PNG package array stream
+            // Lossless PNG byte stream conversion line
             a4Canvas.toBlob((blob) => { resolve(blob); }, "image/png", 0.95);
         };
         cardImg.src = frontDataUrl;
@@ -575,7 +577,6 @@ async function submitPAN() {
 
     alert("Structuring high-quality template... Please wait.");
 
-    // Generate rounded PNG sheet context link flow
     const finalA4Blob = await generateMergedA4Blob();
 
     const prefix = isBw ? "bw_" : "color_";
