@@ -238,10 +238,24 @@
             // Python handles hardware pipelines now so browser printing is disabled.
 
             let actionsHtml = "";
-            if (trueTargetRawSourceUrl) {
-                // If you ever need to manually force the Python server to re-read it, "Mark Paid" or "Done" updates the state.
-                actionsHtml += `<a href="${trueTargetRawSourceUrl}" target="_blank" class="action-btn print-btn">👁️ View File</a>`;
-                actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
+            
+            // Checking if the layout explicitly carries a combined A4 format matrix label
+            const printTypeLabel = (order.print_type || '').toLowerCase();
+            if (printTypeLabel.includes("document id") || printTypeLabel.includes("single id")) {
+                if (order.file_url) {
+                    actionsHtml += `<a href="${order.file_url}" target="_blank" class="action-btn print-btn" style="background-color: #28a745;">👁️ View Combined A4 ID</a>`;
+                    actionsHtml += `<a href="${order.file_url}" download class="action-btn download-btn">📥 Download</a>`;
+                } else if (order.front_url) {
+                    actionsHtml += `<a href="${order.front_url}" target="_blank" class="action-btn print-btn">👁️ View Front</a>`;
+                    if (order.back_url) {
+                        actionsHtml += `<a href="${order.back_url}" target="_blank" class="action-btn print-btn" style="background-color: #6f42c1;">👁️ View Back</a>`;
+                    }
+                }
+            } else {
+                if (trueTargetRawSourceUrl) {
+                    actionsHtml += `<a href="${trueTargetRawSourceUrl}" target="_blank" class="action-btn print-btn">👁️ View File</a>`;
+                    actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
+                }
             }
 
             if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
@@ -270,7 +284,6 @@
     }
 
     async function markAsPaid(orderId) {
-        // Mark paid resets database flags so that your background Python server catches it instantly
         const { error } = await client
             .from("orders")
             .update({ payment_status: "Paid Cash" })
