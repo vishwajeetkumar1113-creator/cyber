@@ -73,14 +73,14 @@
 <script src="config.js"></script>
 
 <script>
-    // 🟢 CRITICAL DATA LOCK: Variables ko shuru mein hi read karke memory mein lock kar diya
+    // 🟢 DATA LOCK: Read state parameters directly
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
 
     const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     window.onload = function() {
-        // Agar galti se bina kisi order ke koi direct is page par aaye toh use wapas bhej do
+        // Safe check: Agar direct koi page par aaye toh redirect karein
         if (billingAmount === "0" || !targetOrderId) {
             window.location.href = "upload.html";
             return;
@@ -106,7 +106,7 @@
             },
             
             "handler": async function (response) {
-                // 🔒 TAB ANTI-CUT LOCK TRIGGER ACTIVE
+                // 🔒 ANTI-CUT TAB LOCK
                 const preventClose = (event) => {
                     event.preventDefault();
                     event.returnValue = "Saving your order status securely... Please wait.";
@@ -114,33 +114,27 @@
                 window.addEventListener("beforeunload", preventClose);
 
                 try {
-                    // Direct target update call executing securely using pre-locked variable
-                    const { error } = await client
-                        .from("orders")
-                        .update({ payment_status: "Success" })
-                        .eq("id", targetOrderId);
-                        
-                    if (error) throw error;
+                    if (targetOrderId) {
+                        const { error } = await client
+                            .from("orders")
+                            .update({ payment_status: "Success" })
+                            .eq("id", targetOrderId);
+                            
+                        if (error) throw error;
+                    }
                     
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
                     
-                    // 🟢 SECURE MEMORY FLUSH: Database update hone ke BAD hi purana session saaf karenge
-                    localStorage.removeItem("amount");
-                    localStorage.removeItem("current_order_id");
-                    
+                    // 🚨 NOTE: We DO NOT clear localStorage here anymore so success.html can read the tracking ID!
                     window.removeEventListener("beforeunload", preventClose);
                     window.location.href = "success.html";
                 } catch (err) {
-                    console.error("Database connection failure context: ", err);
-                    
-                    // Backup Retry framework loop logic
+                    console.error("Database sync failure: ", err);
                     setTimeout(async () => {
                         await client.from("orders").update({ payment_status: "Success" }).eq("id", targetOrderId);
-                        localStorage.removeItem("amount");
-                        localStorage.removeItem("current_order_id");
                         window.removeEventListener("beforeunload", preventClose);
                         window.location.href = "success.html";
-                    }, 600);
+                    }, 500);
                 }
             },
             "theme": { "color": "#3399cc" }
@@ -165,10 +159,7 @@
 
         localStorage.setItem("last_payment_method", "Cash Counter");
         
-        // Cash select karne par bhi data clear karke aage bhejenge
-        localStorage.removeItem("amount");
-        localStorage.removeItem("current_order_id");
-        
+        // 🚨 NOTE: We DO NOT clear localStorage here anymore so cash.html can read the tracking ID!
         window.location.href = "cash.html";
     }
 </script>
