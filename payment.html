@@ -59,7 +59,7 @@
 
 <div class="payment-container">
     <h2>Select Payment Method</h2>
-    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance balance parameters.</p>
+    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
@@ -73,15 +73,24 @@
 <script src="config.js"></script>
 
 <script>
-    // 🟢 DATA LOCK: Read state parameters directly
-    const billingAmount = localStorage.getItem("amount") || "0";
-    const targetOrderId = localStorage.getItem("current_order_id");
+    // 🟢 NEW SMART ENGINE: URL parameters se dynamically id aur amount read karna
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Agar URL me data mile toh wahi use karo, nahi toh localStorage se backup uthao
+    const targetOrderId = urlParams.get('order_id') || localStorage.getItem("current_order_id");
+    const billingAmount = urlParams.get('amount') || localStorage.getItem("amount") || "0";
 
     const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     window.onload = function() {
-        // Safe check: Agar direct koi page par aaye toh redirect karein
+        // Hamesha safety ke liye id ko sync rakhein backend screens ke liye
+        if (targetOrderId) {
+            localStorage.setItem("current_order_id", targetOrderId);
+            localStorage.setItem("amount", billingAmount);
+        }
+
         if (billingAmount === "0" || !targetOrderId) {
+            alert("No active order found. Redirecting to upload...");
             window.location.href = "upload.html";
             return;
         }
@@ -106,7 +115,6 @@
             },
             
             "handler": async function (response) {
-                // 🔒 ANTI-CUT TAB LOCK
                 const preventClose = (event) => {
                     event.preventDefault();
                     event.returnValue = "Saving your order status securely... Please wait.";
@@ -124,16 +132,14 @@
                     }
                     
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
-                    
-                    // 🚨 NOTE: We DO NOT clear localStorage here anymore so success.html can read the tracking ID!
                     window.removeEventListener("beforeunload", preventClose);
-                    window.location.href = "success.html";
+                    window.location.href = "success.html?order_id=" + targetOrderId;
                 } catch (err) {
                     console.error("Database sync failure: ", err);
                     setTimeout(async () => {
                         await client.from("orders").update({ payment_status: "Success" }).eq("id", targetOrderId);
                         window.removeEventListener("beforeunload", preventClose);
-                        window.location.href = "success.html";
+                        window.location.href = "success.html?order_id=" + targetOrderId;
                     }, 500);
                 }
             },
@@ -158,9 +164,8 @@
         }
 
         localStorage.setItem("last_payment_method", "Cash Counter");
-        
-        // 🚨 NOTE: We DO NOT clear localStorage here anymore so cash.html can read the tracking ID!
-        window.location.href = "cash.html";
+        // Agle page par direct URL data bypass karenge taaki NOT FOUND kabhi na aaye
+        window.location.href = "cash.html?order_id=" + targetOrderId;
     }
 </script>
 </body>
