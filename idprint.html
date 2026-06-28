@@ -443,7 +443,6 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
     return hiddenCanvas;
 }
 
-// Helper function to convert dataURL to Blob safely
 function dataURLtoBlob(dataurl) {
     var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
         bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
@@ -469,7 +468,7 @@ function saveSide(side) {
 }
 
 // ========================================================================
-// 🔲 CENTRAL WEB A4 MERGER ENGINE (FRONT LEFT TOP & BACK RIGHT TOP)
+// 🔲 CENTRAL WEB A4 ROUNDED MERGER ENGINE (FRONT LEFT TOP & BACK RIGHT TOP)
 // ========================================================================
 function generateMergedA4Blob() {
     return new Promise((resolve) => {
@@ -486,10 +485,31 @@ function generateMergedA4Blob() {
         let frontLoaded = false;
         let backLoaded = false;
 
+        // Helper function to draw dynamic rounded rectangles for ID cards
+        function drawRoundedCard(img, x, y, width, height, radius) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            
+            // Masking system context clip execution
+            ctx.clip();
+            ctx.drawImage(img, x, y, width, height);
+            ctx.restore();
+        }
+
         const frontImg = new Image();
         frontImg.onload = function() {
-            // Standard CR80 Scaling layout mapping -> (Width: 1010, Height: 640)
-            ctx.drawImage(frontImg, 150, 150, 1010, 640);
+            // Draw Front Side with 50px curve radius
+            drawRoundedCard(frontImg, 150, 150, 1010, 640, 50);
             frontLoaded = true;
             checkComplete();
         };
@@ -498,8 +518,8 @@ function generateMergedA4Blob() {
         if (backDataUrl) {
             const backImg = new Image();
             backImg.onload = function() {
-                // Paste Back Side on top-right corner to map aamne-samne grid
-                ctx.drawImage(backImg, 1320, 150, 1010, 640);
+                // Paste Back Side on top-right corner with exact same rounding curves
+                drawRoundedCard(backImg, 1320, 150, 1010, 640, 50);
                 backLoaded = true;
                 checkComplete();
             };
@@ -531,7 +551,7 @@ async function submitID() {
 
     alert("Merging ID sides and saving package... Please wait.");
     
-    // Generate combined A4 image file on client side browser directly
+    // Generate rounded combined A4 image file directly on browser
     const finalA4Blob = await generateMergedA4Blob();
 
     const prefix = isBw ? "bw_" : "color_";
@@ -552,7 +572,6 @@ async function submitID() {
     const printLabel = isBw ? "Black & White" : "Color";
     const orderLabelText = `Document ID - ${printLabel} [${copiesInput} Copies]`;
 
-    // Insert only 1 dynamic file URL containing both sides side-by-side
     const { data: insertedOrder, error } = await client.from("orders").insert([{
         customer_name: name, mobile: mobile, print_type: orderLabelText, pages: copiesInput, amount: totalAmountCalculation,
         file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
