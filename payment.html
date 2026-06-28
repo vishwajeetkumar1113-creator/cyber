@@ -93,10 +93,6 @@
 
         const amountInPaise = parseFloat(billingAmount) * 100;
 
-        // 🔗 DYNAMICALLY BUILD DIRECT SUPABASE BULLETPROOF URL TRIGGER
-        // Yeh URL bina computer ya browser window khule piche se direct access dega
-        const supabaseWebhookFallbackUrl = `${window.SITE_CONFIG.SUPABASE_URL}/rest/v1/orders?id=eq.${targetOrderId}`;
-
         const options = {
             "key": "rzp_live_T5K9Isn4Ds0Qrx", 
             "amount": amountInPaise.toString(),
@@ -104,33 +100,44 @@
             "name": window.SITE_CONFIG.STORE_NAME || "Digital Print Shop",
             "description": "Payment for Order #" + (targetOrderId || "Bulk"),
             
-            // 🟢 CRITICAL FIXED LINE: Background automatic server hit configuration!
-            // Agar customer browser tab close bhi karega, toh Razorpay is direct URL par POST/PUT bhej kar status update kar dega.
-            "callback_url": supabaseWebhookFallbackUrl,
-            
-            // Redirect mode auto true rahegi taaki server handling directly clear ho ske
-            "redirect": true,
-
-            // 🟢 METADATA SECURE BINDING
+            // 🟢 METADATA SECURE LOCK
             "notes": {
-                "current_order_id": targetOrderId,
-                "supabase_url": window.SITE_CONFIG.SUPABASE_URL
+                "current_order_id": targetOrderId
             },
             
+            // 🟢 HIGH-PRIORITY INSTANT HANDLER:
             "handler": async function (response) {
+                // 🔒 TAB LOCK MECHANISM: Jaise hi payment hit hogi, page freeze ho jayega taaki data secure bhej sake
+                const preventClose = (event) => {
+                    event.preventDefault();
+                    event.returnValue = "Saving your order status securely... Please wait.";
+                };
+                window.addEventListener("beforeunload", preventClose);
+
                 try {
                     if (targetOrderId) {
-                        // Frontend fallback framework security check
-                        await client
+                        // Strict direct DB call execution
+                        const { error } = await client
                             .from("orders")
                             .update({ payment_status: "Success" })
                             .eq("id", targetOrderId);
+                            
+                        if (error) throw error;
                     }
+                    
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
+                    
+                    // Release the tab lock safely and redirect
+                    window.removeEventListener("beforeunload", preventClose);
                     window.location.href = "success.html";
                 } catch (err) {
                     console.error("Database connection failure context: ", err);
-                    window.location.href = "success.html";
+                    // Retrying mechanism just in case network fluctuated
+                    setTimeout(async () => {
+                        await client.from("orders").update({ payment_status: "Success" }).eq("id", targetOrderId);
+                        window.removeEventListener("beforeunload", preventClose);
+                        window.location.href = "success.html";
+                    }, 500);
                 }
             },
             "theme": { "color": "#3399cc" }
