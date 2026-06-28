@@ -228,11 +228,10 @@
 </div>
 
 <script>
-// 🟢 DYNAMIC SECURE CONFIGURATION INJECTION FROM CONFIG.JS
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
-let frontBlob = null;
-let backBlob = null;
+let frontDataUrl = null;
+let backDataUrl = null;
 
 const engine = {
     front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 },
@@ -444,6 +443,14 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
     return hiddenCanvas;
 }
 
+// Helper function to convert dataURL to Blob safely
+function dataURLtoBlob(dataurl) {
+    var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+    return new Blob([u8arr], {type:mime});
+}
+
 function saveSide(side) {
     const s = engine[side];
     if (!s.img) { alert(`Choose an image for ${side} first.`); return; }
@@ -451,16 +458,65 @@ function saveSide(side) {
     closeFullscreen();
 
     const resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
-    document.getElementById(`${side}PreviewImg`).src = resultCanvas.toDataURL("image/jpeg");
+    const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
+    
+    document.getElementById(`${side}PreviewImg`).src = croppedDataUrl;
     document.getElementById(`${side}PreviewContainer`).style.display = "block";
     applyLiveGrayscalePreviewFilter();
 
-    resultCanvas.toBlob((baseBlob) => {
-        if (baseBlob) {
-            if (side === 'front') frontBlob = baseBlob;
-            else backBlob = baseBlob;
+    if (side === 'front') frontDataUrl = croppedDataUrl;
+    else backDataUrl = croppedDataUrl;
+}
+
+// ========================================================================
+// 🔲 CENTRAL WEB A4 MERGER ENGINE (FRONT LEFT TOP & BACK RIGHT TOP)
+// ========================================================================
+function generateMergedA4Blob() {
+    return new Promise((resolve) => {
+        // Standard A4 canvas structure at 300 DPI (Width: 2480, Height: 3508)
+        const a4Canvas = document.createElement('canvas');
+        a4Canvas.width = 2480;
+        a4Canvas.height = 3508;
+        const ctx = a4Canvas.getContext('2d');
+
+        // Fill background with pure white solid layer
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, a4Canvas.width, a4Canvas.height);
+
+        let frontLoaded = false;
+        let backLoaded = false;
+
+        const frontImg = new Image();
+        frontImg.onload = function() {
+            // Standard CR80 Scaling layout mapping -> (Width: 1010, Height: 640)
+            ctx.drawImage(frontImg, 150, 150, 1010, 640);
+            frontLoaded = true;
+            checkComplete();
+        };
+        frontImg.src = frontDataUrl;
+
+        if (backDataUrl) {
+            const backImg = new Image();
+            backImg.onload = function() {
+                // Paste Back Side on top-right corner to map aamne-samne grid
+                ctx.drawImage(backImg, 1320, 150, 1010, 640);
+                backLoaded = true;
+                checkComplete();
+            };
+            backImg.src = backDataUrl;
+        } else {
+            backLoaded = true;
+            checkComplete();
         }
-    }, "image/jpeg", 0.90);
+
+        function checkComplete() {
+            if (frontLoaded && backLoaded) {
+                a4Canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, "image/jpeg", 0.92);
+            }
+        }
+    });
 }
 
 async function submitID() {
@@ -471,40 +527,35 @@ async function submitID() {
     const isBw = typeSelect == 5;
 
     if (!name || !mobile) { alert("Enter customer details."); return; }
-    if (!frontBlob) { alert("Save Front crop first."); return; }
+    if (!frontDataUrl) { alert("Save Front crop first."); return; }
 
-    alert("Saving card order package... Please wait.");
+    alert("Merging ID sides and saving package... Please wait.");
+    
+    // Generate combined A4 image file on client side browser directly
+    const finalA4Blob = await generateMergedA4Blob();
+
     const prefix = isBw ? "bw_" : "color_";
     const timestamp = Date.now();
-    const frontName = `${timestamp}_${prefix}front.jpg`;
-    const backName = backBlob ? `${timestamp}_${prefix}back.jpg` : "";
+    const fileName = `${timestamp}_${prefix}merged_a4.jpg`;
 
-    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { 
+    const uploadResponse = await client.storage.from("documents").upload(fileName, finalA4Blob, { 
         contentType: "image/jpeg",
         upsert: true 
     });
-    if (frontUpload.error) { alert("Front Upload Failed: " + frontUpload.error.message); return; }
+    
+    if (uploadResponse.error) { alert("Upload Failed: " + uploadResponse.error.message); return; }
 
-    let backUrl = "";
-    if (backBlob && backName) {
-        const backUpload = await client.storage.from("documents").upload(backName, backBlob, { 
-            contentType: "image/jpeg",
-            upsert: true 
-        });
-        if (backUpload.error) { alert("Back Upload Failed: " + backUpload.error.message); return; }
-        backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
-    }
-
-    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
+    const publicUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
     let baseRate = isBw ? 5 : 10;
     let totalAmountCalculation = copiesInput * baseRate;
 
     const printLabel = isBw ? "Black & White" : "Color";
-    const cardLayoutText = backUrl ? `Document ID - ${printLabel} [${copiesInput} Copies]` : `Single ID - ${printLabel} [${copiesInput} Copies]`;
+    const orderLabelText = `Document ID - ${printLabel} [${copiesInput} Copies]`;
 
+    // Insert only 1 dynamic file URL containing both sides side-by-side
     const { data: insertedOrder, error } = await client.from("orders").insert([{
-        customer_name: name, mobile: mobile, print_type: cardLayoutText, pages: copiesInput, amount: totalAmountCalculation,
-        front_url: frontUrl, back_url: backUrl || null, payment_status: "Pending", payment_id: ""
+        customer_name: name, mobile: mobile, print_type: orderLabelText, pages: copiesInput, amount: totalAmountCalculation,
+        file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
     }]).select();
 
     if (error) { alert("Database Insertion Error: " + error.message); return; }
@@ -517,7 +568,9 @@ async function submitID() {
     window.location.href = "payment.html";
 }
 
-// 🌟 ADVANCED MULTI-TOUCH ZOOM & PAN EVENT SYSTEM FOR MOBILE PHONES
+// ========================================================================
+// MOBILE TOUCH / INTERACTION MULTI-GRID EVENT SCHEMATICS
+// ========================================================================
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
     let lastX = 0; let lastY = 0;
