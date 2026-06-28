@@ -80,6 +80,11 @@
 
     window.onload = function() {
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
+        
+        // 🟢 FIX: Ek baar page par amount load hone ke baad local storage saaf kar do
+        // Taaki aghli baar direct main website (upload.html) khule, ye payment loop na bane
+        localStorage.removeItem("amount");
+        localStorage.removeItem("current_order_id");
     };
 
     // 🌐 OPTION 1: ONLINE GATEWAY ENGINE ROUTE
@@ -100,14 +105,12 @@
             "name": window.SITE_CONFIG.STORE_NAME || "Digital Print Shop",
             "description": "Payment for Order #" + (targetOrderId || "Bulk"),
             
-            // 🟢 METADATA SECURE LOCK
             "notes": {
                 "current_order_id": targetOrderId
             },
             
-            // 🟢 HIGH-PRIORITY INSTANT HANDLER:
             "handler": async function (response) {
-                // 🔒 TAB LOCK MECHANISM: Jaise hi payment hit hogi, page freeze ho jayega taaki data secure bhej sake
+                // 🔒 TAB ANTI-CUT LOCK: Page ko freeze karne ka alert trigger
                 const preventClose = (event) => {
                     event.preventDefault();
                     event.returnValue = "Saving your order status securely... Please wait.";
@@ -116,7 +119,6 @@
 
                 try {
                     if (targetOrderId) {
-                        // Strict direct DB call execution
                         const { error } = await client
                             .from("orders")
                             .update({ payment_status: "Success" })
@@ -127,12 +129,12 @@
                     
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
                     
-                    // Release the tab lock safely and redirect
+                    // Lock hata kar success page par bhejein
                     window.removeEventListener("beforeunload", preventClose);
                     window.location.href = "success.html";
                 } catch (err) {
                     console.error("Database connection failure context: ", err);
-                    // Retrying mechanism just in case network fluctuated
+                    // Network slow hone par re-try mechanism
                     setTimeout(async () => {
                         await client.from("orders").update({ payment_status: "Success" }).eq("id", targetOrderId);
                         window.removeEventListener("beforeunload", preventClose);
