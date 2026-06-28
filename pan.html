@@ -1,14 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PAN Card Print</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <style>
+        * {
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+        }
         .canvas-container {
             position: relative;
             margin: 15px auto;
@@ -19,6 +24,7 @@
             border-radius: 8px;
             overflow: hidden;
             transition: all 0.2s ease;
+            touch-action: none;
         }
         canvas {
             display: block;
@@ -134,6 +140,9 @@
             margin-bottom: 5px;
             font-weight: bold;
         }
+        .force-grayscale {
+            filter: grayscale(100%) brightness(102%) contrast(105%) !important;
+        }
     </style>
 </head>
 
@@ -179,7 +188,7 @@
 
     <div class="input-group">
         <label>Print Type:</label>
-        <select id="type" onchange="calculatePrice()">
+        <select id="type" onchange="calculatePrice(); applyLiveGrayscalePreviewFilter();">
             <option value="5" selected>Black & White (₹5 / copy)</option>
             <option value="10">Color (₹10 / copy)</option>
         </select>
@@ -192,10 +201,9 @@
 </div>
 
 <script>
-// 🟢 DYNAMIC SECURE CONFIGURATION INJECTION FROM CONFIG.JS
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
-let frontBlob = null;
+let frontDataUrl = null;
 
 const engine = {
     img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0
@@ -280,42 +288,35 @@ function calculatePrice() {
     document.getElementById("totalPrice").innerText = "Total Price: ₹" + (copies * baseRate);
 }
 
+function applyLiveGrayscalePreviewFilter() {
+    const frontImg = document.getElementById("frontPreviewImg");
+    const isBw = document.getElementById("type").value == 5;
+    if (isBw) {
+        if(frontImg) frontImg.classList.add("force-grayscale");
+    } else {
+        if(frontImg) frontImg.classList.remove("force-grayscale");
+    }
+}
+
 async function goFullscreen() {
     const container = document.getElementById(`frontContainer`);
-    if (!engine.img) {
-        alert("Please upload an image first.");
-        return;
-    }
-    
+    if (!engine.img) { alert("Please upload an image first."); return; }
     try {
-        if (container.requestFullscreen) {
-            await container.requestFullscreen();
-        } else if (container.webkitRequestFullscreen) { 
-            await container.webkitRequestFullscreen();
-        }
-    } catch(err) {
-        console.warn("Fullscreen permission denied:", err);
-    }
-    
+        if (container.requestFullscreen) await container.requestFullscreen();
+        else if (container.webkitRequestFullscreen) await container.webkitRequestFullscreen();
+    } catch(err) { console.warn(err); }
     setTimeout(() => draw(), 100);
 }
 
 function closeFullscreen() {
     if (document.fullscreenElement || document.webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-            document.exitFullscreen().catch(()=>{});
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        }
+        if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
     }
 }
 
 function rotateImage() {
-    if (!engine.originalSrc) {
-        alert("Please upload an image first.");
-        return;
-    }
-
+    if (!engine.originalSrc) { alert("Please upload an image first."); return; }
     engine.rotation = (engine.rotation + 90) % 360;
 
     const tempImg = new Image();
@@ -349,13 +350,11 @@ function rotateImage() {
 
 function draw() {
     if (!engine.img) return;
-
     engine.ctx.clearRect(0, 0, engine.canvas.width, engine.canvas.height);
     
     engine.ctx.save();
     engine.ctx.translate(engine.offsetX, engine.offsetY);
     engine.ctx.scale(engine.zoom, engine.zoom);
-    
     engine.ctx.drawImage(engine.img, 0, 0, engine.canvas.width, engine.canvas.height);
     engine.ctx.restore();
 
@@ -379,8 +378,7 @@ function draw() {
 }
 
 const canvas = engine.canvas;
-let lastX = 0;
-let lastY = 0;
+let lastX = 0; let lastY = 0;
 
 function getMousePos(e) {
     const rect = canvas.getBoundingClientRect();
@@ -393,41 +391,28 @@ function getMousePos(e) {
 }
 
 canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    if (!engine.img) return;
-
+    e.preventDefault(); if (!engine.img) return;
     const mouse = getMousePos(e);
     const zoomFactor = 1.1;
     let newZoom = e.deltaY < 0 ? engine.zoom * zoomFactor : engine.zoom / zoomFactor;
-    
     newZoom = Math.max(1, Math.min(8, newZoom));
 
     engine.offsetX = mouse.x - (mouse.x - engine.offsetX) * (newZoom / engine.zoom);
     engine.offsetY = mouse.y - (mouse.y - engine.offsetY) * (newZoom / engine.zoom);
     engine.zoom = newZoom;
-
     if(engine.zoom === 1) { engine.offsetX = 0; engine.offsetY = 0; }
-
     draw();
 }, { passive: false });
 
 function handleStart(e) {
     if (e.target.closest('.exit-fullscreen-btn') || e.target.closest('.fullscreen-controls')) return;
     if (!engine.img) return;
-
     const pos = getMousePos(e);
-
-    engine.activeCorner = engine.corners.findIndex(c => 
-        Math.hypot(c.x - pos.x, c.y - pos.y) < 35 
-    );
+    engine.activeCorner = engine.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 35);
 
     if (e.touches && e.touches.length === 2) {
-        e.preventDefault();
-        engine.activeCorner = -1; 
-        engine.lastTouchDist = Math.hypot(
-            e.touches[0].clientX - e.touches[1].clientX,
-            e.touches[0].clientY - e.touches[1].clientY
-        );
+        e.preventDefault(); engine.activeCorner = -1; 
+        engine.lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
     } else if (engine.activeCorner === -1 && engine.zoom > 1) {
         engine.isPanning = true;
         lastX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -440,11 +425,7 @@ function handleMove(e) {
 
     if (e.touches && e.touches.length === 2) {
         e.preventDefault();
-        const dist = Math.hypot(
-            e.touches[0].clientX - e.touches[1].clientX,
-            e.touches[0].clientY - e.touches[1].clientY
-        );
-        
+        const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
         const zoomFactor = dist / engine.lastTouchDist;
         let newZoom = Math.max(1, Math.min(8, engine.zoom * zoomFactor));
 
@@ -453,12 +434,10 @@ function handleMove(e) {
 
         engine.offsetX = midX - (midX - engine.offsetX) * (newZoom / engine.zoom);
         engine.offsetY = midY - (midY - engine.offsetY) * (newZoom / engine.zoom);
-        engine.zoom = newZoom;
-        engine.lastTouchDist = dist;
+        engine.zoom = newZoom; engine.lastTouchDist = dist;
 
         if (engine.zoom === 1) { engine.offsetX = 0; engine.offsetY = 0; }
-        draw();
-        return;
+        draw(); return;
     }
 
     if (engine.activeCorner !== -1) {
@@ -472,35 +451,24 @@ function handleMove(e) {
         if (e.touches) e.preventDefault();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-        engine.offsetX += (clientX - lastX);
-        engine.offsetY += (clientY - lastY);
-        lastX = clientX;
-        lastY = clientY;
-        draw();
+        engine.offsetX += (clientX - lastX); engine.offsetY += (clientY - lastY);
+        lastX = clientX; lastY = clientY; draw();
     }
 }
 
-function handleEnd() {
-    engine.activeCorner = -1;
-    engine.isPanning = false;
-}
+function handleEnd() { engine.activeCorner = -1; engine.isPanning = false; }
 
 canvas.addEventListener('mousedown', handleStart);
 canvas.addEventListener('mousemove', handleMove);
 window.addEventListener('mouseup', handleEnd);
-
 canvas.addEventListener('touchstart', handleStart, { passive: false });
 canvas.addEventListener('touchmove', handleMove, { passive: false });
 window.addEventListener('touchend', handleEnd);
 
 function projectPerspective(srcImg, corners, targetW, targetH) {
-    targetW = 428;
-    targetH = 270;
-
+    targetW = 856; targetH = 540;
     const hiddenCanvas = document.createElement('canvas');
-    hiddenCanvas.width = targetW;
-    hiddenCanvas.height = targetH;
+    hiddenCanvas.width = targetW; hiddenCanvas.height = targetH;
     const ctx = hiddenCanvas.getContext('2d');
 
     const cvsW = 400, cvsH = 260; 
@@ -511,90 +479,88 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
 
     for (let y = 0; y < targetH; y++) {
         for (let x = 0; x < targetW; x++) {
-            let u = x / targetW;
-            let v = y / targetH;
-
-            let topX = p1[0] + u * (p2[0] - p1[0]);
-            let topY = p1[1] + u * (p2[1] - p1[1]);
-            let botX = p4[0] + u * (p3[0] - p4[0]);
-            let botY = p4[1] + u * (p3[1] - p4[1]);
-
+            let u = x / targetW; let v = y / targetH;
+            let topX = p1[0] + u * (p2[0] - p1[0]); let topY = p1[1] + u * (p2[1] - p1[1]);
+            let botX = p4[0] + u * (p3[0] - p4[0]); let botY = p4[1] + u * (p3[1] - p4[1]);
             let srcX = (topX + v * (botX - topX)) * srcImg.width;
             let srcY = (topY + v * (botY - topY)) * srcImg.height;
-
             ctx.drawImage(srcImg, srcX, srcY, 1, 1, x, y, 1, 1);
         }
     }
 
-    try {
+    const isBw = document.getElementById("type").value == 5;
+    if (isBw) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
-
-        const contrast = 35; 
-        const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-        const brightnessOffset = 20; 
-
         for (let i = 0; i < data.length; i += 4) {
-            let r = data[i];
-            let g = data[i + 1];
-            let b = data[i + 2];
-
-            r += brightnessOffset;
-            g += brightnessOffset;
-            b += brightnessOffset;
-
-            r = factor * (r - 128) + 128;
-            g = factor * (g - 128) + 128;
-            b = factor * (g - 128) + 128;
-
-            let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            if (luminance > 180) { 
-                r = Math.min(255, r + 25);
-                g = Math.min(255, g + 25);
-                b = Math.min(255, b + 25);
-            }
-
-            data[i]     = Math.max(0, Math.min(255, r));
-            data[i + 1] = Math.max(0, Math.min(255, g));
-            data[i + 2] = Math.max(0, Math.min(255, b));
+            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            data[i] = gray; data[i + 1] = gray; data[i + 2] = gray;
         }
-
         ctx.putImageData(imgData, 0, 0);
-    } catch (e) {
-        console.warn("Local image filter execution failed:", e);
     }
-
     return hiddenCanvas;
 }
 
 function saveSide() {
-    if (!engine.img) {
-        alert("Please choose an image first.");
-        return;
-    }
-
+    if (!engine.img) { alert("Please choose an image first."); return; }
     const mappedCorners = engine.corners.map(c => {
-        return {
-            x: (c.x - engine.offsetX) / engine.zoom,
-            y: (c.y - engine.offsetY) / engine.zoom
-        };
+        return { x: (c.x - engine.offsetX) / engine.zoom, y: (c.y - engine.offsetY) / engine.zoom };
     });
 
     closeFullscreen();
-
     const resultCanvas = projectPerspective(engine.img, mappedCorners, 856, 540);
+    frontDataUrl = resultCanvas.toDataURL("image/jpeg");
     
-    const directCropUrl = resultCanvas.toDataURL("image/jpeg");
-    document.getElementById("frontPreviewImg").src = directCropUrl;
-    
-    const statusText = document.getElementById("frontPreviewStatus");
-    statusText.innerText = "✓ Image Enhanced successfully!";
-    
+    document.getElementById("frontPreviewImg").src = frontDataUrl;
+    document.getElementById("frontPreviewStatus").innerText = "✓ PAN Card Enhanced successfully!";
     document.getElementById("frontPreviewContainer").style.display = "block";
+    applyLiveGrayscalePreviewFilter();
+}
 
-    resultCanvas.toBlob((baseBlob) => {
-        frontBlob = new File([baseBlob], `front.jpg`, { type: "image/jpeg" });
-    }, "image/jpeg", 0.75);
+// ========================================================================
+// 🔲 CENTRAL PAN A4 TOP-MIDDLE MERGER ENGINE WITH SMOOTH ROUNDED CORNERS
+// ========================================================================
+function generateMergedA4Blob() {
+    return new Promise((resolve) => {
+        const a4Canvas = document.createElement('canvas');
+        a4Canvas.width = 2480; a4Canvas.height = 3508;
+        const ctx = a4Canvas.getContext('2d');
+
+        // Pure white background layout
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, a4Canvas.width, a4Canvas.height);
+
+        const cardImg = new Image();
+        cardImg.onload = function() {
+            // CR80 Card Resolution Configuration -> Width: 1010, Height: 640
+            const cardW = 1010; const cardH = 640;
+            // X Coordinate setup to match perfect Top-Middle grid alignment
+            const targetX = (a4Canvas.width - cardW) / 2; // Center horizontal axis
+            const targetY = 150; // Top margin
+            const radius = 50; // 50px high-end rounding radius curve
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(targetX + radius, targetY);
+            ctx.lineTo(targetX + cardW - radius, targetY);
+            ctx.quadraticCurveTo(targetX + cardW, targetY, targetX + cardW, targetY + radius);
+            ctx.lineTo(targetX + cardW, targetY + cardH - radius);
+            ctx.quadraticCurveTo(targetX + cardW, targetY + cardH, targetX + cardW - radius, targetY + cardH);
+            ctx.lineTo(targetX + radius, targetY + cardH);
+            ctx.quadraticCurveTo(targetX, targetY + cardH, targetX, targetY + cardH - radius);
+            ctx.lineTo(targetX, targetY + radius);
+            ctx.quadraticCurveTo(targetX, targetY, targetX + radius, targetY);
+            ctx.closePath();
+            
+            ctx.clip();
+            ctx.drawImage(cardImg, targetX, targetY, cardW, cardH);
+            ctx.restore();
+
+            // Export lossless PNG package array stream
+            a4Canvas.toBlob((blob) => { resolve(blob); }, "image/png", 0.95);
+        };
+        cardImg.src = frontDataUrl;
+    });
 }
 
 async function submitPAN() {
@@ -602,52 +568,47 @@ async function submitPAN() {
     const mobile = document.getElementById("mobile").value.trim();
     const copiesInput = parseInt(document.getElementById("copies").value) || 1;
     const typeSelect = document.getElementById("type").value;
+    const isBw = typeSelect == 5;
 
     if (!name || !mobile) { alert("Enter customer details."); return; }
-    if (!frontBlob) { alert("Save the card crop first."); return; }
+    if (!frontDataUrl) { alert("Save the card crop first."); return; }
 
-    alert("Saving order... Please wait.");
+    alert("Structuring high-quality template... Please wait.");
 
-    const frontName = Date.now() + "_pan.jpg";
+    // Generate rounded PNG sheet context link flow
+    const finalA4Blob = await generateMergedA4Blob();
 
-    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { contentType: "image/jpeg", upsert: true });
-    if (frontUpload.error) { alert(frontUpload.error.message); return; }
+    const prefix = isBw ? "bw_" : "color_";
+    const timestamp = Date.now();
+    const fileName = `${timestamp}_${prefix}merged_pan_a4.png`;
 
-    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
+    const uploadResponse = await client.storage.from("documents").upload(fileName, finalA4Blob, { 
+        contentType: "image/png", 
+        upsert: true 
+    });
+    if (uploadResponse.error) { alert(uploadResponse.error.message); return; }
 
-    let baseRate = parseInt(typeSelect); 
+    const publicUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
+    let baseRate = isBw ? 5 : 10;
     let totalAmountCalculation = copiesInput * baseRate;
 
-    const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
-    const trackingPrintSummaryText = `PAN Card - ${baseColorType} [${copiesInput} Copies]`;
+    const baseColorType = isBw ? "Black & White" : "Color";
+    const trackingPrintSummaryText = `Single ID - ${baseColorType} [${copiesInput} Copies]`;
 
     const { data: insertedOrder, error } = await client.from("orders").insert([{
-        customer_name: name, 
-        mobile: mobile, 
-        print_type: trackingPrintSummaryText, 
-        pages: copiesInput, 
-        amount: totalAmountCalculation,
-        front_url: frontUrl, 
-        back_url: "", 
-        payment_status: "Pending", 
-        payment_id: ""
+        customer_name: name, mobile: mobile, print_type: trackingPrintSummaryText, pages: copiesInput, amount: totalAmountCalculation,
+        file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
     }]).select();
 
     if (error) { alert(error.message); return; }
 
-    localStorage.setItem("frontImage", frontUrl);
-    localStorage.setItem("backImage", ""); 
     localStorage.setItem("amount", totalAmountCalculation);
     localStorage.setItem("mobile", mobile);
     localStorage.setItem("printType", "id"); 
-    
-    if (insertedOrder && insertedOrder.length > 0) {
-        localStorage.setItem("current_order_id", insertedOrder[0].id); 
-    }
+    if (insertedOrder && insertedOrder.length > 0) localStorage.setItem("current_order_id", insertedOrder[0].id);
 
     window.location.href = "payment.html";
 }
 </script>
-
 </body>
 </html>
