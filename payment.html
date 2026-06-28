@@ -73,28 +73,24 @@
 <script src="config.js"></script>
 
 <script>
+    // 🟢 CRITICAL DATA LOCK: Variables ko shuru mein hi read karke memory mein lock kar diya
     const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
 
     const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     window.onload = function() {
+        // Agar galti se bina kisi order ke koi direct is page par aaye toh use wapas bhej do
+        if (billingAmount === "0" || !targetOrderId) {
+            window.location.href = "upload.html";
+            return;
+        }
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
-        
-        // 🟢 FIX: Ek baar page par amount load hone ke baad local storage saaf kar do
-        // Taaki aghli baar direct main website (upload.html) khule, ye payment loop na bane
-        localStorage.removeItem("amount");
-        localStorage.removeItem("current_order_id");
     };
 
     // 🌐 OPTION 1: ONLINE GATEWAY ENGINE ROUTE
     function openRazorpayCheckout(e) {
         e.preventDefault();
-
-        if (billingAmount === "0" || billingAmount === "") {
-            alert("Invalid order amount profile.");
-            return;
-        }
 
         const amountInPaise = parseFloat(billingAmount) * 100;
 
@@ -103,14 +99,14 @@
             "amount": amountInPaise.toString(),
             "currency": "INR",
             "name": window.SITE_CONFIG.STORE_NAME || "Digital Print Shop",
-            "description": "Payment for Order #" + (targetOrderId || "Bulk"),
+            "description": "Payment for Order #" + targetOrderId,
             
             "notes": {
                 "current_order_id": targetOrderId
             },
             
             "handler": async function (response) {
-                // 🔒 TAB ANTI-CUT LOCK: Page ko freeze karne ka alert trigger
+                // 🔒 TAB ANTI-CUT LOCK TRIGGER ACTIVE
                 const preventClose = (event) => {
                     event.preventDefault();
                     event.returnValue = "Saving your order status securely... Please wait.";
@@ -118,28 +114,33 @@
                 window.addEventListener("beforeunload", preventClose);
 
                 try {
-                    if (targetOrderId) {
-                        const { error } = await client
-                            .from("orders")
-                            .update({ payment_status: "Success" })
-                            .eq("id", targetOrderId);
-                            
-                        if (error) throw error;
-                    }
+                    // Direct target update call executing securely using pre-locked variable
+                    const { error } = await client
+                        .from("orders")
+                        .update({ payment_status: "Success" })
+                        .eq("id", targetOrderId);
+                        
+                    if (error) throw error;
                     
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
                     
-                    // Lock hata kar success page par bhejein
+                    // 🟢 SECURE MEMORY FLUSH: Database update hone ke BAD hi purana session saaf karenge
+                    localStorage.removeItem("amount");
+                    localStorage.removeItem("current_order_id");
+                    
                     window.removeEventListener("beforeunload", preventClose);
                     window.location.href = "success.html";
                 } catch (err) {
                     console.error("Database connection failure context: ", err);
-                    // Network slow hone par re-try mechanism
+                    
+                    // Backup Retry framework loop logic
                     setTimeout(async () => {
                         await client.from("orders").update({ payment_status: "Success" }).eq("id", targetOrderId);
+                        localStorage.removeItem("amount");
+                        localStorage.removeItem("current_order_id");
                         window.removeEventListener("beforeunload", preventClose);
                         window.location.href = "success.html";
-                    }, 500);
+                    }, 600);
                 }
             },
             "theme": { "color": "#3399cc" }
@@ -154,17 +155,20 @@
         e.preventDefault();
         
         try {
-            if (targetOrderId) {
-                await client
-                    .from("orders")
-                    .update({ payment_status: "Cash Payment Pending" })
-                    .eq("id", targetOrderId);
-            }
+            await client
+                .from("orders")
+                .update({ payment_status: "Cash Payment Pending" })
+                .eq("id", targetOrderId);
         } catch (dbError) {
             console.error("Database tracker update error:", dbError);
         }
 
         localStorage.setItem("last_payment_method", "Cash Counter");
+        
+        // Cash select karne par bhi data clear karke aage bhejenge
+        localStorage.removeItem("amount");
+        localStorage.removeItem("current_order_id");
+        
         window.location.href = "cash.html";
     }
 </script>
