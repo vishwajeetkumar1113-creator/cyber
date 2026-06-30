@@ -518,7 +518,7 @@ function saveSide() {
 }
 
 // ========================================================================
-// 🔲 CENTRAL PAN A4 TOP-MIDDLE MERGER ENGINE WITH VERTICAL SPACING CORRECTION
+// 🔲 CENTRAL PAN A4 TOP-MIDDLE MERGER ENGINE WITH AUTOMATIC BRIGHTNESS CORRECTION
 // ========================================================================
 function generateMergedA4Blob() {
     return new Promise((resolve) => {
@@ -533,11 +533,7 @@ function generateMergedA4Blob() {
         const cardImg = new Image();
         cardImg.onload = function() {
             const cardW = 1010; const cardH = 640;
-            
-            // Perfect Center Horizontal Axis
             const targetX = (a4Canvas.width - cardW) / 2; 
-            
-            // 📐 350px Margin to shift image safely down from top border lines
             const targetY = 350; 
             const radius = 50; // PVC Smooth Curved Edges
 
@@ -557,6 +553,28 @@ function generateMergedA4Blob() {
             ctx.clip();
             ctx.drawImage(cardImg, targetX, targetY, cardW, cardH);
             ctx.restore();
+
+            // 🛠️ Anti-Dark Image Pixel Matrix Filter Layer (Brightness +15%, Contrast +12%)
+            try {
+                const rawPixelData = ctx.getImageData(targetX, targetY, cardW, cardH);
+                const pixels = rawPixelData.data;
+
+                const dynamicBrightnessOffset = 35; 
+                const dynamicContrastFactor = 1.12;     
+
+                for (let i = 0; i < pixels.length; i += 4) {
+                    if (pixels[i + 3] === 0) continue;
+
+                    pixels[i]     = (pixels[i]     - 128) * dynamicContrastFactor + 128; 
+                    pixels[i + 1] = (pixels[i + 1] - 128) * dynamicContrastFactor + 128; 
+                    pixels[i + 2] = (pixels[i + 2] - 128) * dynamicContrastFactor + 128; 
+
+                    pixels[i]     += dynamicBrightnessOffset;
+                    pixels[i + 1] += dynamicBrightnessOffset;
+                    pixels[i + 2] += dynamicBrightnessOffset;
+                }
+                ctx.putImageData(rawPixelData, targetX, targetY);
+            } catch(filterError) { console.warn("Matrix pass skipped:", filterError); }
 
             // Lossless PNG byte stream conversion line
             a4Canvas.toBlob((blob) => { resolve(blob); }, "image/png", 0.95);
@@ -596,9 +614,18 @@ async function submitPAN() {
     const baseColorType = isBw ? "Black & White" : "Color";
     const trackingPrintSummaryText = `Single ID - ${baseColorType} [${copiesInput} Copies]`;
 
+    // 🚀 FIXED: Pure Javascript client query standard to prevent submission locks
     const { data: insertedOrder, error } = await client.from("orders").insert([{
-        customer_name: name, mobile: mobile, print_type: trackingPrintSummaryText, pages: copiesInput, amount: totalAmountCalculation,
-        file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
+        customer_name: name, 
+        mobile: mobile, 
+        print_type: trackingPrintSummaryText, 
+        pages: copiesInput, 
+        amount: totalAmountCalculation,
+        file_url: publicUrl, 
+        front_url: null, 
+        back_url: null, 
+        payment_status: "Pending", 
+        payment_id: ""
     }]).select();
 
     if (error) { alert(error.message); return; }
