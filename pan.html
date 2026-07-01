@@ -4,10 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PAN Card Print</title>
+    <title>PAN Card Print Layout Engine</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
+    <!-- 🚀 OpenCV.js Web Core Engine to render clean processed output previews instantly -->
     <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
     <style>
         * {
@@ -150,7 +151,7 @@
 <body>
 
 <div class="card">
-    <h2>ID Card Print Layout Engine</h2>
+    <h2>PAN Card Print Layout Engine</h2>
 
     <input type="text" id="name" placeholder="Customer Name" required>
     <input type="tel" id="mobile" placeholder="Mobile Number" required>
@@ -172,7 +173,7 @@
 
     <hr>
 
-    <h3>Front Side</h3>
+    <h3>Upload PAN Card (Front Side)</h3>
     <p class="instructions">Drag corners to crop. Use 2 fingers to pinch-zoom / pan.</p>
     <input type="file" id="frontFile" accept="image/*">
     
@@ -181,7 +182,7 @@
         <canvas id="frontCanvas" width="400" height="260"></canvas>
         <div class="fullscreen-controls">
             <button type="button" style="background: #28a745;" onclick="rotateImage('front')">↻ Rotate</button>
-            <button type="button" style="background: #1976d2;" onclick="saveSide('front')">Save Front</button>
+            <button type="button" style="background: #1976d2;" onclick="saveSide('front')">Save Card</button>
         </div>
     </div>
     
@@ -189,63 +190,31 @@
         <button type="button" onclick="rotateImage('front')">↻ Rotate 90°</button>
         <button type="button" onclick="goFullscreen('front')">⛶ Edit Fullscreen</button>
         <button type="button" onclick="resetZoom('front')">Reset Zoom</button>
-        <button type="button" onclick="saveSide('front')">Save Front</button>
+        <button type="button" onclick="saveSide('front')">Save Card</button>
     </div>
 
     <div class="side-preview" id="frontPreviewContainer">
         <img id="frontPreviewImg" src="" alt="Front Preview">
-        <p id="frontPreviewStatus">✓ Clean Front Image Saved</p>
-    </div>
-
-    <hr>
-
-    <h3>Back Side (Optional for PAN)</h3>
-    <p class="instructions">Leave empty if printing a single-sided PAN Card.</p>
-    <input type="file" id="backFile" accept="image/*">
-    
-    <div class="canvas-container" id="backContainer">
-        <button type="button" class="exit-fullscreen-btn" onclick="closeFullscreen()">✕ Exit Fullscreen</button>
-        <canvas id="backCanvas" width="400" height="260"></canvas>
-        <div class="fullscreen-controls">
-            <button type="button" style="background: #28a745;" onclick="rotateImage('back')">↻ Rotate</button>
-            <button type="button" style="background: #1976d2;" onclick="saveSide('back')">Save Back</button>
-        </div>
-    </div>
-    
-    <div class="controls">
-        <button type="button" onclick="rotateImage('back')">↻ Rotate 90°</button>
-        <button type="button" onclick="goFullscreen('back')">⛶ Edit Fullscreen</button>
-        <button type="button" onclick="resetZoom('back')">Reset Zoom</button>
-        <button type="button" onclick="saveSide('back')">Save Back</button>
-    </div>
-
-    <div class="side-preview" id="backPreviewContainer">
-        <img id="backPreviewImg" src="" alt="Back Preview">
-        <p id="backPreviewStatus">✓ Clean Back Image Saved</p>
+        <p id="frontPreviewStatus">✓ Clean PAN Image Saved</p>
     </div>
 
     <br>
-    <button onclick="submitID()" style="background:#1976d2; width:100%; padding:12px; font-weight:bold; color:white; border:none; border-radius:6px; cursor:pointer;">Submit Processing Order</button>
+    <button onclick="submitID()" style="background:#1976d2; width:100%; padding:12px; font-weight:bold; color:white; border:none; border-radius:6px; cursor:pointer; font-size:16px;">Submit Processing Order</button>
 </div>
 
 <script>
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
 let frontDataUrl = null;
-let backDataUrl = null;
 
 const engine = {
-    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 },
-    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 }
+    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 }
 };
 
 engine.front.canvas = document.getElementById('frontCanvas');
 engine.front.ctx = engine.front.canvas.getContext('2d');
-engine.back.canvas = document.getElementById('backCanvas');
-engine.back.ctx = engine.back.canvas.getContext('2d');
 
 document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
-document.getElementById('backFile').addEventListener('change', (e) => handleFileSelect(e, 'back'));
 
 function handleFileSelect(e, side) {
     const file = e.target.files[0];
@@ -316,15 +285,12 @@ function calculatePrice() {
 
 function applyLiveGrayscalePreviewFilter() {
     const frontImg = document.getElementById("frontPreviewImg");
-    const backImg = document.getElementById("backPreviewImg");
     const isBw = document.getElementById("type").value == 5;
     
     if (isBw) {
         if(frontImg) frontImg.classList.add("force-grayscale");
-        if(backImg) backImg.classList.add("force-grayscale");
     } else {
         if(frontImg) frontImg.classList.remove("force-grayscale");
-        if(backImg) backImg.classList.remove("force-grayscale");
     }
 }
 
@@ -397,9 +363,7 @@ function draw(side) {
     s.ctx.closePath();
     s.ctx.stroke();
 
-    s.ctx.forEach = s.corners.forEach((corner) => {
-        s.ctx.display = true;
-        s.ctx.style = "bullet";
+    s.corners.forEach((corner) => {
         s.ctx.fillStyle = '#28a745';
         s.ctx.beginPath();
         s.ctx.arc(corner.x, corner.y, 8, 0, Math.PI * 2);
@@ -448,9 +412,6 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
     return hiddenCanvas;
 }
 
-// ========================================================================
-// 🤖 BROWSER-SIDE LIVE CV IMAGE ENHANCER (CLAHE + UNSHARP MATRICES)
-// ========================================================================
 function enhanceCroppedImageOnBrowser(canvasElement) {
     if (typeof cv === 'undefined') return canvasElement; 
     try {
@@ -501,8 +462,6 @@ function saveSide(side) {
     closeFullscreen();
 
     let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
-    
-    // 🚀 FIXED: Run browser-side CV layout enhancer to sharpen card text, photo & signatures flawlessly
     resultCanvas = enhanceCroppedImageOnBrowser(resultCanvas);
     
     const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
@@ -512,11 +471,10 @@ function saveSide(side) {
     applyLiveGrayscalePreviewFilter();
 
     if (side === 'front') frontDataUrl = croppedDataUrl;
-    else backDataUrl = croppedDataUrl;
 }
 
 // ========================================================================
-// 🔲 CENTRAL WEB A4 ROUNDED MERGER ENGINE (FRONT LEFT TOP & BACK RIGHT TOP)
+// 🔲 CENTRAL PAN A4 TOP-MIDDLE MERGER ENGINE
 // ========================================================================
 function generateMergedA4Blob() {
     return new Promise((resolve) => {
@@ -527,9 +485,6 @@ function generateMergedA4Blob() {
 
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, a4Canvas.width, a4Canvas.height);
-
-        let frontLoaded = false;
-        let backLoaded = false;
 
         function drawRoundedCard(img, x, y, width, height, radius) {
             ctx.save();
@@ -552,32 +507,15 @@ function generateMergedA4Blob() {
 
         const frontImg = new Image();
         frontImg.onload = function() {
-            drawRoundedCard(frontImg, 150, 150, 1010, 640, 50);
-            frontLoaded = true;
-            checkComplete();
+            // 🚀 FIXED: Positioned Front Side at Top-Middle of A4 Page
+            // Horizontal Center: (2480 - 1010) / 2 = 735, Vertical Top Offset: 150
+            drawRoundedCard(frontImg, 735, 150, 1010, 640, 50);
+            
+            a4Canvas.toBlob((blob) => {
+                resolve(blob);
+            }, "image/jpeg", 0.92);
         };
         frontImg.src = frontDataUrl;
-
-        if (backDataUrl) {
-            const backImg = new Image();
-            backImg.onload = function() {
-                drawRoundedCard(backImg, 1320, 150, 1010, 640, 50);
-                backLoaded = true;
-                checkComplete();
-            };
-            backImg.src = backDataUrl;
-        } else {
-            backLoaded = true;
-            checkComplete();
-        }
-
-        function checkComplete() {
-            if (frontLoaded && backLoaded) {
-                a4Canvas.toBlob((blob) => {
-                    resolve(blob);
-                }, "image/jpeg", 0.92);
-            }
-        }
     });
 }
 
@@ -589,9 +527,9 @@ async function submitID() {
     const isBw = typeSelect == 5;
 
     if (!name || !mobile) { alert("Enter customer details."); return; }
-    if (!frontDataUrl) { alert("Save Front crop first."); return; }
+    if (!frontDataUrl) { alert("Save crop first."); return; }
 
-    alert("Merging ID sides and saving package... Please wait.");
+    alert("Structuring high-quality template... Please wait.");
     
     const finalA4Blob = await generateMergedA4Blob();
 
@@ -631,7 +569,7 @@ async function submitID() {
 // ========================================================================
 // MOBILE TOUCH / INTERACTION MULTI-GRID EVENT SCHEMATICS
 // ========================================================================
-['front', 'back'].forEach((side) => {
+['front'].forEach((side) => {
     const canvas = engine[side].canvas;
     let lastX = 0; let lastY = 0;
     
@@ -686,8 +624,8 @@ async function submitID() {
             newZoom = Math.max(1, Math.min(8, newZoom)); 
 
             const rect = canvas.getBoundingClientRect();
-            const canvasCenterX = (currentX - rect.left) * (canvas.width / rect.width);
-            const canvasCenterY = (currentY - rect.top) * (canvas.height / rect.height);
+            const canvasCenterX = (canvasCenterX - s.offsetX) * (newZoom / s.zoom);
+            const canvasCenterY = (canvasCenterY - s.offsetY) * (newZoom / s.zoom);
 
             s.offsetX = canvasCenterX - (canvasCenterX - s.offsetX) * (newZoom / s.zoom);
             s.offsetY = canvasCenterY - (canvasCenterY - s.offsetY) * (newZoom / s.zoom);
