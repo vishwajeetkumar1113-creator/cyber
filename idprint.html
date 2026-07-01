@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
+    <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
     <style>
         * {
             touch-action: manipulation;
@@ -167,7 +168,7 @@
         </select>
     </div>
 
-    <h3 id="totalPrice" style="color: #1976d2; text-align: center; margin-bottom: 20px;">Total Price: ₹5</h3>
+    <div id="totalPrice" style="color: #1976d2; font-weight: bold; text-align: center; margin-bottom: 20px; font-size: 18px;">Total Price: ₹5</div>
 
     <hr>
 
@@ -193,7 +194,7 @@
 
     <div class="side-preview" id="frontPreviewContainer">
         <img id="frontPreviewImg" src="" alt="Front Preview">
-        <p id="frontPreviewStatus">✓ Front Side Saved</p>
+        <p id="frontPreviewStatus">✓ Clean Front Image Saved</p>
     </div>
 
     <hr>
@@ -220,11 +221,11 @@
 
     <div class="side-preview" id="backPreviewContainer">
         <img id="backPreviewImg" src="" alt="Back Preview">
-        <p id="backPreviewStatus">✓ Back Side Saved</p>
+        <p id="backPreviewStatus">✓ Clean Back Image Saved</p>
     </div>
 
     <br>
-    <button onclick="submitID()" style="background:#1976d2;">Submit Processing Order</button>
+    <button onclick="submitID()" style="background:#1976d2; width: 100%; padding: 12px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">Submit Processing Order</button>
 </div>
 
 <script>
@@ -443,6 +444,50 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
     return hiddenCanvas;
 }
 
+// ========================================================================
+// 🤖 BROWSER-SIDE LIVE CV IMAGE ENHANCER (CLAHE + UNSHARP MATRICES)
+// ========================================================================
+function enhanceCroppedImageOnBrowser(canvasElement) {
+    if (typeof cv === 'undefined') return canvasElement; // Fallback if OpenCV.js is not loaded yet
+    try {
+        let src = cv.imread(canvasElement);
+        let labMat = new cv.Mat();
+        let channels = new cv.MatVector();
+        let cl = new cv.Mat();
+        
+        // Convert to LAB color framework safely
+        cv.cvtColor(src, labMat, cv.COLOR_RGBA2RGB, 0);
+        cv.cvtColor(labMat, labMat, cv.COLOR_RGB2Lab, 0);
+        cv.split(labMat, channels);
+        
+        // Execute CLAHE adaptive details lock contrast
+        let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+        clahe.apply(channels.get(0), cl);
+        channels.set(0, cl);
+        cv.merge(channels, labMat);
+        
+        let enhancedRGB = new cv.Mat();
+        cv.cvtColor(labMat, enhancedRGB, cv.COLOR_Lab2RGB, 0);
+        
+        // Run Unsharp contrast blending boundaries
+        let blurred = new cv.Mat();
+        cv.GaussianBlur(enhancedRGB, blurred, new cv.Size(0, 0), 3, 3, cv.BORDER_DEFAULT);
+        
+        let dest = new cv.Mat();
+        cv.addWeighted(enhancedRGB, 1.5, blurred, -0.5, 0, dest);
+        
+        // Render back to canvas memory
+        cv.imshow(canvasElement, dest);
+        
+        // Free heap allocation layers cleanly
+        src.delete(); labMat.delete(); channels.delete(); cl.delete();
+        clahe.delete(); enhancedRGB.delete(); blurred.delete(); dest.delete();
+    } catch (e) {
+        console.warn("Local JS CV context dropped, using native pixel layout:", e);
+    }
+    return canvasElement;
+}
+
 function dataURLtoBlob(dataurl) {
     var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
         bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
@@ -456,7 +501,11 @@ function saveSide(side) {
     const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
     closeFullscreen();
 
-    const resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
+    let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
+    
+    // 🚀 FIXED: Injected the live web browser enhancer filter directly onto the saved perspective canvas before showing preview
+    resultCanvas = enhanceCroppedImageOnBrowser(resultCanvas);
+    
     const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
     
     document.getElementById(`${side}PreviewImg`).src = croppedDataUrl;
@@ -472,20 +521,17 @@ function saveSide(side) {
 // ========================================================================
 function generateMergedA4Blob() {
     return new Promise((resolve) => {
-        // Standard A4 canvas structure at 300 DPI (Width: 2480, Height: 3508)
         const a4Canvas = document.createElement('canvas');
         a4Canvas.width = 2480;
         a4Canvas.height = 3508;
         const ctx = a4Canvas.getContext('2d');
 
-        // Fill background with pure white solid layer
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, a4Canvas.width, a4Canvas.height);
 
         let frontLoaded = false;
         let backLoaded = false;
 
-        // Helper function to draw dynamic rounded rectangles for ID cards
         function drawRoundedCard(img, x, y, width, height, radius) {
             ctx.save();
             ctx.beginPath();
@@ -500,7 +546,6 @@ function generateMergedA4Blob() {
             ctx.quadraticCurveTo(x, y, x + radius, y);
             ctx.closePath();
             
-            // Masking system context clip execution
             ctx.clip();
             ctx.drawImage(img, x, y, width, height);
             ctx.restore();
@@ -508,7 +553,6 @@ function generateMergedA4Blob() {
 
         const frontImg = new Image();
         frontImg.onload = function() {
-            // Draw Front Side with 50px curve radius
             drawRoundedCard(frontImg, 150, 150, 1010, 640, 50);
             frontLoaded = true;
             checkComplete();
@@ -518,7 +562,6 @@ function generateMergedA4Blob() {
         if (backDataUrl) {
             const backImg = new Image();
             backImg.onload = function() {
-                // Paste Back Side on top-right corner with exact same rounding curves
                 drawRoundedCard(backImg, 1320, 150, 1010, 640, 50);
                 backLoaded = true;
                 checkComplete();
@@ -551,7 +594,6 @@ async function submitID() {
 
     alert("Merging ID sides and saving package... Please wait.");
     
-    // Generate rounded combined A4 image file directly on browser
     const finalA4Blob = await generateMergedA4Blob();
 
     const prefix = isBw ? "bw_" : "color_";
