@@ -144,6 +144,10 @@
         .force-grayscale {
             filter: grayscale(100%) brightness(102%) contrast(105%) !important;
         }
+        button:disabled {
+            background-color: #9e9e9e !important;
+            cursor: not-allowed !important;
+        }
     </style>
 </head>
 
@@ -225,7 +229,7 @@
     </div>
 
     <br>
-    <button onclick="submitID()" style="background:#1976d2; width: 100%; padding: 12px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">Submit Processing Order</button>
+    <button id="submitBtn" onclick="submitID()" style="background:#1976d2; width: 100%; padding: 12px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">Submit Processing Order</button>
 </div>
 
 <script>
@@ -292,6 +296,11 @@ function loadImageData(side, src) {
     img.crossOrigin = "anonymous";
     img.onload = function() {
         engine[side].img = img;
+        
+        // Dynamically adjust canvas height based on the original image aspect ratio
+        const newHeight = (img.height * 400) / img.width;
+        engine[side].canvas.height = newHeight;
+        
         const w = engine[side].canvas.width;
         const h = engine[side].canvas.height;
         engine[side].corners = [{ x: 30, y: 30 }, { x: w - 30, y: 30 }, { x: w - 30, y: h - 30 }, { x: 30, y: h - 30 }];
@@ -371,6 +380,15 @@ function rotateImage(side) {
         rotatedImg.crossOrigin = "anonymous";
         rotatedImg.onload = function() {
             s.img = rotatedImg;
+            
+            // Re-adjust canvas height after rotation
+            const newHeight = (rotatedImg.height * 400) / rotatedImg.width;
+            s.canvas.height = newHeight;
+            
+            const w = s.canvas.width;
+            const h = s.canvas.height;
+            s.corners = [{ x: 30, y: 30 }, { x: w - 30, y: 30 }, { x: w - 30, y: h - 30 }, { x: 30, y: h - 30 }];
+            
             draw(side);
         };
         rotatedImg.src = internalCanvas.toDataURL("image/jpeg");
@@ -405,13 +423,12 @@ function draw(side) {
     });
 }
 
-function projectPerspective(srcImg, corners, targetW, targetH) {
+function projectPerspective(srcImg, corners, targetW, targetH, cvsW, cvsH) {
     targetW = 856; targetH = 540;
     const hiddenCanvas = document.createElement('canvas');
     hiddenCanvas.width = targetW;
     hiddenCanvas.height = targetH;
     const ctx = hiddenCanvas.getContext('2d');
-    const cvsW = 400, cvsH = 260; 
 
     const p1 = [corners[0].x / cvsW, corners[0].y / cvsH];
     const p2 = [corners[1].x / cvsW, corners[1].y / cvsH];
@@ -501,7 +518,8 @@ function saveSide(side) {
     const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
     closeFullscreen();
 
-    let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
+    // Pass dynamic canvas width and height here
+    let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540, s.canvas.width, s.canvas.height);
     
     // 🚀 FIXED: Injected the live web browser enhancer filter directly onto the saved perspective canvas before showing preview
     resultCanvas = enhanceCroppedImageOnBrowser(resultCanvas);
@@ -592,7 +610,10 @@ async function submitID() {
     if (!name || !mobile) { alert("Enter customer details."); return; }
     if (!frontDataUrl) { alert("Save Front crop first."); return; }
 
-    alert("Merging ID sides and saving package... Please wait.");
+    // 🚀 FIXED: Dynamic Submit Button Loading State
+    const submitBtn = document.getElementById("submitBtn");
+    submitBtn.innerText = "Please wait...";
+    submitBtn.disabled = true;
     
     const finalA4Blob = await generateMergedA4Blob();
 
@@ -605,7 +626,12 @@ async function submitID() {
         upsert: true 
     });
     
-    if (uploadResponse.error) { alert("Upload Failed: " + uploadResponse.error.message); return; }
+    if (uploadResponse.error) { 
+        alert("Upload Failed: " + uploadResponse.error.message); 
+        submitBtn.innerText = "Submit Processing Order";
+        submitBtn.disabled = false;
+        return; 
+    }
 
     const publicUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
     let baseRate = isBw ? 5 : 10;
@@ -619,7 +645,12 @@ async function submitID() {
         file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
     }]).select();
 
-    if (error) { alert("Database Insertion Error: " + error.message); return; }
+    if (error) { 
+        alert("Database Insertion Error: " + error.message); 
+        submitBtn.innerText = "Submit Processing Order";
+        submitBtn.disabled = false;
+        return; 
+    }
 
     localStorage.setItem("amount", totalAmountCalculation);
     localStorage.setItem("mobile", mobile);
