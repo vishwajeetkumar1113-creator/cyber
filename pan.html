@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <!-- OpenCV.js Web Core Engine to render clean processed output previews instantly -->
     <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
     <style>
         * {
@@ -52,9 +51,7 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        .exit-fullscreen-btn:hover {
-            background: #dc3545;
-        }
+        .exit-fullscreen-btn:hover { background: #dc3545; }
 
         .fullscreen-controls {
             display: none;
@@ -179,7 +176,7 @@
     
     <div class="canvas-container" id="frontContainer">
         <button type="button" class="exit-fullscreen-btn" onclick="closeFullscreen()">✕ Exit Fullscreen</button>
-        <canvas id="frontCanvas" width="400" height="260"></canvas>
+        <canvas id="frontCanvas"></canvas>
         <div class="fullscreen-controls">
             <button type="button" style="background: #28a745;" onclick="rotateImage('front')">↻ Rotate</button>
             <button type="button" id="fullscreenSaveBtn" style="background: #1976d2;" onclick="saveSide('front')">Save Card</button>
@@ -213,6 +210,10 @@ const engine = {
 
 engine.front.canvas = document.getElementById('frontCanvas');
 engine.front.ctx = engine.front.canvas.getContext('2d');
+
+// Helper function for aspect ratio parameters
+engine.front.renderWidth = function() { return this.renderW * this.zoom; };
+engine.front.renderHeight = function() { return this.renderH * this.zoom; };
 
 document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
 
@@ -248,7 +249,6 @@ function handleFileSelect(e, side) {
             
             engine[side].originalSrc = optimizedDataUrl;
             engine[side].rotation = 0; 
-            resetZoom(side);
             loadImageData(side, optimizedDataUrl);
         };
         rawImg.src = event.target.result;
@@ -263,56 +263,39 @@ function loadImageData(side, src) {
         const s = engine[side];
         s.img = img;
         
-        // 🚀 FIXED: Dynamic Aspect Ratio Calculator Layer
-        const maxW = 400;
-        const maxH = 260;
-        let finalW = maxW;
-        let finalH = Math.round((img.height * maxW) / img.width);
+        // 🚀 FIXED: Dynamic Aspect Ratio Canvas Scaling
+        const containerWidth = 400; // Fixed visual width of container
+        const calculatedHeight = Math.round((img.height / img.width) * containerWidth);
         
-        if (finalH > maxH) {
-            finalH = maxH;
-            finalW = Math.round((img.width * maxH) / img.height);
-        }
+        // Set canvas to exact proportion of image
+        s.canvas.width = containerWidth;
+        s.canvas.height = calculatedHeight;
         
-        // Adjust layout canvas coordinates perfectly
-        s.canvas.width = maxW;
-        s.canvas.height = maxH;
-        s.renderW = finalW;
-        s.renderH = finalH;
+        s.renderW = containerWidth;
+        s.renderH = calculatedHeight;
         
-        // Center the image render position parameters
-        s.offsetX = (maxW - finalW) / 2;
-        s.offsetY = (maxH - finalH) / 2;
+        s.zoom = 1;
+        s.offsetX = 0;
+        s.offsetY = 0;
         
-        const startX = s.offsetX + 20;
-        const startY = s.offsetY + 20;
-        const endX = s.offsetX + s.renderWidth() - 20;
-        const endY = s.offsetY + s.renderHeight() - 20;
-        
+        const pad = 20;
         s.corners = [
-            { x: startX, y: startY },
-            { x: endX, y: startY },
-            { x: endX, y: endY },
-            { x: startX, y: endY }
+            { x: pad, y: pad },
+            { x: containerWidth - pad, y: pad },
+            { x: containerWidth - pad, y: calculatedHeight - pad },
+            { x: pad, y: calculatedHeight - pad }
         ];
+        
         draw(side);
     };
     img.src = src;
 }
 
-engine.front.renderWidth = function() { return this.renderW * this.zoom; };
-engine.front.renderHeight = function() { return this.renderH * this.zoom; };
-
 function resetZoom(side) {
     const s = engine[side];
     s.zoom = 1;
-    if (s.img) {
-        s.offsetX = (s.canvas.width - s.renderW) / 2;
-        s.offsetY = (s.canvas.height - s.renderH) / 2;
-    } else {
-        s.offsetX = 0;
-        s.offsetY = 0;
-    }
+    s.offsetX = 0;
+    s.offsetY = 0;
     draw(side);
 }
 
@@ -376,24 +359,26 @@ function rotateImage(side) {
         const rotatedImg = new Image();
         rotatedImg.crossOrigin = "anonymous";
         rotatedImg.onload = function() {
-            s.img = rotatedImg;
-            // Recalculate dimensions on rotation layer context
-            let finalW = s.canvas.width;
-            let finalH = Math.round((rotatedImg.height * s.canvas.width) / rotatedImg.width);
-            if (finalH > s.canvas.height) {
-                finalH = s.canvas.height;
-                finalW = Math.round((rotatedImg.width * s.canvas.height) / rotatedImg.height);
-            }
-            s.renderW = finalW;
-            s.renderH = finalH;
-            s.offsetX = (s.canvas.width - finalW) / 2;
-            s.offsetY = (s.canvas.height - finalH) / 2;
+            // Apply new dynamic height based on rotated image
+            const containerWidth = 400; 
+            const calculatedHeight = Math.round((rotatedImg.height / rotatedImg.width) * containerWidth);
             
+            s.img = rotatedImg;
+            s.canvas.width = containerWidth;
+            s.canvas.height = calculatedHeight;
+            s.renderW = containerWidth;
+            s.renderH = calculatedHeight;
+            
+            s.zoom = 1;
+            s.offsetX = 0;
+            s.offsetY = 0;
+            
+            const pad = 20;
             s.corners = [
-                { x: s.offsetX + 20, y: s.offsetY + 20 },
-                { x: s.offsetX + finalW - 20, y: s.offsetY + 20 },
-                { x: s.offsetX + finalW - 20, y: s.offsetY + finalH - 20 },
-                { x: s.offsetX + 20, y: s.offsetY + finalH - 20 }
+                { x: pad, y: pad },
+                { x: containerWidth - pad, y: pad },
+                { x: containerWidth - pad, y: calculatedHeight - pad },
+                { x: pad, y: calculatedHeight - pad }
             ];
             draw(side);
         };
@@ -410,7 +395,6 @@ function draw(side) {
     s.ctx.save();
     s.ctx.translate(s.offsetX, s.offsetY);
     s.ctx.scale(s.zoom, s.zoom);
-    // 🚀 FIXED: Using dynamic non-stretched layout values
     s.ctx.drawImage(s.img, 0, 0, s.renderW, s.renderH);
     s.ctx.restore();
 
@@ -439,7 +423,7 @@ function projectPerspective(srcImg, corners, targetW, targetH, s) {
     hiddenCanvas.width = targetW; hiddenCanvas.height = targetH;
     const ctx = hiddenCanvas.getContext('2d');
 
-    // 🚀 FIXED: Normalize using dynamic dimensions instead of hardcoded 400x260 boundaries
+    // Mapped flawlessly using dynamic boundaries
     const p1 = [(corners[0].x - s.offsetX) / s.renderWidth(), (corners[0].y - s.offsetY) / s.renderHeight()];
     const p2 = [(corners[1].x - s.offsetX) / s.renderWidth(), (corners[1].y - s.offsetY) / s.renderHeight()];
     const p3 = [(corners[2].x - s.offsetX) / s.renderWidth(), (corners[2].y - s.offsetY) / s.renderHeight()];
@@ -505,13 +489,6 @@ function enhanceCroppedImageOnBrowser(canvasElement) {
         console.warn("Local JS CV dropped:", e);
     }
     return canvasElement;
-}
-
-function dataURLtoBlob(dataurl) {
-    var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
-        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
-    while(n--){ u8arr[n] = bstr.charCodeAt(n); }
-    return new Blob([u8arr], {type:mime});
 }
 
 function saveSide(side) {
@@ -720,7 +697,6 @@ async function submitID() {
             s.lastTouchX = currentX;
             s.lastTouchY = currentY;
 
-            if (s.zoom === 1) { s.offsetX = (s.canvas.width - s.renderW) / 2; s.offsetY = (s.canvas.height - s.renderH) / 2; }
             draw(side);
         } else if (e.touches.length === 1) {
             if (s.activeCorner !== -1) {
@@ -761,6 +737,18 @@ async function submitID() {
         }
     });
     window.addEventListener('mouseup', function() { engine[side].activeCorner = -1; engine[side].isPanning = false; });
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const s = engine[side]; if (!s.img) return;
+        const mouse = getCanvasCoordinates(e);
+        let newZoom = e.deltaY < 0 ? s.zoom * 1.1 : s.zoom / 1.1;
+        newZoom = Math.max(1, Math.min(8, newZoom));
+        s.offsetX = mouse.x - (mouse.x - s.offsetX) * (newZoom / s.zoom);
+        s.offsetY = mouse.y - (mouse.y - s.offsetY) * (newZoom / s.zoom);
+        s.zoom = newZoom;
+        draw(side);
+    }, { passive: false });
 });
 </script>
 </body>
