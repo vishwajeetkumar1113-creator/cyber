@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
+    <!-- OpenCV.js Web Core Engine to render clean processed output previews instantly -->
     <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
     <style>
         * {
@@ -198,7 +199,7 @@
     </div>
 
     <br>
-    <button id="submitOrderBtn" onclick="submitID()" style="background:#1976d2; width:100%; padding:12px; font-weight:bold; color:white; border:none; border-radius:6px; cursor:pointer; font-size:16px;">Submit Processing Order</button>
+    <button type="button" id="submitOrderBtn" onclick="submitID()" style="background:#1976d2; width:100%; padding:12px; font-weight:bold; color:white; border:none; border-radius:6px; cursor:pointer; font-size:16px;">Submit Processing Order</button>
 </div>
 
 <script>
@@ -207,7 +208,7 @@ const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, win
 let frontDataUrl = null;
 
 const engine = {
-    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 }
+    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0, renderW: 400, renderH: 260 }
 };
 
 engine.front.canvas = document.getElementById('frontCanvas');
@@ -259,19 +260,59 @@ function loadImageData(side, src) {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = function() {
-        engine[side].img = img;
-        const w = engine[side].canvas.width;
-        const h = engine[side].canvas.height;
-        engine[side].corners = [{ x: 30, y: 30 }, { x: w - 30, y: 30 }, { x: w - 30, y: h - 30 }, { x: 30, y: h - 30 }];
+        const s = engine[side];
+        s.img = img;
+        
+        // 🚀 FIXED: Dynamic Aspect Ratio Calculator Layer
+        const maxW = 400;
+        const maxH = 260;
+        let finalW = maxW;
+        let finalH = Math.round((img.height * maxW) / img.width);
+        
+        if (finalH > maxH) {
+            finalH = maxH;
+            finalW = Math.round((img.width * maxH) / img.height);
+        }
+        
+        // Adjust layout canvas coordinates perfectly
+        s.canvas.width = maxW;
+        s.canvas.height = maxH;
+        s.renderW = finalW;
+        s.renderH = finalH;
+        
+        // Center the image render position parameters
+        s.offsetX = (maxW - finalW) / 2;
+        s.offsetY = (maxH - finalH) / 2;
+        
+        const startX = s.offsetX + 20;
+        const startY = s.offsetY + 20;
+        const endX = s.offsetX + s.renderWidth() - 20;
+        const endY = s.offsetY + s.renderHeight() - 20;
+        
+        s.corners = [
+            { x: startX, y: startY },
+            { x: endX, y: startY },
+            { x: endX, y: endY },
+            { x: startX, y: endY }
+        ];
         draw(side);
     };
     img.src = src;
 }
 
+engine.front.renderWidth = function() { return this.renderW * this.zoom; };
+engine.front.renderHeight = function() { return this.renderH * this.zoom; };
+
 function resetZoom(side) {
-    engine[side].zoom = 1;
-    engine[side].offsetX = 0;
-    engine[side].offsetY = 0;
+    const s = engine[side];
+    s.zoom = 1;
+    if (s.img) {
+        s.offsetX = (s.canvas.width - s.renderW) / 2;
+        s.offsetY = (s.canvas.height - s.renderH) / 2;
+    } else {
+        s.offsetX = 0;
+        s.offsetY = 0;
+    }
     draw(side);
 }
 
@@ -336,6 +377,24 @@ function rotateImage(side) {
         rotatedImg.crossOrigin = "anonymous";
         rotatedImg.onload = function() {
             s.img = rotatedImg;
+            // Recalculate dimensions on rotation layer context
+            let finalW = s.canvas.width;
+            let finalH = Math.round((rotatedImg.height * s.canvas.width) / rotatedImg.width);
+            if (finalH > s.canvas.height) {
+                finalH = s.canvas.height;
+                finalW = Math.round((rotatedImg.width * s.canvas.height) / rotatedImg.height);
+            }
+            s.renderW = finalW;
+            s.renderH = finalH;
+            s.offsetX = (s.canvas.width - finalW) / 2;
+            s.offsetY = (s.canvas.height - finalH) / 2;
+            
+            s.corners = [
+                { x: s.offsetX + 20, y: s.offsetY + 20 },
+                { x: s.offsetX + finalW - 20, y: s.offsetY + 20 },
+                { x: s.offsetX + finalW - 20, y: s.offsetY + finalH - 20 },
+                { x: s.offsetX + 20, y: s.offsetY + finalH - 20 }
+            ];
             draw(side);
         };
         rotatedImg.src = internalCanvas.toDataURL("image/jpeg");
@@ -351,7 +410,8 @@ function draw(side) {
     s.ctx.save();
     s.ctx.translate(s.offsetX, s.offsetY);
     s.ctx.scale(s.zoom, s.zoom);
-    s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
+    // 🚀 FIXED: Using dynamic non-stretched layout values
+    s.ctx.drawImage(s.img, 0, 0, s.renderW, s.renderH);
     s.ctx.restore();
 
     s.ctx.strokeStyle = '#28a745';
@@ -365,25 +425,25 @@ function draw(side) {
     s.corners.forEach((corner) => {
         s.ctx.fillStyle = '#28a745';
         s.ctx.beginPath();
-        s.ctx.arc(corner.x, corner.y, 8, 0, Math.PI * 2);
+        s.ctx.arc(corner.x, corner.y, 14, 0, Math.PI * 2);
         s.ctx.fill();
         s.ctx.strokeStyle = '#fff';
-        s.ctx.lineWidth = 2;
+        s.ctx.lineWidth = 3;
         s.ctx.stroke();
     });
 }
 
-function projectPerspective(srcImg, corners, targetW, targetH) {
+function projectPerspective(srcImg, corners, targetW, targetH, s) {
     targetW = 856; targetH = 540;
     const hiddenCanvas = document.createElement('canvas');
     hiddenCanvas.width = targetW; hiddenCanvas.height = targetH;
     const ctx = hiddenCanvas.getContext('2d');
 
-    const cvsW = 400, cvsH = 260; 
-    const p1 = [corners[0].x / cvsW, corners[0].y / cvsH];
-    const p2 = [corners[1].x / cvsW, corners[1].y / cvsH];
-    const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
-    const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
+    // 🚀 FIXED: Normalize using dynamic dimensions instead of hardcoded 400x260 boundaries
+    const p1 = [(corners[0].x - s.offsetX) / s.renderWidth(), (corners[0].y - s.offsetY) / s.renderHeight()];
+    const p2 = [(corners[1].x - s.offsetX) / s.renderWidth(), (corners[1].y - s.offsetY) / s.renderHeight()];
+    const p3 = [(corners[2].x - s.offsetX) / s.renderWidth(), (corners[2].y - s.offsetY) / s.renderHeight()];
+    const p4 = [(corners[3].x - s.offsetX) / s.renderWidth(), (corners[3].y - s.offsetY) / s.renderHeight()];
 
     for (let y = 0; y < targetH; y++) {
         for (let x = 0; x < targetW; x++) {
@@ -458,17 +518,15 @@ function saveSide(side) {
     const s = engine[side];
     if (!s.img) { alert(`Choose an image for ${side} first.`); return; }
     
-    // 🚀 FIXED: Standard alert box block layer interface
     const mainSaveBtn = document.getElementById("saveCardBtn");
     const fullSaveBtn = document.getElementById("fullscreenSaveBtn");
     if(mainSaveBtn) mainSaveBtn.innerText = "Please wait...";
     if(fullSaveBtn) fullSaveBtn.innerText = "Please wait...";
 
     setTimeout(() => {
-        const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
         closeFullscreen();
 
-        let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
+        let resultCanvas = projectPerspective(s.img, s.corners, 856, 540, s);
         resultCanvas = enhanceCroppedImageOnBrowser(resultCanvas);
         
         const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
@@ -534,7 +592,6 @@ async function submitID() {
     if (!name || !mobile) { alert("Enter customer details."); return; }
     if (!frontDataUrl) { alert("Save crop first."); return; }
 
-    // 🚀 FIXED: Removed standard windows popup boxes entirely
     const submitBtn = document.getElementById("submitOrderBtn");
     submitBtn.innerText = "Please wait...";
     submitBtn.style.background = "#fab387";
@@ -663,7 +720,7 @@ async function submitID() {
             s.lastTouchX = currentX;
             s.lastTouchY = currentY;
 
-            if (s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
+            if (s.zoom === 1) { s.offsetX = (s.canvas.width - s.renderW) / 2; s.offsetY = (s.canvas.height - s.renderH) / 2; }
             draw(side);
         } else if (e.touches.length === 1) {
             if (s.activeCorner !== -1) {
