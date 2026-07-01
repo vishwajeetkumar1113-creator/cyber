@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <!-- 🚀 OpenCV.js Web Core Engine to render clean processed output previews instantly -->
     <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
     <style>
         * {
@@ -182,7 +181,7 @@
         <canvas id="frontCanvas" width="400" height="260"></canvas>
         <div class="fullscreen-controls">
             <button type="button" style="background: #28a745;" onclick="rotateImage('front')">↻ Rotate</button>
-            <button type="button" style="background: #1976d2;" onclick="saveSide('front')">Save Card</button>
+            <button type="button" id="fullscreenSaveBtn" style="background: #1976d2;" onclick="saveSide('front')">Save Card</button>
         </div>
     </div>
     
@@ -190,7 +189,7 @@
         <button type="button" onclick="rotateImage('front')">↻ Rotate 90°</button>
         <button type="button" onclick="goFullscreen('front')">⛶ Edit Fullscreen</button>
         <button type="button" onclick="resetZoom('front')">Reset Zoom</button>
-        <button type="button" onclick="saveSide('front')">Save Card</button>
+        <button type="button" id="saveCardBtn" onclick="saveSide('front')">Save Card</button>
     </div>
 
     <div class="side-preview" id="frontPreviewContainer">
@@ -199,7 +198,7 @@
     </div>
 
     <br>
-    <button onclick="submitID()" style="background:#1976d2; width:100%; padding:12px; font-weight:bold; color:white; border:none; border-radius:6px; cursor:pointer; font-size:16px;">Submit Processing Order</button>
+    <button id="submitOrderBtn" onclick="submitID()" style="background:#1976d2; width:100%; padding:12px; font-weight:bold; color:white; border:none; border-radius:6px; cursor:pointer; font-size:16px;">Submit Processing Order</button>
 </div>
 
 <script>
@@ -458,24 +457,33 @@ function dataURLtoBlob(dataurl) {
 function saveSide(side) {
     const s = engine[side];
     if (!s.img) { alert(`Choose an image for ${side} first.`); return; }
-    const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
-    closeFullscreen();
-
-    let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
-    resultCanvas = enhanceCroppedImageOnBrowser(resultCanvas);
     
-    const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
-    
-    document.getElementById(`${side}PreviewImg`).src = croppedDataUrl;
-    document.getElementById(`${side}PreviewContainer`).style.display = "block";
-    applyLiveGrayscalePreviewFilter();
+    // 🚀 FIXED: Standard alert box block layer interface
+    const mainSaveBtn = document.getElementById("saveCardBtn");
+    const fullSaveBtn = document.getElementById("fullscreenSaveBtn");
+    if(mainSaveBtn) mainSaveBtn.innerText = "Please wait...";
+    if(fullSaveBtn) fullSaveBtn.innerText = "Please wait...";
 
-    if (side === 'front') frontDataUrl = croppedDataUrl;
+    setTimeout(() => {
+        const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
+        closeFullscreen();
+
+        let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
+        resultCanvas = enhanceCroppedImageOnBrowser(resultCanvas);
+        
+        const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
+        
+        document.getElementById(`${side}PreviewImg`).src = croppedDataUrl;
+        document.getElementById(`${side}PreviewContainer`).style.display = "block";
+        applyLiveGrayscalePreviewFilter();
+
+        if (side === 'front') frontDataUrl = croppedDataUrl;
+        
+        if(mainSaveBtn) mainSaveBtn.innerText = "Save Card";
+        if(fullSaveBtn) fullSaveBtn.innerText = "Save Card";
+    }, 50);
 }
 
-// ========================================================================
-// 🔲 CENTRAL PAN A4 TOP-MIDDLE MERGER ENGINE
-// ========================================================================
 function generateMergedA4Blob() {
     return new Promise((resolve) => {
         const a4Canvas = document.createElement('canvas');
@@ -507,10 +515,7 @@ function generateMergedA4Blob() {
 
         const frontImg = new Image();
         frontImg.onload = function() {
-            // 🚀 FIXED: Positioned Front Side at Top-Middle of A4 Page
-            // Horizontal Center: (2480 - 1010) / 2 = 735, Vertical Top Offset: 150
             drawRoundedCard(frontImg, 735, 150, 1010, 640, 50);
-            
             a4Canvas.toBlob((blob) => {
                 resolve(blob);
             }, "image/jpeg", 0.92);
@@ -529,41 +534,61 @@ async function submitID() {
     if (!name || !mobile) { alert("Enter customer details."); return; }
     if (!frontDataUrl) { alert("Save crop first."); return; }
 
-    alert("Structuring high-quality template... Please wait.");
-    
-    const finalA4Blob = await generateMergedA4Blob();
+    // 🚀 FIXED: Removed standard windows popup boxes entirely
+    const submitBtn = document.getElementById("submitOrderBtn");
+    submitBtn.innerText = "Please wait...";
+    submitBtn.style.background = "#fab387";
+    submitBtn.style.color = "#11111b";
+    submitBtn.disabled = true;
 
-    const prefix = isBw ? "bw_" : "color_";
-    const timestamp = Date.now();
-    const fileName = `${timestamp}_${prefix}merged_a4.jpg`;
+    try {
+        const finalA4Blob = await generateMergedA4Blob();
 
-    const uploadResponse = await client.storage.from("documents").upload(fileName, finalA4Blob, { 
-        contentType: "image/jpeg",
-        upsert: true 
-    });
-    
-    if (uploadResponse.error) { alert("Upload Failed: " + uploadResponse.error.message); return; }
+        const prefix = isBw ? "bw_" : "color_";
+        const timestamp = Date.now();
+        const fileName = `${timestamp}_${prefix}merged_a4.jpg`;
 
-    const publicUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
-    let baseRate = isBw ? 5 : 10;
-    let totalAmountCalculation = copiesInput * baseRate;
+        const uploadResponse = await client.storage.from("documents").upload(fileName, finalA4Blob, { 
+            contentType: "image/jpeg",
+            upsert: true 
+        });
+        
+        if (uploadResponse.error) { 
+            alert("Upload Failed: " + uploadResponse.error.message); 
+            submitBtn.innerText = "Submit Processing Order";
+            submitBtn.disabled = false;
+            return; 
+        }
 
-    const printLabel = isBw ? "Black & White" : "Color";
-    const orderLabelText = `Document ID - ${printLabel} [${copiesInput} Copies]`;
+        const publicUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
+        let baseRate = isBw ? 5 : 10;
+        let totalAmountCalculation = copiesInput * baseRate;
 
-    const { data: insertedOrder, error } = await client.from("orders").insert([{
-        customer_name: name, mobile: mobile, print_type: orderLabelText, pages: copiesInput, amount: totalAmountCalculation,
-        file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
-    }]).select();
+        const printLabel = isBw ? "Black & White" : "Color";
+        const orderLabelText = `Document ID - ${printLabel} [${copiesInput} Copies]`;
 
-    if (error) { alert("Database Insertion Error: " + error.message); return; }
+        const { data: insertedOrder, error } = await client.from("orders").insert([{
+            customer_name: name, mobile: mobile, print_type: orderLabelText, pages: copiesInput, amount: totalAmountCalculation,
+            file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
+        }]).select();
 
-    localStorage.setItem("amount", totalAmountCalculation);
-    localStorage.setItem("mobile", mobile);
-    localStorage.setItem("printType", "id");
-    if (insertedOrder && insertedOrder.length > 0) localStorage.setItem("current_order_id", insertedOrder[0].id); 
+        if (error) { 
+            alert("Database Insertion Error: " + error.message); 
+            submitBtn.innerText = "Submit Processing Order";
+            submitBtn.disabled = false;
+            return; 
+        }
 
-    window.location.href = "payment.html";
+        localStorage.setItem("amount", totalAmountCalculation);
+        localStorage.setItem("mobile", mobile);
+        localStorage.setItem("printType", "id");
+        if (insertedOrder && insertedOrder.length > 0) localStorage.setItem("current_order_id", insertedOrder[0].id); 
+
+        window.location.href = "payment.html";
+    } catch (err) {
+        submitBtn.innerText = "Submit Processing Order";
+        submitBtn.disabled = false;
+    }
 }
 
 // ========================================================================
@@ -624,8 +649,8 @@ async function submitID() {
             newZoom = Math.max(1, Math.min(8, newZoom)); 
 
             const rect = canvas.getBoundingClientRect();
-            const canvasCenterX = (canvasCenterX - s.offsetX) * (newZoom / s.zoom);
-            const canvasCenterY = (canvasCenterY - s.offsetY) * (newZoom / s.zoom);
+            const canvasCenterX = (currentX - rect.left) * (canvas.width / rect.width);
+            const canvasCenterY = (currentY - rect.top) * (canvas.height / rect.height);
 
             s.offsetX = canvasCenterX - (canvasCenterX - s.offsetX) * (newZoom / s.zoom);
             s.offsetY = canvasCenterY - (canvasCenterY - s.offsetY) * (newZoom / s.zoom);
@@ -679,19 +704,6 @@ async function submitID() {
         }
     });
     window.addEventListener('mouseup', function() { engine[side].activeCorner = -1; engine[side].isPanning = false; });
-
-    canvas.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const s = engine[side]; if (!s.img) return;
-        const mouse = getCanvasCoordinates(e);
-        let newZoom = e.deltaY < 0 ? s.zoom * 1.1 : s.zoom / 1.1;
-        newZoom = Math.max(1, Math.min(8, newZoom));
-        s.offsetX = mouse.x - (mouse.x - s.offsetX) * (newZoom / s.zoom);
-        s.offsetY = mouse.y - (mouse.y - s.offsetY) * (newZoom / s.zoom);
-        s.zoom = newZoom;
-        if(s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
-        draw(side);
-    }, { passive: false });
 });
 </script>
 </body>
