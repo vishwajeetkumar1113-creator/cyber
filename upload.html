@@ -352,40 +352,39 @@ function calculate() {
 
 // 🚀 FIXED: Auto Fit A4 Logic (Image ko page ke center par fit karega)
 async function generateA4Blob() {
-    return new Promise((resolve) => {
-        const a4Cvs = document.createElement('canvas'); a4Cvs.width = 2480; a4Cvs.height = 3508;
-        const ctx = a4Cvs.getContext('2d'); ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, a4Cvs.width, a4Cvs.height);
+    return new Promise(resolve => {
+        const a4 = document.createElement('canvas'); 
+        a4.width = 2480; a4.height = 3508; // Standard A4 Size
+        const ctx = a4.getContext('2d'); 
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
         
         const img = new Image();
         img.onload = () => {
-            const margin = 150; 
-            const maxW = a4Cvs.width - (margin * 2);
-            const maxH = a4Cvs.height - (margin * 2);
+            // Margin 0 set kar diya hai taaki puri screen (A4) cover ho
+            const ratio = Math.min(a4.width / img.width, a4.height / img.height);
+            const w = img.width * ratio;
+            const h = img.height * ratio;
             
-            // Image ki shape ko bina kharab kiye use A4 me maximize karega
-            const ratio = Math.min(maxW / img.width, maxH / img.height);
-            const drawW = img.width * ratio;
-            const drawH = img.height * ratio;
+            // Image ko exact center aur edges tak fit karna
+            const x = (a4.width - w) / 2;
+            const y = (a4.height - h) / 2;
             
-            const x = (a4Cvs.width - drawW) / 2;
-            const y = (a4Cvs.height - drawH) / 2;
+            ctx.drawImage(img, x, y, w, h);
             
-            ctx.drawImage(img, x, y, drawW, drawH);
-
+            // Black & White Filter check
             if (document.getElementById("type").value == 5) {
-                const d = ctx.getImageData(0, 0, a4Cvs.width, a4Cvs.height);
-                for (let i = 0; i < d.data.length; i += 4) {
-                    let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2];
-                    d.data[i] = g; d.data[i+1] = g; d.data[i+2] = g;
+                const d = ctx.getImageData(0,0,a4.width,a4.height);
+                for(let i=0; i<d.data.length; i+=4){ 
+                    let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2]; 
+                    d.data[i] = d.data[i+1] = d.data[i+2] = g; 
                 }
-                ctx.putImageData(d, 0, 0);
+                ctx.putImageData(d,0,0);
             }
-            a4Cvs.toBlob(resolve, "image/jpeg", 0.95);
+            a4.toBlob(resolve, "image/jpeg", 0.95);
         };
         img.src = croppedDataUrl;
     });
 }
-
 async function submitOrder() {
     const name = document.getElementById("name").value.trim();
     const mobile = document.getElementById("mobile").value.trim();
