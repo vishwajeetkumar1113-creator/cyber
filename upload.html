@@ -39,8 +39,15 @@
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number" required>
     
     <div class="input-group">
-        <label>Select Document File:</label>
-        <input type="file" id="file" accept="image/*,application/pdf" onchange="handleFileSelectionChange();" required>
+        <label>Select File(s) (PDF or Multiple Images):</label>
+        <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
+    </div>
+
+    <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #90caf9;">
+        <label style="color: #1565c0;">Image Print Size:</label>
+        <select id="docType">
+            <option value="full">Full Page (Marksheet / Receipt)</option>
+        </select>
     </div>
 
     <div id="pdfUI" style="display:none;">
@@ -63,18 +70,20 @@
     </div>
 
     <div id="imageUI" style="display: none;">
-        <p style="font-size: 13px; color: #555; text-align: center;">Drag corners to crop your document perfectly.</p>
-        <div class="canvas-container" id="cropContainer">
-            <canvas id="cropCanvas"></canvas>
-        </div>
-        <div class="crop-controls">
-            <button type="button" style="background:#28a745;" onclick="rotateImage()">↻ Rotate</button>
-            <button type="button" style="background:#6c757d;" onclick="resetZoom()">Reset Zoom</button>
-            <button type="button" style="background:#1976d2;" onclick="saveCrop()">Save Crop & Clean</button>
+        <h4 id="imageStatus" style="text-align: center; color: #1976d2; margin-bottom: 10px;"></h4>
+        <div id="cropAreaWrapper">
+            <p style="font-size: 13px; color: #555; text-align: center;">Drag corners to crop your document perfectly.</p>
+            <div class="canvas-container" id="cropContainer">
+                <canvas id="cropCanvas"></canvas>
+            </div>
+            <div class="crop-controls">
+                <button type="button" style="background:#28a745;" onclick="rotateImage()">↻ Rotate</button>
+                <button type="button" style="background:#6c757d;" onclick="resetZoom()">Reset Zoom</button>
+                <button type="button" style="background:#1976d2;" id="saveCropBtn" onclick="saveCropAndNext()">Save Crop & Next</button>
+            </div>
         </div>
         <div id="cropPreviewContainer" style="text-align: center; display: none; margin-bottom: 15px;">
-            <img id="cropPreviewImg" src="" style="max-width: 100%; border: 2px solid #28a745; border-radius: 6px; padding: 2px;">
-            <p style="font-size: 12px; color: #28a745; font-weight: bold; margin-top: 5px;">✓ Ready to print as A4</p>
+            <p style="font-size: 14px; color: #28a745; font-weight: bold; margin-top: 5px;">✓ All Images Cropped & Ready for Multi-Page PDF</p>
         </div>
     </div>
 
@@ -102,18 +111,24 @@ let currentMode = "pdf";
 let cachedFileObject = null;
 let totalDetectedPDFPages = 1; 
 let activeRenderTaskId = 0; 
-let croppedDataUrl = null;
+
+// Variables for Multi-Image Processing
+let uploadedImagesList = [];
+let currentImageIndex = 0;
+let processedA4Images = []; // Stores cropped A4 pages
 
 const cropEngine = { canvas: document.getElementById('cropCanvas'), ctx: document.getElementById('cropCanvas').getContext('2d'), img: null, corners: [], activeCorner: -1, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 };
 
 async function handleFileSelectionChange() {
-    cachedFileObject = document.getElementById("file").files[0];
-    if (!cachedFileObject) return;
+    const files = document.getElementById("file").files;
+    if (!files || files.length === 0) return;
 
-    if (cachedFileObject.type === "application/pdf") {
+    if (files[0].type === "application/pdf") {
         currentMode = "pdf";
+        cachedFileObject = files[0];
         document.getElementById("pdfUI").style.display = "block";
         document.getElementById("imageUI").style.display = "none";
+        document.getElementById("docTypeGroup").style.display = "none";
         
         const fileArrayBuffer = await cachedFileObject.arrayBuffer();
         const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
@@ -122,30 +137,54 @@ async function handleFileSelectionChange() {
         await previewDocument();
         calculate();
     } 
-    else if (cachedFileObject.type.startsWith("image/")) {
+    else if (files[0].type.startsWith("image/")) {
         currentMode = "image";
+        cachedFileObject = files[0]; // For filename reference
+        uploadedImagesList = Array.from(files).filter(f => f.type.startsWith('image/'));
+        currentImageIndex = 0;
+        processedA4Images = [];
+        
         document.getElementById("pdfUI").style.display = "none";
         document.getElementById("imageUI").style.display = "block";
-        croppedDataUrl = null;
+        document.getElementById("docTypeGroup").style.display = "block";
         document.getElementById("cropPreviewContainer").style.display = "none";
+        document.getElementById("cropAreaWrapper").style.display = "block";
         
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const rawImg = new Image();
-            rawImg.onload = function() {
-                const s = cropEngine;
-                s.canvas.width = 400;
-                s.canvas.height = (rawImg.height * 400) / rawImg.width;
-                s.originalSrc = event.target.result;
-                s.rotation = 0; 
-                resetZoom();
-                loadImageData(event.target.result);
-            };
-            rawImg.src = event.target.result;
-        };
-        reader.readAsDataURL(cachedFileObject);
+        loadCurrentImageForCrop();
         calculate();
     }
+}
+
+function loadCurrentImageForCrop() {
+    if (currentImageIndex >= uploadedImagesList.length) {
+        document.getElementById("cropAreaWrapper").style.display = "none";
+        document.getElementById("cropPreviewContainer").style.display = "block";
+        document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
+        return;
+    }
+
+    document.getElementById("imageStatus").innerText = `Cropping Image ${currentImageIndex + 1} of ${uploadedImagesList.length}`;
+    const btn = document.getElementById("saveCropBtn");
+    btn.innerText = (currentImageIndex === uploadedImagesList.length - 1) ? "Save Crop & Finish" : `Save Crop & Next (${currentImageIndex + 1}/${uploadedImagesList.length})`;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+            cropEngine.img = img;
+            cropEngine.canvas.width = 400;
+            cropEngine.canvas.height = (img.height * 400) / img.width;
+            const w = cropEngine.canvas.width; 
+            const h = cropEngine.canvas.height;
+            cropEngine.corners = [{x:30, y:30}, {x:w-30, y:30}, {x:w-30, y:h-30}, {x:30, y:h-30}];
+            cropEngine.rotation = 0; 
+            cropEngine.originalSrc = e.target.result;
+            resetZoom();
+            drawCrop();
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(uploadedImagesList[currentImageIndex]);
 }
 
 function updateLivePreviewGrid() {
@@ -207,17 +246,6 @@ async function previewDocument() {
     applyPreviewFilter();
 }
 
-function loadImageData(src) {
-    const img = new Image(); img.crossOrigin = "anonymous";
-    img.onload = function() {
-        cropEngine.img = img;
-        const w = cropEngine.canvas.width; const h = cropEngine.canvas.height;
-        cropEngine.corners = [{x:30, y:30}, {x:w-30, y:30}, {x:w-30, y:h-30}, {x:30, y:h-30}];
-        drawCrop();
-    };
-    img.src = src;
-}
-
 function rotateImage() {
     if (!cropEngine.originalSrc) return;
     cropEngine.rotation = (cropEngine.rotation + 90) % 360;
@@ -260,7 +288,7 @@ function drawCrop() {
     s.corners.forEach(c => { s.ctx.fillStyle = '#28a745'; s.ctx.beginPath(); s.ctx.arc(c.x, c.y, 14, 0, Math.PI * 2); s.ctx.fill(); s.ctx.strokeStyle = '#fff'; s.ctx.lineWidth = 3; s.ctx.stroke(); });
 }
 
-function saveCrop() {
+async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
     
@@ -269,7 +297,6 @@ function saveCrop() {
     const p3 = [mappedCorners[2].x / s.canvas.width, mappedCorners[2].y / s.canvas.height];
     const p4 = [mappedCorners[3].x / s.canvas.width, mappedCorners[3].y / s.canvas.height];
 
-    // 🚀 DYNAMIC CROP SIZE (Asli photo ki shape ke mutabiq)
     let targetW = Math.round(Math.max(
         Math.hypot((p2[0]-p1[0])*s.img.width, (p2[1]-p1[1])*s.img.height),
         Math.hypot((p3[0]-p4[0])*s.img.width, (p3[1]-p4[1])*s.img.height)
@@ -279,7 +306,6 @@ function saveCrop() {
         Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[1])*s.img.height)
     ));
 
-    // Limit dimension so mobile browsers don't crash
     if (targetW > 2000 || targetH > 2000) {
         const scale = 2000 / Math.max(targetW, targetH);
         targetW = Math.round(targetW * scale);
@@ -298,7 +324,6 @@ function saveCrop() {
         }
     }
 
-    // OpenCV Clean Magic
     if (typeof cv !== 'undefined') {
         try {
             let src = cv.imread(hCvs); let labMat = new cv.Mat(), channels = new cv.MatVector(), cl = new cv.Mat();
@@ -311,13 +336,40 @@ function saveCrop() {
         } catch (e) { console.warn("CV Error", e); }
     }
 
-    croppedDataUrl = hCvs.toDataURL("image/jpeg", 0.95);
-    document.getElementById(`cropPreviewImg`).src = croppedDataUrl;
-    document.getElementById(`cropPreviewContainer`).style.display = "block";
-    applyPreviewFilter();
+    const a4DataUrl = await convertToA4(hCvs.toDataURL("image/jpeg", 0.95));
+    processedA4Images.push(a4DataUrl);
+    
+    currentImageIndex++;
+    loadCurrentImageForCrop();
+    calculate();
 }
 
-// Map Touch & Mouse Events
+async function convertToA4(imgSrc) {
+    return new Promise(resolve => {
+        const a4 = document.createElement('canvas'); 
+        a4.width = 2480; a4.height = 3508; // Standard A4 Size
+        const ctx = a4.getContext('2d'); 
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
+        
+        const img = new Image();
+        img.onload = () => {
+            // ZERO MARGIN LOGIC (Stretch to fill A4 Exactly as requested)
+            ctx.drawImage(img, 0, 0, a4.width, a4.height);
+            
+            if (document.getElementById("type").value == 5) {
+                const d = ctx.getImageData(0,0,a4.width,a4.height);
+                for(let i=0; i<d.data.length; i+=4){ 
+                    let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2]; 
+                    d.data[i] = d.data[i+1] = d.data[i+2] = g; 
+                }
+                ctx.putImageData(d,0,0);
+            }
+            resolve(a4.toDataURL("image/jpeg", 0.95));
+        };
+        img.src = imgSrc;
+    });
+}
+
 function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
 cropEngine.canvas.addEventListener('touchstart', e=>{ const s=cropEngine; if(e.touches.length===2){ s.activeCorner=-1; s.isPanning=false; s.lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); s.lastTouchX=(e.touches[0].clientX+e.touches[1].clientX)/2; s.lastTouchY=(e.touches[0].clientY+e.touches[1].clientY)/2; } else if(e.touches.length===1){ const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY;} } }, {passive:false});
 cropEngine.canvas.addEventListener('touchmove', e=>{ const s=cropEngine; e.preventDefault(); if(e.touches.length===2){ const cDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2; let nz=s.zoom*(cDist/s.lastTouchDist); nz=Math.max(1,Math.min(8,nz)); const r=s.canvas.getBoundingClientRect(); const rx=(cx-r.left)*(s.canvas.width/r.width), ry=(cy-r.top)*(s.canvas.height/r.height); s.offsetX=rx-(rx-s.offsetX)*(nz/s.zoom); s.offsetY=ry-(ry-s.offsetY)*(nz/s.zoom); s.zoom=nz; s.offsetX+=(cx-s.lastTouchX); s.offsetY+=(cy-s.lastTouchY); s.lastTouchDist=cDist; s.lastTouchX=cx; s.lastTouchY=cy; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); } else if(e.touches.length===1){ if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.touches[0].clientX-s.lastTouchX); s.offsetY+=(e.touches[0].clientY-s.lastTouchY); s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY; drawCrop(); } } }, {passive:false});
@@ -332,57 +384,34 @@ function applyPreviewFilter() {
     if (document.getElementById("previewWrapperFrame")) {
         document.getElementById("previewWrapperFrame").classList.toggle("force-grayscale", isBw);
     }
-    if (document.getElementById("cropPreviewImg")) {
-        document.getElementById("cropPreviewImg").classList.toggle("force-grayscale", isBw);
-    }
 }
 
 function calculate() {
     let copies = parseInt(document.getElementById("copies").value) || 1;
     let price = parseInt(document.getElementById("type").value);
     let sheets = 1;
+    
     if (currentMode === "pdf") {
         let layoutDivisor = parseInt(document.getElementById("layout_mode").value) || 1;
         let selectedPages = parsePageSelection(document.getElementById("pages").value);
         let totalPages = selectedPages !== null && selectedPages.length > 0 ? selectedPages.length : totalDetectedPDFPages;
         sheets = Math.ceil(totalPages / layoutDivisor);
+    } else if (currentMode === "image") {
+        sheets = uploadedImagesList.length || 1;
     }
+    
     document.getElementById("total").innerHTML = "Total: ₹" + (sheets * price * copies);
 }
 
-// 🚀 FIXED: Auto Fit A4 Logic (Image ko page ke center par fit karega)
-async function generateA4Blob() {
-    return new Promise(resolve => {
-        const a4 = document.createElement('canvas'); 
-        a4.width = 2480; a4.height = 3508; // Standard A4 Size
-        const ctx = a4.getContext('2d'); 
-        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
-        
-        const img = new Image();
-        img.onload = () => {
-            // 🚀 ZERO MARGIN LOGIC (Stretch to fill A4 Exactly)
-            // Ye image ko 0 margin ke sath poore page par faila dega
-            ctx.drawImage(img, 0, 0, a4.width, a4.height);
-            
-            // Black & White Filter check
-            if (document.getElementById("type").value == 5) {
-                const d = ctx.getImageData(0,0,a4.width,a4.height);
-                for(let i=0; i<d.data.length; i+=4){ 
-                    let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2]; 
-                    d.data[i] = d.data[i+1] = d.data[i+2] = g; 
-                }
-                ctx.putImageData(d,0,0);
-            }
-            a4.toBlob(resolve, "image/jpeg", 0.95);
-        };
-        img.src = croppedDataUrl;
-    });
-}
 async function submitOrder() {
     const name = document.getElementById("name").value.trim();
     const mobile = document.getElementById("mobile").value.trim();
     if (!name || !mobile || !cachedFileObject) return alert("Fill details and select document.");
-    if (currentMode === "image" && !croppedDataUrl) return alert("Please click 'Save Crop & Clean' first.");
+    
+    // Stop submission if all images aren't cropped
+    if (currentMode === "image" && processedA4Images.length !== uploadedImagesList.length) {
+        return alert("Please crop and save all selected images first.");
+    }
 
     const submitBtn = document.getElementById("submitBtn");
     submitBtn.innerText = "Please wait...";
@@ -403,11 +432,18 @@ async function submitOrder() {
             processedBlob = new Blob([await outPdf.save()], { type: "application/pdf" });
             layoutVal = document.getElementById("layout_mode").value;
         } else {
-            processedBlob = await generateA4Blob();
-            finalMime = "image/jpeg";
+            // MULTI-IMAGE TO SINGLE PDF LOGIC
+            const pdfDoc = await PDFLib.PDFDocument.create();
+            for (let dataUrl of processedA4Images) {
+                const imgBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+                const image = await pdfDoc.embedJpg(imgBytes);
+                const page = pdfDoc.addPage([2480, 3508]);
+                page.drawImage(image, { x: 0, y: 0, width: 2480, height: 3508 });
+            }
+            processedBlob = new Blob([await pdfDoc.save()], { type: "application/pdf" });
         }
 
-        const ext = currentMode === "pdf" ? ".pdf" : ".jpg";
+        const ext = ".pdf";
         const pre = document.getElementById("type").value == 5 ? "bw_" : "color_";
         const fileName = `${Date.now()}_${pre}${cachedFileObject.name.split('.')[0] || "doc"}${ext}`;
 
