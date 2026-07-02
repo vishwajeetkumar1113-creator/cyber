@@ -377,30 +377,58 @@ function calculate() {
     
     document.getElementById("total").innerHTML = "Total: ₹" + (sheets * price * copies);
 }
+    function enhanceCroppedImageOnBrowser(canvasElement) {
+    if (typeof cv === 'undefined') return canvasElement;
+    try {
+        let src = cv.imread(canvasElement);
+        let labMat = new cv.Mat(), channels = new cv.MatVector(), cl = new cv.Mat();
+        cv.cvtColor(src, labMat, cv.COLOR_RGBA2RGB, 0);
+        cv.cvtColor(labMat, labMat, cv.COLOR_RGB2Lab, 0);
+        cv.split(labMat, channels);
+        let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+        clahe.apply(channels.get(0), cl);
+        channels.set(0, cl);
+        cv.merge(channels, labMat);
+        let enhancedRGB = new cv.Mat(), blurred = new cv.Mat(), dest = new cv.Mat();
+        cv.cvtColor(labMat, enhancedRGB, cv.COLOR_Lab2RGB, 0);
+        cv.GaussianBlur(enhancedRGB, blurred, new cv.Size(0, 0), 3, 3, cv.BORDER_DEFAULT);
+        cv.addWeighted(enhancedRGB, 1.5, blurred, -0.5, 0, dest);
+        cv.imshow(canvasElement, dest);
+        src.delete(); labMat.delete(); channels.delete(); cl.delete(); clahe.delete(); rgb.delete(); blurred.delete(); dest.delete();
+    } catch (e) { console.warn("Clean feature error:", e); }
+    return canvasElement;
+}
 
 // 🔲 Fit cropped image to A4 dynamically (Standard ID Card Size in top-center)
 async function generateA4Blob() {
     return new Promise((resolve) => {
-        const a4Cvs = document.createElement('canvas'); a4Cvs.width = 2480; a4Cvs.height = 3508;
-        const ctx = a4Cvs.getContext('2d'); ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, a4Cvs.width, a4Cvs.height);
+        const a4 = document.createElement('canvas'); 
+        a4.width = 2480; a4.height = 3508; // A4 Dimensions
+        const ctx = a4.getContext('2d'); 
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, a4.width, a4.height);
         
         const img = new Image();
         img.onload = () => {
-            const targetW = 1010; const targetH = 640;
-            const x = (a4Cvs.width - targetW) / 2;
-            const y = 200; // Place cleanly at top
+            // Auto-Fit Logic
+            const margin = 200; // Border margin
+            const maxW = a4.width - (margin * 2);
+            const maxH = a4.height - (margin * 2);
+            const ratio = Math.min(maxW / img.width, maxH / img.height);
+            const tw = img.width * ratio;
+            const th = img.height * ratio;
             
-            ctx.drawImage(img, x, y, targetW, targetH);
-
+            ctx.drawImage(img, (a4.width - tw) / 2, (a4.height - th) / 2, tw, th);
+            
+            // BW check
             if (document.getElementById("type").value == 5) {
-                const d = ctx.getImageData(0, 0, a4Cvs.width, a4Cvs.height);
+                const d = ctx.getImageData(0, 0, a4.width, a4.height);
                 for (let i = 0; i < d.data.length; i += 4) {
                     let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2];
-                    d.data[i] = g; d.data[i+1] = g; d.data[i+2] = g;
+                    d.data[i] = d.data[i+1] = d.data[i+2] = g;
                 }
                 ctx.putImageData(d, 0, 0);
             }
-            a4Cvs.toBlob(resolve, "image/jpeg", 0.95);
+            a4.toBlob(resolve, "image/jpeg", 0.95);
         };
         img.src = croppedDataUrl;
     });
