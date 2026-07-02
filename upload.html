@@ -304,24 +304,32 @@ function enhanceCroppedImageOnBrowser(canvasElement) {
 }
 
 function saveCrop() {
-    const s = cropEngine; if (!s.img) return alert("Upload image first.");
+    const s = cropEngine; 
+    if (!s.img) return alert("Upload image first.");
+    
+    // Aapke selection ke hisaab se dynamic size calculate karein
     const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
+    const p1 = mappedCorners[0], p2 = mappedCorners[1], p3 = mappedCorners[2], p4 = mappedCorners[3];
     
-    // High-Resolution Perspective Crop (856x540 Standard ID Size)
-    const targetW = 856, targetH = 540;
-    let hCvs = document.createElement('canvas'); hCvs.width = targetW; hCvs.height = targetH;
+    // Selection ki width aur height calculate karein
+    const width = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const height = Math.hypot(p4.x - p1.x, p4.y - p1.y);
+    
+    const hCvs = document.createElement('canvas'); 
+    hCvs.width = width; hCvs.height = height;
     const ctx = hCvs.getContext('2d');
-    const [p1, p2, p3, p4] = mappedCorners.map(c => [c.x/s.canvas.width, c.y/s.canvas.height]);
     
-    for (let y = 0; y < targetH; y++) {
-        for (let x = 0; x < targetW; x++) {
-            let u = x/targetW, v = y/targetH;
-            let topX = p1[0]+u*(p2[0]-p1[0]), topY = p1[1]+u*(p2[1]-p1[1]);
-            let botX = p4[0]+u*(p3[0]-p4[0]), botY = p4[1]+u*(p3[1]-p4[1]);
-            ctx.drawImage(s.img, (topX+v*(botX-topX))*s.img.width, (topY+v*(botY-topY))*s.img.height, 1, 1, x, y, 1, 1);
-        }
-    }
+    // Cropped image draw karein
+    ctx.drawImage(s.img, (p1.x/s.canvas.width)*s.img.width, (p1.y/s.canvas.height)*s.img.height, (width/s.canvas.width)*s.img.width, (height/s.canvas.height)*s.img.height, 0, 0, width, height);
 
+    // OpenCV Clean Logic (Ise waisa hi rehne dein)
+    enhanceCroppedImageOnBrowser(hCvs);
+
+    croppedDataUrl = hCvs.toDataURL("image/jpeg", 0.95);
+    document.getElementById("cropPreviewImg").src = croppedDataUrl;
+    document.getElementById("cropPreviewImg").style.display = "block";
+    applyPreviewFilter();
+}
     // 🔥 Apply PAN Clean Feature Here
     hCvs = enhanceCroppedImageOnBrowser(hCvs);
 
