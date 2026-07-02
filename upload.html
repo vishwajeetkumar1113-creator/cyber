@@ -18,7 +18,11 @@
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
         .preview-wrapper { width: 100%; max-width: 400px; height: 350px; margin: 15px auto; border: 2px dashed #1976d2; border-radius: 8px; background: #f8f9fa; overflow: auto; padding: 10px; }
         .preview-box { width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+        
+        /* 🚀 FIXED: 2-on-1 and 4-on-1 Grid Styles */
         .preview-box.layout-grid-2 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+        .preview-box.layout-grid-4 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+        
         .preview-box canvas { max-width: 100%; height: auto; display: block; border: 1px solid #ddd; border-radius: 4px; }
         .page-render-container { display: flex; flex-direction: column; align-items: center; width: 100%; }
         .canvas-container { position: relative; margin: 15px auto; width: 100%; max-width: 400px; background: #f5f5f5; border: 2px dashed #28a745; border-radius: 8px; overflow: hidden; }
@@ -33,7 +37,7 @@
 
 <body>
 <div class="card">
-    <h2>Upload A4 Document</h2>
+    <h2>Upload Document</h2>
 
     <input type="text" id="name" class="input-group" placeholder="Customer Name" required>
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number" required>
@@ -46,7 +50,7 @@
     <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #90caf9;">
         <label style="color: #1565c0;">Image Print Size:</label>
         <select id="docType">
-            <option value="full">Full Page (Marksheet / Receipt)</option>
+            <option value="full">Full Page (Marksheet / Poster)</option>
         </select>
     </div>
 
@@ -65,6 +69,7 @@
             <select id="layout_mode" onchange="calculate(); updateLivePreviewGrid();">
                 <option value="1">1 Page Per Sheet (Standard)</option>
                 <option value="2">2 Pages Per Sheet</option>
+                <option value="4">4 Pages Per Sheet</option>
             </select>
         </div>
     </div>
@@ -115,7 +120,7 @@ let activeRenderTaskId = 0;
 // Variables for Multi-Image Processing
 let uploadedImagesList = [];
 let currentImageIndex = 0;
-let processedA4Images = []; // Stores cropped A4 pages
+let processedA4Images = []; 
 
 const cropEngine = { canvas: document.getElementById('cropCanvas'), ctx: document.getElementById('cropCanvas').getContext('2d'), img: null, corners: [], activeCorner: -1, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 };
 
@@ -139,7 +144,7 @@ async function handleFileSelectionChange() {
     } 
     else if (files[0].type.startsWith("image/")) {
         currentMode = "image";
-        cachedFileObject = files[0]; // For filename reference
+        cachedFileObject = files[0]; 
         uploadedImagesList = Array.from(files).filter(f => f.type.startsWith('image/'));
         currentImageIndex = 0;
         processedA4Images = [];
@@ -191,7 +196,10 @@ function updateLivePreviewGrid() {
     const layoutMode = document.getElementById("layout_mode").value;
     const previewBox = document.getElementById("docPreview");
     previewBox.className = "preview-box"; 
+    
+    // 🚀 FIXED: 2-on-1 and 4-on-1 Grid JS Support
     if (layoutMode === "2") previewBox.classList.add("layout-grid-2");
+    if (layoutMode === "4") previewBox.classList.add("layout-grid-4");
 }
 
 function parsePageSelection(pageInput) {
@@ -306,8 +314,9 @@ async function saveCropAndNext() {
         Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[1])*s.img.height)
     ));
 
-    if (targetW > 2000 || targetH > 2000) {
-        const scale = 2000 / Math.max(targetW, targetH);
+    // 🚀 FIXED: Speed Optimization (Max 1200px limit for fast OpenCV processing)
+    if (targetW > 1200 || targetH > 1200) {
+        const scale = 1200 / Math.max(targetW, targetH);
         targetW = Math.round(targetW * scale);
         targetH = Math.round(targetH * scale);
     }
@@ -347,13 +356,13 @@ async function saveCropAndNext() {
 async function convertToA4(imgSrc) {
     return new Promise(resolve => {
         const a4 = document.createElement('canvas'); 
-        a4.width = 2480; a4.height = 3508; // Standard A4 Size
+        a4.width = 2480; a4.height = 3508; 
         const ctx = a4.getContext('2d'); 
         ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
         
         const img = new Image();
         img.onload = () => {
-            // ZERO MARGIN LOGIC (Stretch to fill A4 Exactly as requested)
+            // Edge-to-edge Stretch Logic (Zero Margin)
             ctx.drawImage(img, 0, 0, a4.width, a4.height);
             
             if (document.getElementById("type").value == 5) {
@@ -372,104 +381,4 @@ async function convertToA4(imgSrc) {
 
 function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
 cropEngine.canvas.addEventListener('touchstart', e=>{ const s=cropEngine; if(e.touches.length===2){ s.activeCorner=-1; s.isPanning=false; s.lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); s.lastTouchX=(e.touches[0].clientX+e.touches[1].clientX)/2; s.lastTouchY=(e.touches[0].clientY+e.touches[1].clientY)/2; } else if(e.touches.length===1){ const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY;} } }, {passive:false});
-cropEngine.canvas.addEventListener('touchmove', e=>{ const s=cropEngine; e.preventDefault(); if(e.touches.length===2){ const cDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2; let nz=s.zoom*(cDist/s.lastTouchDist); nz=Math.max(1,Math.min(8,nz)); const r=s.canvas.getBoundingClientRect(); const rx=(cx-r.left)*(s.canvas.width/r.width), ry=(cy-r.top)*(s.canvas.height/r.height); s.offsetX=rx-(rx-s.offsetX)*(nz/s.zoom); s.offsetY=ry-(ry-s.offsetY)*(nz/s.zoom); s.zoom=nz; s.offsetX+=(cx-s.lastTouchX); s.offsetY+=(cy-s.lastTouchY); s.lastTouchDist=cDist; s.lastTouchX=cx; s.lastTouchY=cy; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); } else if(e.touches.length===1){ if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.touches[0].clientX-s.lastTouchX); s.offsetY+=(e.touches[0].clientY-s.lastTouchY); s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY; drawCrop(); } } }, {passive:false});
-window.addEventListener('touchend', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
-cropEngine.canvas.addEventListener('mousedown', e=>{ const s=cropEngine; const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.clientX; s.lastTouchY=e.clientY;} });
-cropEngine.canvas.addEventListener('mousemove', e=>{ const s=cropEngine; if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.clientX-s.lastTouchX); s.offsetY+=(e.clientY-s.lastTouchY); s.lastTouchX=e.clientX; s.lastTouchY=e.clientY; drawCrop(); } });
-window.addEventListener('mouseup', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
-cropEngine.canvas.addEventListener('wheel', e=>{ e.preventDefault(); const s=cropEngine; const m=getPos(e); let nz=e.deltaY<0?s.zoom*1.1:s.zoom/1.1; nz=Math.max(1,Math.min(8,nz)); s.offsetX=m.x-(m.x-s.offsetX)*(nz/s.zoom); s.offsetY=m.y-(m.y-s.offsetY)*(nz/s.zoom); s.zoom=nz; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); }, {passive:false});
-
-function applyPreviewFilter() {
-    const isBw = document.getElementById("type").value == 5;
-    if (document.getElementById("previewWrapperFrame")) {
-        document.getElementById("previewWrapperFrame").classList.toggle("force-grayscale", isBw);
-    }
-}
-
-function calculate() {
-    let copies = parseInt(document.getElementById("copies").value) || 1;
-    let price = parseInt(document.getElementById("type").value);
-    let sheets = 1;
-    
-    if (currentMode === "pdf") {
-        let layoutDivisor = parseInt(document.getElementById("layout_mode").value) || 1;
-        let selectedPages = parsePageSelection(document.getElementById("pages").value);
-        let totalPages = selectedPages !== null && selectedPages.length > 0 ? selectedPages.length : totalDetectedPDFPages;
-        sheets = Math.ceil(totalPages / layoutDivisor);
-    } else if (currentMode === "image") {
-        sheets = uploadedImagesList.length || 1;
-    }
-    
-    document.getElementById("total").innerHTML = "Total: ₹" + (sheets * price * copies);
-}
-
-async function submitOrder() {
-    const name = document.getElementById("name").value.trim();
-    const mobile = document.getElementById("mobile").value.trim();
-    if (!name || !mobile || !cachedFileObject) return alert("Fill details and select document.");
-    
-    // Stop submission if all images aren't cropped
-    if (currentMode === "image" && processedA4Images.length !== uploadedImagesList.length) {
-        return alert("Please crop and save all selected images first.");
-    }
-
-    const submitBtn = document.getElementById("submitBtn");
-    submitBtn.innerText = "Please wait...";
-    submitBtn.disabled = true;
-
-    try {
-        let processedBlob = null;
-        let finalMime = "application/pdf";
-        let layoutVal = 1;
-
-        if (currentMode === "pdf") {
-            const srcPdfDoc = await PDFLib.PDFDocument.load(await cachedFileObject.arrayBuffer());
-            let pagesSel = parsePageSelection(document.getElementById("pages").value);
-            let indices = pagesSel ? pagesSel.filter(p => p <= srcPdfDoc.getPageCount()).map(p => p - 1) : Array.from({length: srcPdfDoc.getPageCount()}, (_, i) => i);
-            const outPdf = await PDFLib.PDFDocument.create();
-            const copied = await outPdf.copyPages(srcPdfDoc, indices);
-            copied.forEach(p => outPdf.addPage(p));
-            processedBlob = new Blob([await outPdf.save()], { type: "application/pdf" });
-            layoutVal = document.getElementById("layout_mode").value;
-        } else {
-            // MULTI-IMAGE TO SINGLE PDF LOGIC
-            const pdfDoc = await PDFLib.PDFDocument.create();
-            for (let dataUrl of processedA4Images) {
-                const imgBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
-                const image = await pdfDoc.embedJpg(imgBytes);
-                const page = pdfDoc.addPage([2480, 3508]);
-                page.drawImage(image, { x: 0, y: 0, width: 2480, height: 3508 });
-            }
-            processedBlob = new Blob([await pdfDoc.save()], { type: "application/pdf" });
-        }
-
-        const ext = ".pdf";
-        const pre = document.getElementById("type").value == 5 ? "bw_" : "color_";
-        const fileName = `${Date.now()}_${pre}${cachedFileObject.name.split('.')[0] || "doc"}${ext}`;
-
-        const { error: uploadError } = await client.storage.from("documents").upload(fileName, processedBlob, { contentType: finalMime, upsert: true });
-        if (uploadError) throw uploadError;
-
-        const copies = document.getElementById("copies").value;
-        const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
-        const printStr = `${document.getElementById("type").options[document.getElementById("type").selectedIndex].text}`;
-
-        const { data: order, error } = await client.from("orders").insert([{
-            customer_name: name, mobile: mobile, pages: copies, print_type: printStr, amount: amount,
-            file_url: client.storage.from("documents").getPublicUrl(fileName).data.publicUrl, payment_status: "Pending", layout_mode: layoutVal
-        }]).select();
-
-        if (error) throw error;
-        localStorage.setItem("amount", amount); localStorage.setItem("mobile", mobile); localStorage.setItem("current_order_id", order[0].id);
-        window.location.href = "payment.html";
-
-    } catch (err) {
-        alert(err.message);
-        submitBtn.innerText = "Submit Order";
-        submitBtn.disabled = false;
-    }
-}
-</script>
-
-</body>
-</html>
+cropEngine.canvas.addEventListener('touchmove', e=>{ const s=cropEngine; e.prev
