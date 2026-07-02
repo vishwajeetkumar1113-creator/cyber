@@ -402,38 +402,47 @@ function calculate() {
 // 🔲 Fit cropped image to A4 dynamically (Standard ID Card Size in top-center)
 async function generateA4Blob() {
     return new Promise((resolve) => {
-        const a4 = document.createElement('canvas'); 
-        a4.width = 2480; a4.height = 3508; // A4 Dimensions
-        const ctx = a4.getContext('2d'); 
-        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, a4.width, a4.height);
+        const a4Cvs = document.createElement('canvas'); 
+        a4Cvs.width = 2480; a4Cvs.height = 3508; // Standard A4 Resolution
+        const ctx = a4Cvs.getContext('2d'); 
+        
+        // Background white set karein
+        ctx.fillStyle = '#FFFFFF'; 
+        ctx.fillRect(0, 0, a4Cvs.width, a4Cvs.height);
         
         const img = new Image();
         img.onload = () => {
-            // Auto-Fit Logic
-            const margin = 200; // Border margin
-            const maxW = a4.width - (margin * 2);
-            const maxH = a4.height - (margin * 2);
+            // Margin rakhein taaki print mein edge na kate
+            const margin = 200; 
+            const maxW = a4Cvs.width - (margin * 2);
+            const maxH = a4Cvs.height - (margin * 2);
+            
+            // Aspect Ratio maintain karte hue scale calculate karein
             const ratio = Math.min(maxW / img.width, maxH / img.height);
-            const tw = img.width * ratio;
-            const th = img.height * ratio;
+            const drawW = img.width * ratio;
+            const drawH = img.height * ratio;
             
-            ctx.drawImage(img, (a4.width - tw) / 2, (a4.height - th) / 2, tw, th);
+            // Center mein position calculate karein
+            const x = (a4Cvs.width - drawW) / 2;
+            const y = (a4Cvs.height - drawH) / 2;
             
-            // BW check
+            // Image draw karein
+            ctx.drawImage(img, x, y, drawW, drawH);
+
+            // B&W filter (agar select kiya ho)
             if (document.getElementById("type").value == 5) {
-                const d = ctx.getImageData(0, 0, a4.width, a4.height);
+                const d = ctx.getImageData(0, 0, a4Cvs.width, a4Cvs.height);
                 for (let i = 0; i < d.data.length; i += 4) {
                     let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2];
                     d.data[i] = d.data[i+1] = d.data[i+2] = g;
                 }
                 ctx.putImageData(d, 0, 0);
             }
-            a4.toBlob(resolve, "image/jpeg", 0.95);
+            a4Cvs.toBlob(resolve, "image/jpeg", 0.95);
         };
         img.src = croppedDataUrl;
     });
 }
-
 async function submitOrder() {
     const name = document.getElementById("name").value.trim();
     const mobile = document.getElementById("mobile").value.trim();
