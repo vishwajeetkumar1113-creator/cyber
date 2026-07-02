@@ -401,25 +401,37 @@ function calculate() {
 
 // 🔲 Fit cropped image to A4 dynamically (Standard ID Card Size in top-center)
 async function generateA4Blob() {
-    return new Promise(resolve => {
-        const a4 = document.createElement('canvas'); a4.width = 2480; a4.height = 3508;
-        const ctx = a4.getContext('2d'); ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
+    return new Promise((resolve) => {
+        const a4 = document.createElement('canvas'); 
+        a4.width = 2480; a4.height = 3508; // Standard A4 Resolution
+        const ctx = a4.getContext('2d'); 
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, a4.width, a4.height);
+        
         const img = new Image();
         img.onload = () => {
-            // A4 page ke margins ke hisaab se fit karna
-            const margin = 200;
-            const targetW = a4.width - (margin * 2);
-            const targetH = a4.height - (margin * 2);
-            const ratio = Math.min(targetW / img.width, targetH / img.height);
+            // Margin rakhein taaki print mein edge na kate
+            const margin = 200; 
+            const maxW = a4.width - (margin * 2);
+            const maxH = a4.height - (margin * 2);
+            
+            // Aspect Ratio maintain karte hue scale calculate karein (Auto-Fit)
+            const ratio = Math.min(maxW / img.width, maxH / img.height);
             const drawW = img.width * ratio;
             const drawH = img.height * ratio;
-            ctx.drawImage(img, (a4.width - drawW)/2, (a4.height - drawH)/2, drawW, drawH);
             
-            // BW Conversion
+            // Center mein position calculate karein
+            const x = (a4.width - drawW) / 2;
+            const y = (a4.height - drawH) / 2;
+            
+            ctx.drawImage(img, x, y, drawW, drawH);
+
             if (document.getElementById("type").value == 5) {
-                const d = ctx.getImageData(0,0,a4.width,a4.height);
-                for(let i=0; i<d.data.length; i+=4){ let g=0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2]; d.data[i]=d.data[i+1]=d.data[i+2]=g; }
-                ctx.putImageData(d,0,0);
+                const d = ctx.getImageData(0, 0, a4.width, a4.height);
+                for (let i = 0; i < d.data.length; i += 4) {
+                    let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2];
+                    d.data[i] = d.data[i+1] = d.data[i+2] = g;
+                }
+                ctx.putImageData(d, 0, 0);
             }
             a4.toBlob(resolve, "image/jpeg", 0.95);
         };
