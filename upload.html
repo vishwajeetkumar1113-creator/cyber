@@ -335,25 +335,15 @@ async function saveCropAndNext() {
         }
     }
 
-    // 🚀 NEW MAGIC: Brightness, Contrast & Sharpening (Scanner Effect)
     if (typeof cv !== 'undefined') {
         try {
-            let src = cv.imread(hCvs);
-            let dest = new cv.Mat();
-            
-            // 1. Brightness aur Contrast badhana 
-            // alpha = 1.4 (Contrast boost for dark text)
-            // beta = 50 (Brightness boost to clear dark/muddy background)
-            src.convertTo(dest, -1, 1.4, 50);
-
-            // 2. Text ko sharp aur crisp karne ke liye (Unsharp Mask)
-            let blurred = new cv.Mat();
-            cv.GaussianBlur(dest, blurred, new cv.Size(0, 0), 3, 3, cv.BORDER_DEFAULT);
-            cv.addWeighted(dest, 1.5, blurred, -0.5, 0, dest); 
-            
-            cv.imshow(hCvs, dest);
-
-            src.delete(); dest.delete(); blurred.delete();
+            let src = cv.imread(hCvs); let labMat = new cv.Mat(), channels = new cv.MatVector(), cl = new cv.Mat();
+            cv.cvtColor(src, labMat, cv.COLOR_RGBA2RGB, 0); cv.cvtColor(labMat, labMat, cv.COLOR_RGB2Lab, 0); cv.split(labMat, channels);
+            let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8)); clahe.apply(channels.get(0), cl); channels.set(0, cl); cv.merge(channels, labMat);
+            let enhancedRGB = new cv.Mat(), blurred = new cv.Mat(), dest = new cv.Mat();
+            cv.cvtColor(labMat, enhancedRGB, cv.COLOR_Lab2RGB, 0); cv.GaussianBlur(enhancedRGB, blurred, new cv.Size(0, 0), 3, 3, cv.BORDER_DEFAULT);
+            cv.addWeighted(enhancedRGB, 1.5, blurred, -0.5, 0, dest); cv.imshow(hCvs, dest);
+            src.delete(); labMat.delete(); channels.delete(); cl.delete(); clahe.delete(); enhancedRGB.delete(); blurred.delete(); dest.delete();
         } catch (e) { console.warn("CV Error", e); }
     }
 
@@ -375,18 +365,10 @@ async function convertToA4(imgSrc) {
         const img = new Image();
         img.onload = () => {
             ctx.drawImage(img, 0, 0, a4.width, a4.height);
-            
-            // 🚀 NEW MAGIC: Smart B/W Grayscale with Pure White Background
             if (document.getElementById("type").value == 5) {
                 const d = ctx.getImageData(0,0,a4.width,a4.height);
                 for(let i=0; i<d.data.length; i+=4){ 
                     let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2]; 
-                    
-                    // Agar color light gray hai, toh usko seedha Pure White kar do (Ink Saver)
-                    if (g > 190) g = 255; 
-                    // Agar color dark hai (text), toh usko aur thoda black kar do
-                    else if (g < 100) g = Math.max(0, g - 15);
-                    
                     d.data[i] = d.data[i+1] = d.data[i+2] = g; 
                 }
                 ctx.putImageData(d,0,0);
