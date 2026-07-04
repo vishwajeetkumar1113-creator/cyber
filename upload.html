@@ -41,7 +41,7 @@
     <input type="text" id="name" class="input-group" placeholder="Customer Name" required>
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number" required>
     
-    <!-- 🟢 PRINT TYPE KO UPAR LE AAYE -->
+    <!-- 🟢 LOGICAL FIX: Print Type Dropdown Moved UP -->
     <div class="input-group" style="background: #fff3e0; padding: 10px; border-radius: 6px; border: 1px solid #ffcc80;">
         <label style="color: #e65100; font-size: 15px;">1. Select Print Type First:</label>
         <select id="type" onchange="calculate(); applyPreviewFilter();" style="border: 2px solid #ff9800; font-weight: bold;">
@@ -49,7 +49,6 @@
             <option value="10">Color (₹10 / page)</option>
         </select>
     </div>
-    <!-- 🟢 ======================== -->
 
     <div class="input-group">
         <label>2. Select File(s) (PDF or Multiple Images):</label>
@@ -104,13 +103,6 @@
     <div class="input-group">
         <label>Number of Copies:</label>
         <input type="number" id="copies" value="1" min="1" oninput="calculate()">
-    </div>
-    <div class="input-group">
-        <label>Print Type:</label>
-        <select id="type" onchange="calculate(); applyPreviewFilter();">
-            <option value="5">Black & White (₹5 / page)</option>
-            <option value="10">Color (₹10 / page)</option>
-        </select>
     </div>
 
     <h3 id="total" style="text-align:center;">Total: ₹5</h3>
@@ -172,7 +164,6 @@ function loadCurrentImageForCrop() {
 
     document.getElementById("imageStatus").innerText = `Cropping Image ${currentImageIndex + 1} of ${uploadedImagesList.length}`;
     
-    // 🚀 Reset UI Button
     const btn = document.getElementById("saveCropBtn");
     btn.disabled = false;
     btn.style.opacity = "1";
@@ -181,69 +172,61 @@ function loadCurrentImageForCrop() {
     const reader = new FileReader();
     reader.onload = e => {
         const img = new Image();
-       img.onload = () => {
+        img.onload = () => {
             cropEngine.img = img;
             
-            // Canvas ka size set karna
             const w = 400;
             const h = (img.height * 400) / img.width;
             cropEngine.canvas.width = w;
             cropEngine.canvas.height = h;
             
-            // Default corners (Agar document detect na ho paye toh ye use honge)
             let defaultCorners = [{x:30, y:30}, {x:w-30, y:30}, {x:w-30, y:h-30}, {x:30, y:h-30}];
             cropEngine.corners = defaultCorners;
 
             // 🚀 SMART EDGE DETECTION START 🚀
-            if (typeof cv !== 'undefined') {
+            if (typeof cv !== 'undefined' && typeof cv.imread === 'function') {
                 try {
-                    // OpenCV ke liye ek temporary canvas banakar image draw karein
                     let tempCanvas = document.createElement('canvas');
                     tempCanvas.width = w; tempCanvas.height = h;
-                    let ctx = tempCanvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, w, h);
+                    tempCanvas.getContext('2d').drawImage(img, 0, 0, w, h);
 
                     let src = cv.imread(tempCanvas);
-                    let dst = new cv.Mat();
+                    let gray = new cv.Mat();
                     
-                    // Image ko Black & White karke blur karna (taaki noise khatam ho)
-                    cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
-                    cv.GaussianBlur(dst, dst, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-                    
-                    // Canny Edge Detection (Kinare dhoondhna)
-                    cv.Canny(dst, dst, 75, 200);
+                    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+                    cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+                    cv.Canny(gray, gray, 75, 200);
 
                     let contours = new cv.MatVector();
                     let hierarchy = new cv.Mat();
-                    cv.findContours(dst, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+                    cv.findContours(gray, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                     let maxArea = 0;
                     let bestApprox = new cv.Mat();
                     
-                    // Sabse bada 4-kone wala aakar (shape) dhoondhna
                     for (let i = 0; i < contours.size(); ++i) {
                         let cnt = contours.get(i);
                         let area = cv.contourArea(cnt);
-                        let peri = cv.arcLength(cnt, true);
-                        let approx = new cv.Mat();
-                        cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
                         
-                        // Agar shape ke 4 kone hain aur wo sabse bada hai
-                        if (approx.rows === 4 && area > maxArea) {
-                            maxArea = area;
-                            approx.copyTo(bestApprox);
+                        if (area > maxArea) {
+                            let peri = cv.arcLength(cnt, true);
+                            let approx = new cv.Mat();
+                            cv.approxPolyDP(cnt, approx, 0.05 * peri, true);
+                            
+                            if (approx.rows === 4) {
+                                maxArea = area;
+                                approx.copyTo(bestApprox);
+                            }
+                            approx.delete();
                         }
-                        approx.delete();
                     }
 
-                    // Agar document ka size puri image ke 10% se bada hai, tabhi apply karein
                     if (maxArea > (w * h * 0.1)) { 
                         let pts = [];
                         for (let i = 0; i < 4; i++) {
                             pts.push({ x: bestApprox.data32S[i * 2], y: bestApprox.data32S[i * 2 + 1] });
                         }
                         
-                        // Konon (Corners) ko sahi order mein lagana: Top-Left, Top-Right, Bottom-Right, Bottom-Left
                         pts.sort((a, b) => a.y - b.y); 
                         let top = pts.slice(0, 2).sort((a, b) => a.x - b.x); 
                         let bottom = pts.slice(2, 4).sort((a, b) => b.x - a.x); 
@@ -251,10 +234,9 @@ function loadCurrentImageForCrop() {
                         cropEngine.corners = [top[0], top[1], bottom[0], bottom[1]];
                     }
 
-                    // Memory clean karna
-                    src.delete(); dst.delete(); contours.delete(); hierarchy.delete(); bestApprox.delete();
-                } catch (e) {
-                    console.warn("Auto-Crop failed, default corners applied.", e);
+                    src.delete(); gray.delete(); contours.delete(); hierarchy.delete(); bestApprox.delete();
+                } catch (err) {
+                    console.log("Auto-Detect skip hua, normal crop on hai.", err);
                 }
             }
             // 🚀 SMART EDGE DETECTION END 🚀
@@ -372,13 +354,11 @@ function drawCrop() {
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
-    // 🚀 UI Update (Fading Effect for Processing feedback)
     const btn = document.getElementById("saveCropBtn");
     btn.disabled = true;
     btn.style.opacity = "0.5";
     btn.innerText = "Processing...";
 
-    // Pause for 50ms so browser updates button UI before heavy freezing task
     await new Promise(resolve => setTimeout(resolve, 50));
 
     const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
@@ -397,7 +377,6 @@ async function saveCropAndNext() {
         Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[1])*s.img.height)
     ));
 
-    // 🚀 Super Fast Speed Limit (1000px maximum)
     if (targetW > 1000 || targetH > 1000) {
         const scale = 1000 / Math.max(targetW, targetH);
         targetW = Math.round(targetW * scale);
@@ -416,12 +395,10 @@ async function saveCropAndNext() {
         }
     }
 
- if (typeof cv !== 'undefined') {
-        // Pata lagao ki customer ne kya select kiya hai (5 = B/W, 10 = Color)
+    if (typeof cv !== 'undefined') {
         let printType = document.getElementById("type").value; 
 
         if (printType == "5") {
-            // ⬛ B/W Ke Liye: Hard Xerox/CamScanner Effect
             let src, bg, diff, dest, scalar;
             try {
                 src = cv.imread(hCvs);
@@ -443,15 +420,11 @@ async function saveCropAndNext() {
                 if (dest) dest.delete(); if (scalar) scalar.delete();
             }
         } else {
-            // 🎨 Color Ke Liye: Gentle Brightness & Contrast (Colors ekdum safe rahenge)
             let src, dest;
             try {
                 src = cv.imread(hCvs);
                 dest = new cv.Mat();
                 cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
-                
-                // Alpha (1.15) = Halka sa Contrast badhayega
-                // Beta (10) = Halki si Brightness badhayega (Background white karne ke liye)
                 cv.convertScaleAbs(src, dest, 1.15, 10); 
                 cv.imshow(hCvs, dest);
             } catch (e) { 
@@ -536,7 +509,6 @@ async function submitOrder() {
         return alert("Please crop and save all selected images first.");
     }
 
-    // 🚀 UI Update (Fading Effect for Uploading feedback)
     const submitBtn = document.getElementById("submitBtn");
     submitBtn.innerText = "Uploading... Please wait";
     submitBtn.disabled = true;
