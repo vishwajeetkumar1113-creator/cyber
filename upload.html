@@ -421,7 +421,11 @@ async function saveCropAndNext() {
 
                 cv.GaussianBlur(src, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
                 cv.subtract(bg, src, diff);
-                cv.convertScaleAbs(diff, diff, 2.0, 0);
+                
+                // 🟢 MAIN CHANGE YAHAN HAI: 2.0 ki jagah 2.5 kar diya gaya hai
+                // (Agar aur dark chahiye toh 2.8 ya 3.0 karke dekh sakte hain)
+                cv.convertScaleAbs(diff, diff, 2.8, 0); 
+                
                 cv.subtract(scalar, diff, dest);
                 cv.imshow(hCvs, dest);
             } catch (e) { 
@@ -430,7 +434,8 @@ async function saveCropAndNext() {
                 if (src) src.delete(); if (bg) bg.delete(); if (diff) diff.delete(); 
                 if (dest) dest.delete(); if (scalar) scalar.delete();
             }
-        } else {
+        }
+        else {
             let src, dest;
             try {
                 src = cv.imread(hCvs);
