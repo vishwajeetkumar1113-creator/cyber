@@ -406,42 +406,49 @@ async function saveCropAndNext() {
         }
     }
 
-   if (typeof cv !== 'undefined') {
-        let src, bg, diff, dest, scalar;
-        try {
-            src = cv.imread(hCvs);
-            // Alpha channel hatakar pure RGB mein convert karein
-            cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0); 
+ if (typeof cv !== 'undefined') {
+        // Pata lagao ki customer ne kya select kiya hai (5 = B/W, 10 = Color)
+        let printType = document.getElementById("type").value; 
 
-            bg = new cv.Mat();
-            diff = new cv.Mat();
-            dest = new cv.Mat();
-            scalar = new cv.Mat(src.rows, src.cols, src.type(), new cv.Scalar(255, 255, 255));
+        if (printType == "5") {
+            // ⬛ B/W Ke Liye: Hard Xerox/CamScanner Effect
+            let src, bg, diff, dest, scalar;
+            try {
+                src = cv.imread(hCvs);
+                cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0); 
+                bg = new cv.Mat();
+                diff = new cv.Mat();
+                dest = new cv.Mat();
+                scalar = new cv.Mat(src.rows, src.cols, src.type(), new cv.Scalar(255, 255, 255));
 
-            // 1. Image ki dark shadows aur kharab lighting ka andaza lagana (Heavy Blur)
-            cv.GaussianBlur(src, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
-
-            // 2. Background se original image ko ghatao (Isse sirf text nikal kar aayega)
-            cv.subtract(bg, src, diff);
-
-            // 3. Text ko dark karne ke liye power badhao (2.0 ki jagah 1.5 ya 2.5 bhi karke dekh sakte hain)
-            cv.convertScaleAbs(diff, diff, 2.0, 0);
-
-            // 4. Invert kardo: 255 - diff (Isse page ekdum safed aur text dark ho jayega)
-            cv.subtract(scalar, diff, dest);
-
-            // Canvas par clean image wapas daal do
-            cv.imshow(hCvs, dest);
-            
-        } catch (e) { 
-            console.warn("CV Error", e); 
-        } finally {
-            // Memory saaf karna bohot zaroori hai warna browser hang ho jayega
-            if (src) src.delete(); 
-            if (bg) bg.delete(); 
-            if (diff) diff.delete(); 
-            if (dest) dest.delete(); 
-            if (scalar) scalar.delete();
+                cv.GaussianBlur(src, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
+                cv.subtract(bg, src, diff);
+                cv.convertScaleAbs(diff, diff, 2.0, 0);
+                cv.subtract(scalar, diff, dest);
+                cv.imshow(hCvs, dest);
+            } catch (e) { 
+                console.warn("CV Error", e); 
+            } finally {
+                if (src) src.delete(); if (bg) bg.delete(); if (diff) diff.delete(); 
+                if (dest) dest.delete(); if (scalar) scalar.delete();
+            }
+        } else {
+            // 🎨 Color Ke Liye: Gentle Brightness & Contrast (Colors ekdum safe rahenge)
+            let src, dest;
+            try {
+                src = cv.imread(hCvs);
+                dest = new cv.Mat();
+                cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
+                
+                // Alpha (1.15) = Halka sa Contrast badhayega
+                // Beta (10) = Halki si Brightness badhayega (Background white karne ke liye)
+                cv.convertScaleAbs(src, dest, 1.15, 10); 
+                cv.imshow(hCvs, dest);
+            } catch (e) { 
+                console.warn("CV Error", e); 
+            } finally {
+                if (src) src.delete(); if (dest) dest.delete();
+            }
         }
     }
 
