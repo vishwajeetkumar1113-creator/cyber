@@ -171,13 +171,84 @@ function loadCurrentImageForCrop() {
     const reader = new FileReader();
     reader.onload = e => {
         const img = new Image();
-        img.onload = () => {
+       img.onload = () => {
             cropEngine.img = img;
-            cropEngine.canvas.width = 400;
-            cropEngine.canvas.height = (img.height * 400) / img.width;
-            const w = cropEngine.canvas.width; 
-            const h = cropEngine.canvas.height;
-            cropEngine.corners = [{x:30, y:30}, {x:w-30, y:30}, {x:w-30, y:h-30}, {x:30, y:h-30}];
+            
+            // Canvas ka size set karna
+            const w = 400;
+            const h = (img.height * 400) / img.width;
+            cropEngine.canvas.width = w;
+            cropEngine.canvas.height = h;
+            
+            // Default corners (Agar document detect na ho paye toh ye use honge)
+            let defaultCorners = [{x:30, y:30}, {x:w-30, y:30}, {x:w-30, y:h-30}, {x:30, y:h-30}];
+            cropEngine.corners = defaultCorners;
+
+            // 🚀 SMART EDGE DETECTION START 🚀
+            if (typeof cv !== 'undefined') {
+                try {
+                    // OpenCV ke liye ek temporary canvas banakar image draw karein
+                    let tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = w; tempCanvas.height = h;
+                    let ctx = tempCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+
+                    let src = cv.imread(tempCanvas);
+                    let dst = new cv.Mat();
+                    
+                    // Image ko Black & White karke blur karna (taaki noise khatam ho)
+                    cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
+                    cv.GaussianBlur(dst, dst, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+                    
+                    // Canny Edge Detection (Kinare dhoondhna)
+                    cv.Canny(dst, dst, 75, 200);
+
+                    let contours = new cv.MatVector();
+                    let hierarchy = new cv.Mat();
+                    cv.findContours(dst, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+                    let maxArea = 0;
+                    let bestApprox = new cv.Mat();
+                    
+                    // Sabse bada 4-kone wala aakar (shape) dhoondhna
+                    for (let i = 0; i < contours.size(); ++i) {
+                        let cnt = contours.get(i);
+                        let area = cv.contourArea(cnt);
+                        let peri = cv.arcLength(cnt, true);
+                        let approx = new cv.Mat();
+                        cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+                        
+                        // Agar shape ke 4 kone hain aur wo sabse bada hai
+                        if (approx.rows === 4 && area > maxArea) {
+                            maxArea = area;
+                            approx.copyTo(bestApprox);
+                        }
+                        approx.delete();
+                    }
+
+                    // Agar document ka size puri image ke 10% se bada hai, tabhi apply karein
+                    if (maxArea > (w * h * 0.1)) { 
+                        let pts = [];
+                        for (let i = 0; i < 4; i++) {
+                            pts.push({ x: bestApprox.data32S[i * 2], y: bestApprox.data32S[i * 2 + 1] });
+                        }
+                        
+                        // Konon (Corners) ko sahi order mein lagana: Top-Left, Top-Right, Bottom-Right, Bottom-Left
+                        pts.sort((a, b) => a.y - b.y); 
+                        let top = pts.slice(0, 2).sort((a, b) => a.x - b.x); 
+                        let bottom = pts.slice(2, 4).sort((a, b) => b.x - a.x); 
+                        
+                        cropEngine.corners = [top[0], top[1], bottom[0], bottom[1]];
+                    }
+
+                    // Memory clean karna
+                    src.delete(); dst.delete(); contours.delete(); hierarchy.delete(); bestApprox.delete();
+                } catch (e) {
+                    console.warn("Auto-Crop failed, default corners applied.", e);
+                }
+            }
+            // 🚀 SMART EDGE DETECTION END 🚀
+
             cropEngine.rotation = 0; 
             cropEngine.originalSrc = e.target.result;
             resetZoom();
