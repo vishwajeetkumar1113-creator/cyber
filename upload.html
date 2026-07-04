@@ -301,6 +301,17 @@ async function previewDocument() {
             canvas.width = viewport.width;
             canvas.height = viewport.height;
             pageWrapper.appendChild(canvas);
+
+            // 🟢 NEW CODE: Har page ke neeche Page Number dikhane ke liye
+            const pageLabel = document.createElement('div');
+            pageLabel.innerText = `Page ${pageNum}`;
+            pageLabel.style.fontSize = "13px";
+            pageLabel.style.color = "#555";
+            pageLabel.style.fontWeight = "bold";
+            pageLabel.style.marginTop = "8px";
+            pageWrapper.appendChild(pageLabel);
+            // 🟢 =======================================================
+
             previewContainer.appendChild(pageWrapper);
             await page.render({ canvasContext: context, viewport: viewport }).promise;
         }
