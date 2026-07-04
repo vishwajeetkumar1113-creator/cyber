@@ -336,15 +336,42 @@ async function saveCropAndNext() {
     }
 
     if (typeof cv !== 'undefined') {
+        let src, bg, diff, dest, scalar;
         try {
-            let src = cv.imread(hCvs); let labMat = new cv.Mat(), channels = new cv.MatVector(), cl = new cv.Mat();
-            cv.cvtColor(src, labMat, cv.COLOR_RGBA2RGB, 0); cv.cvtColor(labMat, labMat, cv.COLOR_RGB2Lab, 0); cv.split(labMat, channels);
-            let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8)); clahe.apply(channels.get(0), cl); channels.set(0, cl); cv.merge(channels, labMat);
-            let enhancedRGB = new cv.Mat(), blurred = new cv.Mat(), dest = new cv.Mat();
-            cv.cvtColor(labMat, enhancedRGB, cv.COLOR_Lab2RGB, 0); cv.GaussianBlur(enhancedRGB, blurred, new cv.Size(0, 0), 3, 3, cv.BORDER_DEFAULT);
-            cv.addWeighted(enhancedRGB, 1.5, blurred, -0.5, 0, dest); cv.imshow(hCvs, dest);
-            src.delete(); labMat.delete(); channels.delete(); cl.delete(); clahe.delete(); enhancedRGB.delete(); blurred.delete(); dest.delete();
-        } catch (e) { console.warn("CV Error", e); }
+            src = cv.imread(hCvs);
+            // Alpha channel hatakar pure RGB mein convert karein
+            cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0); 
+
+            bg = new cv.Mat();
+            diff = new cv.Mat();
+            dest = new cv.Mat();
+            scalar = new cv.Mat(src.rows, src.cols, src.type(), new cv.Scalar(255, 255, 255));
+
+            // 1. Image ki dark shadows aur kharab lighting ka andaza lagana (Heavy Blur)
+            cv.GaussianBlur(src, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
+
+            // 2. Background se original image ko ghatao (Isse sirf text nikal kar aayega)
+            cv.subtract(bg, src, diff);
+
+            // 3. Text ko dark karne ke liye power badhao (2.0 ki jagah 1.5 ya 2.5 bhi karke dekh sakte hain)
+            cv.convertScaleAbs(diff, diff, 2.0, 0);
+
+            // 4. Invert kardo: 255 - diff (Isse page ekdum safed aur text dark ho jayega)
+            cv.subtract(scalar, diff, dest);
+
+            // Canvas par clean image wapas daal do
+            cv.imshow(hCvs, dest);
+            
+        } catch (e) { 
+            console.warn("CV Error", e); 
+        } finally {
+            // Memory saaf karna bohot zaroori hai warna browser hang ho jayega
+            if (src) src.delete(); 
+            if (bg) bg.delete(); 
+            if (diff) diff.delete(); 
+            if (dest) dest.delete(); 
+            if (scalar) scalar.delete();
+        }
     }
 
     const a4DataUrl = await convertToA4(hCvs.toDataURL("image/jpeg", 0.95));
