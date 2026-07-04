@@ -424,7 +424,7 @@ async function saveCropAndNext() {
                 
                 // 🟢 MAIN CHANGE YAHAN HAI: 2.0 ki jagah 2.5 kar diya gaya hai
                 // (Agar aur dark chahiye toh 2.8 ya 3.0 karke dekh sakte hain)
-                cv.convertScaleAbs(diff, diff, 2.8, 0); 
+                cv.convertScaleAbs(diff, diff, 3.0, 0); 
                 
                 cv.subtract(scalar, diff, dest);
                 cv.imshow(hCvs, dest);
