@@ -41,8 +41,18 @@
     <input type="text" id="name" class="input-group" placeholder="Customer Name" required>
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number" required>
     
+    <!-- 🟢 PRINT TYPE KO UPAR LE AAYE -->
+    <div class="input-group" style="background: #fff3e0; padding: 10px; border-radius: 6px; border: 1px solid #ffcc80;">
+        <label style="color: #e65100; font-size: 15px;">1. Select Print Type First:</label>
+        <select id="type" onchange="calculate(); applyPreviewFilter();" style="border: 2px solid #ff9800; font-weight: bold;">
+            <option value="5">Black & White (₹5 / page)</option>
+            <option value="10">Color (₹10 / page)</option>
+        </select>
+    </div>
+    <!-- 🟢 ======================== -->
+
     <div class="input-group">
-        <label>Select File(s) (PDF or Multiple Images):</label>
+        <label>2. Select File(s) (PDF or Multiple Images):</label>
         <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
     </div>
 
