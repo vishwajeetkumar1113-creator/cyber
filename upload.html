@@ -385,8 +385,9 @@ async function saveCropAndNext() {
         Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[1])*s.img.height)
     ));
 
-    if (targetW > 1000 || targetH > 1000) {
-        const scale = 1000 / Math.max(targetW, targetH);
+    // 🚀 HD Print Quality (Limit increased to 2500px to match A4 size perfectly)
+    if (targetW > 2500 || targetH > 3500) {
+        const scale = 3000 / Math.max(targetW, targetH);
         targetW = Math.round(targetW * scale);
         targetH = Math.round(targetH * scale);
     }
