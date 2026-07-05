@@ -156,7 +156,6 @@
 <div class="card">
     <h2>ID Card Print Layout Engine</h2>
 
-    <!-- FIXED: Made Optional, removed 'required' -->
     <input type="text" id="name" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" placeholder="Mobile Number (Optional)">
 
@@ -620,10 +619,38 @@ function generateMergedA4Blob() {
     });
 }
 
+// ==========================================
+// 👑 SUBMIT ORDER (WITH SECRET ADMIN MODE)
+// ==========================================
 async function submitID() {
-    // 🚀 FIXED: Added Fallbacks for Optional Name and Mobile
-    const name = document.getElementById("name").value.trim() || "Guest";
-    const mobile = document.getElementById("mobile").value.trim() || "N/A";
+    // 👑 1. ADMIN MODE CHECK
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === 'khushi') {
+        localStorage.setItem('adminMode', 'true');
+    }
+    const isAdmin = localStorage.getItem('adminMode') === 'true';
+
+    // 🟢 2. SPAM PROTECTION (Admin ko wait nahi karna padega)
+    const lastOrderTime = localStorage.getItem("last_order_time");
+    if (!isAdmin && lastOrderTime && (Date.now() - parseInt(lastOrderTime)) < 60000) { 
+        alert("⏳ Security Alert: Please wait 1 minute before placing another order.");
+        return;
+    }
+
+    // 🟢 3. INPUT SANITIZATION
+    const rawName = document.getElementById("name").value.trim();
+    const rawMobile = document.getElementById("mobile").value.trim();
+    
+    const name = rawName.replace(/<[^>]*>?/gm, ''); 
+    const mobile = rawMobile.replace(/[^0-9+]/g, ''); 
+
+    if (rawName !== name || rawMobile !== mobile) {
+        alert("⚠️ Invalid characters detected in Name or Mobile!");
+        return;
+    }
+
+    const finalName = name || (isAdmin ? "Shop Admin" : "Guest");
+    const finalMobile = mobile || "N/A";
     const copiesInput = parseInt(document.getElementById("copies").value) || 1;
     const typeSelect = document.getElementById("type").value;
     const isBw = typeSelect == 5;
@@ -660,9 +687,15 @@ async function submitID() {
     const printLabel = isBw ? "Black & White" : "Color";
     const orderLabelText = `Document ID - ${printLabel} [${copiesInput} Copies]`;
 
+    // 👑 4. ADMIN PAYMENT STATUS LOGIC
+    const finalPaymentStatus = isAdmin ? "Paid (Admin)" : "Pending";
+    const finalPaymentId = isAdmin ? "Direct-Shop-Print" : "";
+
     const { data: insertedOrder, error } = await client.from("orders").insert([{
-        customer_name: name, mobile: mobile, print_type: orderLabelText, pages: copiesInput, amount: totalAmountCalculation,
-        file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
+        customer_name: finalName, mobile: finalMobile, print_type: orderLabelText, pages: copiesInput, amount: totalAmountCalculation,
+        file_url: publicUrl, front_url: null, back_url: null, 
+        payment_status: finalPaymentStatus, 
+        payment_id: finalPaymentId
     }]).select();
 
     if (error) { 
@@ -672,12 +705,20 @@ async function submitID() {
         return; 
     }
 
-    localStorage.setItem("amount", totalAmountCalculation);
-    localStorage.setItem("mobile", mobile);
-    localStorage.setItem("printType", "id");
-    if (insertedOrder && insertedOrder.length > 0) localStorage.setItem("current_order_id", insertedOrder[0].id); 
+    // Success hone par LocalStorage set karna
+    localStorage.setItem("last_order_time", Date.now());
 
-    window.location.href = "payment.html";
+    // 👑 5. PAYMENT PAGE BYPASS
+    if (isAdmin) {
+        alert("👑 Owner Mode: ID Card sent directly to printer! No payment required.");
+        window.location.reload(); // Page refresh ho jayega ready for next print
+    } else {
+        localStorage.setItem("amount", totalAmountCalculation);
+        localStorage.setItem("mobile", finalMobile);
+        localStorage.setItem("printType", "id");
+        if (insertedOrder && insertedOrder.length > 0) localStorage.setItem("current_order_id", insertedOrder[0].id); 
+        window.location.href = "payment.html"; // Customer normal payment page par jayega
+    }
 }
 
 // ========================================================================
