@@ -156,8 +156,9 @@
 <div class="card">
     <h2>ID Card Print Layout Engine</h2>
 
-    <input type="text" id="name" placeholder="Customer Name" required>
-    <input type="tel" id="mobile" placeholder="Mobile Number" required>
+    <!-- FIXED: Made Optional, removed 'required' -->
+    <input type="text" id="name" placeholder="Customer Name (Optional)">
+    <input type="tel" id="mobile" placeholder="Mobile Number (Optional)">
 
     <div class="input-group">
         <label>Number of Pages / Copies to Print:</label>
@@ -512,16 +513,29 @@ function dataURLtoBlob(dataurl) {
     return new Blob([u8arr], {type:mime});
 }
 
-function saveSide(side) {
+// 🚀 FIXED: Added "Please Wait" loading logic for Save Buttons
+async function saveSide(side) {
     const s = engine[side];
     if (!s.img) { alert(`Choose an image for ${side} first.`); return; }
+
+    // Find all save buttons for this side and disable them
+    const buttons = document.querySelectorAll(`button[onclick="saveSide('${side}')"]`);
+    buttons.forEach(btn => {
+        btn.dataset.originalText = btn.innerText; // Store original text
+        btn.innerText = "Please wait...";
+        btn.disabled = true;
+    });
+
+    // Give browser 100ms to update the UI button before freezing on processing
+    await new Promise(r => setTimeout(r, 100));
+
     const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
     closeFullscreen();
 
     // Pass dynamic canvas width and height here
     let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540, s.canvas.width, s.canvas.height);
     
-    // 🚀 FIXED: Injected the live web browser enhancer filter directly onto the saved perspective canvas before showing preview
+    // Injected the live web browser enhancer filter directly onto the saved perspective canvas before showing preview
     resultCanvas = enhanceCroppedImageOnBrowser(resultCanvas);
     
     const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
@@ -532,6 +546,12 @@ function saveSide(side) {
 
     if (side === 'front') frontDataUrl = croppedDataUrl;
     else backDataUrl = croppedDataUrl;
+
+    // Restore button states
+    buttons.forEach(btn => {
+        btn.innerText = btn.dataset.originalText;
+        btn.disabled = false;
+    });
 }
 
 // ========================================================================
@@ -601,16 +621,16 @@ function generateMergedA4Blob() {
 }
 
 async function submitID() {
-    const name = document.getElementById("name").value.trim();
-    const mobile = document.getElementById("mobile").value.trim();
+    // 🚀 FIXED: Added Fallbacks for Optional Name and Mobile
+    const name = document.getElementById("name").value.trim() || "Guest";
+    const mobile = document.getElementById("mobile").value.trim() || "N/A";
     const copiesInput = parseInt(document.getElementById("copies").value) || 1;
     const typeSelect = document.getElementById("type").value;
     const isBw = typeSelect == 5;
 
-    if (!name || !mobile) { alert("Enter customer details."); return; }
     if (!frontDataUrl) { alert("Save Front crop first."); return; }
 
-    // 🚀 FIXED: Dynamic Submit Button Loading State
+    // Dynamic Submit Button Loading State
     const submitBtn = document.getElementById("submitBtn");
     submitBtn.innerText = "Please wait...";
     submitBtn.disabled = true;
