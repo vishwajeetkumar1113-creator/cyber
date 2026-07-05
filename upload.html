@@ -38,8 +38,9 @@
 <div class="card">
     <h2>Upload Document</h2>
 
-    <input type="text" id="name" class="input-group" placeholder="Customer Name" required>
-    <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number" required>
+    <!-- Hata diya gaya required aur add kiya gaya Optional text -->
+    <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
+    <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
     
     <div class="input-group" style="background: #fff3e0; padding: 10px; border-radius: 6px; border: 1px solid #ffcc80;">
         <label style="color: #e65100; font-size: 15px;">1. Select Print Type First:</label>
@@ -148,18 +149,15 @@ async function handleFileSelectionChange(){
     const files = document.getElementById("file").files;
     if (!files || files.length === 0) return;
 
-    // 🟢 NAYA SECURITY CHECK: 20MB Size Limit
+    // 🟢 SECURITY CHECK: 20MB Size Limit
     let maxSizeInBytes = 20 * 1024 * 1024; // 20 MB
     for (let i = 0; i < files.length; i++) {
         if (files[i].size > maxSizeInBytes) {
             alert(`⚠️ Error: "${files[i].name}" bahut badi file hai! Kripya 20MB se choti file upload karein.`);
-            document.getElementById("file").value = ""; // Input clear kar do
+            document.getElementById("file").value = ""; 
             return;
         }
     }
-    {
-    const files = document.getElementById("file").files;
-    if (!files || files.length === 0) return;
 
     document.getElementById("type").disabled = true;
 
@@ -550,9 +548,27 @@ function calculate() {
 }
 
 async function submitOrder() {
-    const name = document.getElementById("name").value.trim();
-    const mobile = document.getElementById("mobile").value.trim();
-    if (!name || !mobile || !cachedFileObject) return alert("Fill details and select document.");
+    // 🟢 SPAM PROTECTION: 1 minute ka limit
+    const lastOrderTime = localStorage.getItem("last_order_time");
+    if (lastOrderTime && (Date.now() - parseInt(lastOrderTime)) < 60000) { 
+        alert("⏳ Security Alert: Please wait 1 minute before placing another order.");
+        return;
+    }
+
+    // 🟢 NAYA SECURITY CHECK: Input Sanitization (Name & Mobile ko saaf karna)
+    const rawName = document.getElementById("name").value.trim();
+    const rawMobile = document.getElementById("mobile").value.trim();
+    
+    const name = rawName.replace(/<[^>]*>?/gm, ''); 
+    const mobile = rawMobile.replace(/[^0-9+]/g, ''); 
+
+    if (rawName !== name || rawMobile !== mobile) {
+        alert("⚠️ Invalid characters detected in Name or Mobile!");
+        return;
+    }
+
+    // Customer detail optional hai, par file select karna zaroori hai
+    if (!cachedFileObject) return alert("Please select a document.");
     
     if (currentMode === "image" && processedA4Images.length !== uploadedImagesList.length) {
         return alert("Please crop and save all selected images first.");
@@ -639,12 +655,19 @@ async function submitOrder() {
         const printStr = `${typeSelect.options[typeSelect.selectedIndex].text}`;
 
         const { data: order, error } = await client.from("orders").insert([{
-            customer_name: name, mobile: mobile, pages: copies, print_type: printStr, amount: amount,
+            customer_name: name || "Guest", // Agar naam khali hai toh 'Guest' bhejega
+            mobile: mobile || "N/A", // Agar mobile khali hai toh 'N/A' bhejega
+            pages: copies, print_type: printStr, amount: amount,
             file_url: client.storage.from("documents").getPublicUrl(fileName).data.publicUrl, payment_status: "Pending", layout_mode: layoutVal
         }]).select();
 
         if (error) throw error;
-        localStorage.setItem("amount", amount); localStorage.setItem("mobile", mobile); localStorage.setItem("current_order_id", order[0].id);
+        
+        // Success hone par LocalStorage mein Time save karein taaki spam ruk jaye
+        localStorage.setItem("last_order_time", Date.now());
+        localStorage.setItem("amount", amount); 
+        localStorage.setItem("mobile", mobile); 
+        localStorage.setItem("current_order_id", order[0].id);
         window.location.href = "payment.html";
 
     } catch (err) {
