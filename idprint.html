@@ -625,7 +625,7 @@ function generateMergedA4Blob() {
 async function submitID() {
     // 👑 1. ADMIN MODE CHECK
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('admin') === 'khushi') {
+    if (urlParams.get('admin') === 'vishu') {
         localStorage.setItem('adminMode', 'true');
     }
     const isAdmin = localStorage.getItem('adminMode') === 'true';
