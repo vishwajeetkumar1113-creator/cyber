@@ -109,6 +109,33 @@
 </div>
 
 <script>
+    document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+});
+
+// 2. Keyboard ke Shortcuts Disable Karna
+document.onkeydown = function(e) {
+    // F12 Disable
+    if (e.keyCode === 123) {
+        return false;
+    }
+    // Ctrl + Shift + I (Inspect) Disable
+    if (e.ctrlKey && e.shiftKey && e.keyCode === 73) {
+        return false;
+    }
+    // Ctrl + Shift + J (Console) Disable
+    if (e.ctrlKey && e.shiftKey && e.keyCode === 74) {
+        return false;
+    }
+    // Ctrl + Shift + C (Element Inspector) Disable
+    if (e.ctrlKey && e.shiftKey && e.keyCode === 67) {
+        return false;
+    }
+    // Ctrl + U (View Source Code) Disable
+    if (e.ctrlKey && e.keyCode === 85) {
+        return false;
+    }
+};
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
