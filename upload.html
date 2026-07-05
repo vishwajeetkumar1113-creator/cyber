@@ -144,7 +144,20 @@ let uploadedImagesList = [], currentImageIndex = 0, processedA4Images = [];
 
 const cropEngine = { canvas: document.getElementById('cropCanvas'), ctx: document.getElementById('cropCanvas').getContext('2d'), img: null, corners: [], activeCorner: -1, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 };
 
-async function handleFileSelectionChange() {
+async function handleFileSelectionChange(){
+    const files = document.getElementById("file").files;
+    if (!files || files.length === 0) return;
+
+    // 🟢 NAYA SECURITY CHECK: 20MB Size Limit
+    let maxSizeInBytes = 20 * 1024 * 1024; // 20 MB
+    for (let i = 0; i < files.length; i++) {
+        if (files[i].size > maxSizeInBytes) {
+            alert(`⚠️ Error: "${files[i].name}" bahut badi file hai! Kripya 20MB se choti file upload karein.`);
+            document.getElementById("file").value = ""; // Input clear kar do
+            return;
+        }
+    }
+    {
     const files = document.getElementById("file").files;
     if (!files || files.length === 0) return;
 
