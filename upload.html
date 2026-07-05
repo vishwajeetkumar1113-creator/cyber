@@ -41,7 +41,6 @@
     <input type="text" id="name" class="input-group" placeholder="Customer Name" required>
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number" required>
     
-    <!-- 🟢 LOGICAL FIX: Print Type Dropdown Moved UP -->
     <div class="input-group" style="background: #fff3e0; padding: 10px; border-radius: 6px; border: 1px solid #ffcc80;">
         <label style="color: #e65100; font-size: 15px;">1. Select Print Type First:</label>
         <select id="type" onchange="calculate(); applyPreviewFilter();" style="border: 2px solid #ff9800; font-weight: bold;">
@@ -122,6 +121,8 @@ async function handleFileSelectionChange() {
     const files = document.getElementById("file").files;
     if (!files || files.length === 0) return;
 
+    document.getElementById("type").disabled = true;
+
     if (files[0].type === "application/pdf") {
         currentMode = "pdf";
         cachedFileObject = files[0];
@@ -183,7 +184,6 @@ function loadCurrentImageForCrop() {
             let defaultCorners = [{x:30, y:30}, {x:w-30, y:30}, {x:w-30, y:h-30}, {x:30, y:h-30}];
             cropEngine.corners = defaultCorners;
 
-            // 🚀 SMART EDGE DETECTION START 🚀
             if (typeof cv !== 'undefined' && typeof cv.imread === 'function') {
                 try {
                     let tempCanvas = document.createElement('canvas');
@@ -239,7 +239,6 @@ function loadCurrentImageForCrop() {
                     console.log("Auto-Detect skip hua, normal crop on hai.", err);
                 }
             }
-            // 🚀 SMART EDGE DETECTION END 🚀
 
             cropEngine.rotation = 0; 
             cropEngine.originalSrc = e.target.result;
@@ -302,7 +301,6 @@ async function previewDocument() {
             canvas.height = viewport.height;
             pageWrapper.appendChild(canvas);
 
-            // 🟢 NEW CODE: Har page ke neeche Page Number dikhane ke liye
             const pageLabel = document.createElement('div');
             pageLabel.innerText = `Page ${pageNum}`;
             pageLabel.style.fontSize = "13px";
@@ -310,7 +308,6 @@ async function previewDocument() {
             pageLabel.style.fontWeight = "bold";
             pageLabel.style.marginTop = "8px";
             pageWrapper.appendChild(pageLabel);
-            // 🟢 =======================================================
 
             previewContainer.appendChild(pageWrapper);
             await page.render({ canvasContext: context, viewport: viewport }).promise;
@@ -421,11 +418,7 @@ async function saveCropAndNext() {
 
                 cv.GaussianBlur(src, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
                 cv.subtract(bg, src, diff);
-                
-                // 🟢 MAIN CHANGE YAHAN HAI: 2.0 ki jagah 2.5 kar diya gaya hai
-                // (Agar aur dark chahiye toh 2.8 ya 3.0 karke dekh sakte hain)
-                cv.convertScaleAbs(diff, diff, 3.0, 0); 
-                
+                cv.convertScaleAbs(diff, diff, 2.5, 0); 
                 cv.subtract(scalar, diff, dest);
                 cv.imshow(hCvs, dest);
             } catch (e) { 
@@ -434,8 +427,7 @@ async function saveCropAndNext() {
                 if (src) src.delete(); if (bg) bg.delete(); if (diff) diff.delete(); 
                 if (dest) dest.delete(); if (scalar) scalar.delete();
             }
-        }
-        else {
+        } else {
             let src, dest;
             try {
                 src = cv.imread(hCvs);
@@ -540,8 +532,45 @@ async function submitOrder() {
             let pagesSel = parsePageSelection(document.getElementById("pages").value);
             let indices = pagesSel ? pagesSel.filter(p => p <= srcPdfDoc.getPageCount()).map(p => p - 1) : Array.from({length: srcPdfDoc.getPageCount()}, (_, i) => i);
             const outPdf = await PDFLib.PDFDocument.create();
-            const copied = await outPdf.copyPages(srcPdfDoc, indices);
-            copied.forEach(p => outPdf.addPage(p));
+
+            if (document.getElementById("type").value == 5) {
+                // 🟢 PDF TO BLACK & WHITE (RASTERIZE)
+                const fileArrayBuffer = await cachedFileObject.arrayBuffer();
+                const pdfjsDoc = await pdfjsLib.getDocument({ data: fileArrayBuffer }).promise;
+                
+                for (let i of indices) {
+                    const page = await pdfjsDoc.getPage(i + 1);
+                    const viewport = page.getViewport({ scale: 2.0 }); 
+                    const canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                    
+                    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imgData.data;
+                    for (let j = 0; j < data.length; j += 4) {
+                        let gray = 0.299 * data[j] + 0.587 * data[j+1] + 0.114 * data[j+2];
+                        data[j] = data[j+1] = data[j+2] = gray;
+                    }
+                    ctx.putImageData(imgData, 0, 0);
+                    
+                    const imgDataUrl = canvas.toDataURL("image/jpeg", 0.9);
+                    const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
+                    const embeddedImage = await outPdf.embedJpg(imgBytes);
+                    
+                    const outPage = outPdf.addPage([viewport.width, viewport.height]);
+                    outPage.drawImage(embeddedImage, {
+                        x: 0, y: 0, width: viewport.width, height: viewport.height
+                    });
+                }
+            } else {
+                // 🎨 ORIGINAL COLOR PDF
+                const copied = await outPdf.copyPages(srcPdfDoc, indices);
+                copied.forEach(p => outPdf.addPage(p));
+            }
+            
             processedBlob = new Blob([await outPdf.save()], { type: "application/pdf" });
             layoutVal = document.getElementById("layout_mode").value;
         } else {
@@ -556,7 +585,9 @@ async function submitOrder() {
         }
 
         const ext = ".pdf";
-        const pre = document.getElementById("type").value == 5 ? "bw_" : "color_";
+        const typeSelect = document.getElementById("type");
+        const selectedTypeValue = typeSelect.value;
+        const pre = selectedTypeValue == 5 ? "bw_" : "color_";
         const fileName = `${Date.now()}_${pre}${cachedFileObject.name.split('.')[0] || "doc"}${ext}`;
 
         const { error: uploadError } = await client.storage.from("documents").upload(fileName, processedBlob, { contentType: finalMime, upsert: true });
@@ -564,7 +595,7 @@ async function submitOrder() {
 
         const copies = document.getElementById("copies").value;
         const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
-        const printStr = `${document.getElementById("type").options[document.getElementById("type").selectedIndex].text}`;
+        const printStr = `${typeSelect.options[typeSelect.selectedIndex].text}`;
 
         const { data: order, error } = await client.from("orders").insert([{
             customer_name: name, mobile: mobile, pages: copies, print_type: printStr, amount: amount,
