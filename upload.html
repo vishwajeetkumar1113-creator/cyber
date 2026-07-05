@@ -444,7 +444,7 @@ async function saveCropAndNext() {
         }
     }
 
-    const a4DataUrl = await convertToA4(hCvs.toDataURL("image/jpeg", 0.95));
+    const a4DataUrl = await convertToA4(hCvs.toDataURL("image/jpeg", 0.85));
     processedA4Images.push(a4DataUrl);
     
     currentImageIndex++;
@@ -470,7 +470,7 @@ async function convertToA4(imgSrc) {
                 }
                 ctx.putImageData(d,0,0);
             }
-            resolve(a4.toDataURL("image/jpeg", 0.95));
+            resolve(a4.toDataURL("image/jpeg", 0.85));
         };
         img.src = imgSrc;
     });
@@ -541,7 +541,7 @@ async function submitOrder() {
                 
                 for (let i of indices) {
                     const page = await pdfjsDoc.getPage(i + 1);
-                    const viewport = page.getViewport({ scale: 4.0 }); 
+                    const viewport = page.getViewport({ scale: 3.0 }); 
                     const canvas = document.createElement('canvas');
                     canvas.width = viewport.width;
                     canvas.height = viewport.height;
@@ -557,7 +557,7 @@ async function submitOrder() {
                     }
                     ctx.putImageData(imgData, 0, 0);
                     
-                    const imgDataUrl = canvas.toDataURL("image/jpeg", 1.0);
+                    const imgDataUrl = canvas.toDataURL("image/jpeg", 0.85);
                     const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
                     const embeddedImage = await outPdf.embedJpg(imgBytes);
                     
