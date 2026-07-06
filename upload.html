@@ -420,6 +420,9 @@ function drawCrop() {
 // ==========================================
 // 🚀 SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
+// ==========================================
+// 🚀 SUPER-FAST CROP & FILTER ENGINE (OPENCV)
+// ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -480,21 +483,13 @@ async function saveCropAndNext() {
             cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
             if (printType == "5") {
-                // 🚀 FIX: Isko RGBA se seedha GRAYSCALE banayenge
-                cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0); 
-                let bg = new cv.Mat();
-                let diff = new cv.Mat();
-                let scalar = new cv.Mat(dest.rows, dest.cols, dest.type(), new cv.Scalar(255)); // 1-Channel Grayscale ke liye
-
-                cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
-                cv.subtract(bg, dest, diff);
-                cv.convertScaleAbs(diff, diff, 2.5, 0); 
-                cv.subtract(scalar, diff, dest);
-                
-                bg.delete(); diff.delete(); scalar.delete();
+                // 🚀 NEW FIX: Balanced Safe Grayscale! 
+                // Ye chat bubbles ko bacha lega aur Aadhaar ko bhi clear rakhega.
+                cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
+                cv.convertScaleAbs(dest, dest, 1.1, 0); // Sirf halka sa contrast badhaya hai
             } else {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
-                cv.convertScaleAbs(dest, dest, 1.15, 10); 
+                cv.convertScaleAbs(dest, dest, 1.05, 5); 
             }
 
             cv.imshow(hCvs, dest);
@@ -530,15 +525,13 @@ async function convertToA4(sourceCanvas) {
         const offsetX = (a4.width - finalW) / 2;
         const offsetY = (a4.height - finalH) / 2;
 
-        // 🚀 BULLETPROOF FIX: Hardware Accelerated B/W Filter!
-        // Isme 0 lag (delay) aayega aur photo 100% Black & White ho jayegi.
-        if (document.getElementById("type").value == 5) {
-            ctx.filter = 'grayscale(100%) contrast(120%) brightness(105%)';
+        // 🚀 NEW FIX: Hardware Accelerated B/W Filter ko bhi normal kiya
+        if (document.getElementById("type").value == 5 && typeof cv === 'undefined') {
+            ctx.filter = 'grayscale(100%) contrast(110%)'; // Brightness hata di jo text ko wash out kar rahi thi
         }
 
         ctx.drawImage(sourceCanvas, offsetX, offsetY, finalW, finalH);
         
-        // Filter reset karna taaki aage wali photo kharab na ho
         ctx.filter = 'none';
 
         resolve(a4.toDataURL("image/jpeg", 0.85));
