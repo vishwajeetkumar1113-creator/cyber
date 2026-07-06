@@ -64,7 +64,7 @@
     <div id="pdfUI" style="display:none;">
         <div class="preview-wrapper" id="previewWrapperFrame">
             <div class="preview-box" id="docPreview">
-                <span style="margin-top: 150px; color:#777;">Loading PDF Preview...</span>
+                <span style="margin-top: 150px; color:#777;">No file selected</span>
             </div>
         </div>
         <div class="input-group">
@@ -91,7 +91,7 @@
             <div class="crop-controls">
                 <button type="button" style="background:#28a745;" onclick="rotateImage()">↻ Rotate</button>
                 <button type="button" style="background:#6c757d;" onclick="resetZoom()">Reset Zoom</button>
-                <button type="button" style="background:#1976d2;" id="saveCropBtn" onclick="saveCropAndNext()">Save Crop</button>
+                <button type="button" style="background:#1976d2;" id="saveCropBtn" onclick="saveCropAndNext()">Save Crop & Next</button>
             </div>
         </div>
         <div id="cropPreviewContainer" style="text-align: center; display: none; margin-bottom: 15px;">
@@ -123,14 +123,8 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
-// 🚀 MIXED FILES LOGIC VARIABLES
-let uploadedPdfFile = null;
-let uploadedImagesList = [];
-let totalDetectedPDFPages = 0;
-let cachedFileObject = null; 
-let activeRenderTaskId = 0; 
-let currentImageIndex = 0;
-let processedA4Images = []; 
+let currentMode = "pdf", cachedFileObject = null, totalDetectedPDFPages = 1, activeRenderTaskId = 0; 
+let uploadedImagesList = [], currentImageIndex = 0, processedA4Images = []; 
 
 const cropEngine = { canvas: document.getElementById('cropCanvas'), ctx: document.getElementById('cropCanvas').getContext('2d'), img: null, corners: [], activeCorner: -1, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 };
 
@@ -150,30 +144,27 @@ async function handleFileSelectionChange(){
 
     document.getElementById("type").disabled = true;
 
-    uploadedImagesList = [];
-    uploadedPdfFile = null;
-    processedA4Images = [];
-    currentImageIndex = 0;
-
-    // 🚀 FILTER MIXED FILES
-    for (let i = 0; i < files.length; i++) {
-        if (files[i].type.startsWith("image/")) {
-            uploadedImagesList.push(files[i]);
-        } else if (files[i].type === "application/pdf" && !uploadedPdfFile) {
-            uploadedPdfFile = files[i]; 
-        }
-    }
-
-    if (uploadedPdfFile) {
-        const fileArrayBuffer = await uploadedPdfFile.arrayBuffer();
+    if (files[0].type === "application/pdf") {
+        currentMode = "pdf";
+        cachedFileObject = files[0];
+        document.getElementById("pdfUI").style.display = "block";
+        document.getElementById("imageUI").style.display = "none";
+        document.getElementById("docTypeGroup").style.display = "none";
+        
+        const fileArrayBuffer = await cachedFileObject.arrayBuffer();
         const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
         totalDetectedPDFPages = srcPdf.getPageCount();
-    } else {
-        totalDetectedPDFPages = 0;
-    }
-
-    // 🚀 QUEUE: Pehle Image fir PDF
-    if (uploadedImagesList.length > 0) {
+        
+        await previewDocument();
+        calculate();
+    } 
+    else if (files[0].type.startsWith("image/")) {
+        currentMode = "image";
+        cachedFileObject = files[0]; 
+        uploadedImagesList = Array.from(files).filter(f => f.type.startsWith('image/'));
+        currentImageIndex = 0;
+        processedA4Images = [];
+        
         document.getElementById("pdfUI").style.display = "none";
         document.getElementById("imageUI").style.display = "block";
         document.getElementById("docTypeGroup").style.display = "block";
@@ -182,32 +173,14 @@ async function handleFileSelectionChange(){
         
         loadCurrentImageForCrop();
         calculate();
-    } else if (uploadedPdfFile) {
-        cachedFileObject = uploadedPdfFile;
-        document.getElementById("pdfUI").style.display = "block";
-        document.getElementById("imageUI").style.display = "none";
-        document.getElementById("docTypeGroup").style.display = "none";
-        
-        await previewDocument();
-        calculate();
     }
 }
 
 function loadCurrentImageForCrop() {
     if (currentImageIndex >= uploadedImagesList.length) {
         document.getElementById("cropAreaWrapper").style.display = "none";
-        
-        // 🚀 PDF SWITCH LOGIC
-        if (uploadedPdfFile) {
-            document.getElementById("imageUI").style.display = "none";
-            cachedFileObject = uploadedPdfFile;
-            document.getElementById("pdfUI").style.display = "block";
-            document.getElementById("docTypeGroup").style.display = "none";
-            previewDocument();
-        } else {
-            document.getElementById("cropPreviewContainer").style.display = "block";
-            document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
-        }
+        document.getElementById("cropPreviewContainer").style.display = "block";
+        document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
         return;
     }
 
@@ -216,13 +189,7 @@ function loadCurrentImageForCrop() {
     const btn = document.getElementById("saveCropBtn");
     btn.disabled = false;
     btn.style.opacity = "1";
-    
-    // Dynamic Button
-    if (currentImageIndex === uploadedImagesList.length - 1) {
-        btn.innerText = uploadedPdfFile ? "Save Crop & Proceed to PDF" : "Save Crop & Finish";
-    } else {
-        btn.innerText = `Save Crop & Next (${currentImageIndex + 1}/${uploadedImagesList.length})`;
-    }
+    btn.innerText = (currentImageIndex === uploadedImagesList.length - 1) ? "Save Crop & Finish" : `Save Crop & Next (${currentImageIndex + 1}/${uploadedImagesList.length})`;
 
     const reader = new FileReader();
     reader.onload = e => {
@@ -290,7 +257,7 @@ function loadCurrentImageForCrop() {
 
                     src.delete(); gray.delete(); contours.delete(); hierarchy.delete(); bestApprox.delete();
                 } catch (err) {
-                    console.log("Auto-Detect skip hua.", err);
+                    console.log("Auto-Detect skip hua, normal crop on hai.", err);
                 }
             }
 
@@ -413,16 +380,13 @@ function drawCrop() {
     s.corners.forEach(c => { s.ctx.fillStyle = '#28a745'; s.ctx.beginPath(); s.ctx.arc(c.x, c.y, 14, 0, Math.PI * 2); s.ctx.fill(); s.ctx.strokeStyle = '#fff'; s.ctx.lineWidth = 3; s.ctx.stroke(); });
 }
 
-// ==========================================
-// 🚀 SUPER-FAST CROP & FILTER ENGINE (OPENCV)
-// ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
     const btn = document.getElementById("saveCropBtn");
     btn.disabled = true;
     btn.style.opacity = "0.5";
-    btn.innerText = "Processing Fast...";
+    btn.innerText = "Processing...";
 
     await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -443,61 +407,64 @@ async function saveCropAndNext() {
     ));
 
     if (targetW > 2500 || targetH > 3500) {
-        const scale = 2500 / Math.max(targetW, targetH);
+        const scale = 3000 / Math.max(targetW, targetH);
         targetW = Math.round(targetW * scale);
         targetH = Math.round(targetH * scale);
     }
 
-    let hCvs = document.createElement('canvas'); 
-    hCvs.width = targetW; hCvs.height = targetH;
+    let hCvs = document.createElement('canvas'); hCvs.width = targetW; hCvs.height = targetH;
+    const ctx = hCvs.getContext('2d');
+    
+    for (let y = 0; y < targetH; y++) {
+        for (let x = 0; x < targetW; x++) {
+            let u = x/targetW, v = y/targetH;
+            let topX = p1[0]+u*(p2[0]-p1[0]), topY = p1[1]+u*(p2[1]-p1[1]);
+            let botX = p4[0]+u*(p3[0]-p4[0]), botY = p4[1]+u*(p3[1]-p4[1]);
+            ctx.drawImage(s.img, (topX+v*(botX-topX))*s.img.width, (topY+v*(botY-topY))*s.img.height, 1, 1, x, y, 1, 1);
+        }
+    }
 
     if (typeof cv !== 'undefined') {
         let printType = document.getElementById("type").value; 
-        let src, dest, srcTri, dstTri, M;
 
-        try {
-            let imgCanvas = document.createElement('canvas');
-            imgCanvas.width = s.img.width; imgCanvas.height = s.img.height;
-            imgCanvas.getContext('2d').drawImage(s.img, 0, 0);
-            src = cv.imread(imgCanvas);
+        if (printType == "5") {
+            let src, bg, diff, dest, scalar;
+            try {
+                src = cv.imread(hCvs);
+                cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0); 
+                bg = new cv.Mat();
+                diff = new cv.Mat();
+                dest = new cv.Mat();
+                scalar = new cv.Mat(src.rows, src.cols, src.type(), new cv.Scalar(255, 255, 255));
 
-            // Fast Perspective Transform (No Slow Loops!)
-            srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                p1[0] * src.cols, p1[1] * src.rows, 
-                p2[0] * src.cols, p2[1] * src.rows, 
-                p3[0] * src.cols, p3[1] * src.rows, 
-                p4[0] * src.cols, p4[1] * src.rows  
-            ]);
-            dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                0, 0, targetW, 0, targetW, targetH, 0, targetH
-            ]);
-
-            M = cv.getPerspectiveTransform(srcTri, dstTri);
-            dest = new cv.Mat();
-            cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
-
-            // 🎨 Balanced Grayscale Filter
-            if (printType == "5") {
-                cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
-                cv.convertScaleAbs(dest, dest, 1.1, 0); 
-            } else {
-                cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
-                cv.convertScaleAbs(dest, dest, 1.05, 5); 
+                cv.GaussianBlur(src, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
+                cv.subtract(bg, src, diff);
+                cv.convertScaleAbs(diff, diff, 2.5, 0); 
+                cv.subtract(scalar, diff, dest);
+                cv.imshow(hCvs, dest);
+            } catch (e) { 
+                console.warn("CV Error", e); 
+            } finally {
+                if (src) src.delete(); if (bg) bg.delete(); if (diff) diff.delete(); 
+                if (dest) dest.delete(); if (scalar) scalar.delete();
             }
-
-            cv.imshow(hCvs, dest);
-        } catch (e) { 
-            console.warn("CV Error", e); 
-            hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
-        } finally {
-            if (src) src.delete(); if (dest) dest.delete();
-            if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
+        } else {
+            let src, dest;
+            try {
+                src = cv.imread(hCvs);
+                dest = new cv.Mat();
+                cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
+                cv.convertScaleAbs(src, dest, 1.15, 10); 
+                cv.imshow(hCvs, dest);
+            } catch (e) { 
+                console.warn("CV Error", e); 
+            } finally {
+                if (src) src.delete(); if (dest) dest.delete();
+            }
         }
-    } else {
-        hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
     }
 
-    const a4DataUrl = await convertToA4(hCvs);
+    const a4DataUrl = await convertToA4(hCvs.toDataURL("image/jpeg", 0.85));
     processedA4Images.push(a4DataUrl);
     
     currentImageIndex++;
@@ -505,45 +472,27 @@ async function saveCropAndNext() {
     calculate();
 }
 
-async function convertToA4(sourceCanvas) {
+async function convertToA4(imgSrc) {
     return new Promise(resolve => {
         const a4 = document.createElement('canvas'); 
-        a4.width = 2480; 
-        a4.height = 3508; 
+        a4.width = 2480; a4.height = 3508; 
         const ctx = a4.getContext('2d'); 
-        ctx.fillStyle = '#FFFFFF'; 
-        ctx.fillRect(0,0,a4.width,a4.height);
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
         
-        // 🚀 AUTO-ROTATE (Fixes landscape marksheet issues)
-        let drawCanvas = sourceCanvas;
-        if (sourceCanvas.width > sourceCanvas.height) {
-            drawCanvas = document.createElement('canvas');
-            drawCanvas.width = sourceCanvas.height;
-            drawCanvas.height = sourceCanvas.width;
-            const rotCtx = drawCanvas.getContext('2d');
-            rotCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
-            rotCtx.rotate(Math.PI / 2);
-            rotCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
-        }
-        
-        // 🚀 PERFECT FIT (98% coverage with safe margins)
-        const margin = 40; 
-        const scale = Math.min((a4.width - margin*2) / drawCanvas.width, (a4.height - margin*2) / drawCanvas.height);
-        
-        const finalW = drawCanvas.width * scale;
-        const finalH = drawCanvas.height * scale;
-        
-        const offsetX = (a4.width - finalW) / 2;
-        const offsetY = (a4.height - finalH) / 2;
-
-        if (document.getElementById("type").value == 5 && typeof cv === 'undefined') {
-            ctx.filter = 'grayscale(100%) contrast(110%)'; 
-        }
-
-        ctx.drawImage(drawCanvas, offsetX, offsetY, finalW, finalH);
-        ctx.filter = 'none';
-
-        resolve(a4.toDataURL("image/jpeg", 0.85));
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, a4.width, a4.height);
+            if (document.getElementById("type").value == 5) {
+                const d = ctx.getImageData(0,0,a4.width,a4.height);
+                for(let i=0; i<d.data.length; i+=4){ 
+                    let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2]; 
+                    d.data[i] = d.data[i+1] = d.data[i+2] = g; 
+                }
+                ctx.putImageData(d,0,0);
+            }
+            resolve(a4.toDataURL("image/jpeg", 0.85));
+        };
+        img.src = imgSrc;
     });
 }
 
@@ -566,41 +515,40 @@ function applyPreviewFilter() {
 function calculate() {
     let copies = parseInt(document.getElementById("copies").value) || 1;
     let price = parseInt(document.getElementById("type").value);
-    let sheets = 0;
+    let sheets = 1;
     
-    if (uploadedImagesList.length > 0) {
-        sheets += uploadedImagesList.length;
-    }
-    
-    if (uploadedPdfFile) {
-        let layoutDivisor = parseInt(document.getElementById("layout_mode")?.value) || 1;
-        let selectedPages = parsePageSelection(document.getElementById("pages")?.value || "");
+    if (currentMode === "pdf") {
+        let layoutDivisor = parseInt(document.getElementById("layout_mode").value) || 1;
+        let selectedPages = parsePageSelection(document.getElementById("pages").value);
         let totalPages = selectedPages !== null && selectedPages.length > 0 ? selectedPages.length : totalDetectedPDFPages;
-        sheets += Math.ceil(totalPages / layoutDivisor);
+        sheets = Math.ceil(totalPages / layoutDivisor);
+    } else if (currentMode === "image") {
+        sheets = uploadedImagesList.length || 1;
     }
-    
-    if (sheets === 0) sheets = 1;
     
     document.getElementById("total").innerHTML = "Total: ₹" + (sheets * price * copies);
 }
 
 
 // ==========================================
-// 👑 SUBMIT ORDER (MIXED FILES MERGE & SAVE)
+// 👑 SUBMIT ORDER (WITH SECRET ADMIN MODE)
 // ==========================================
 async function submitOrder() {
+    // 👑 1. ADMIN MODE CHECK
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('admin') === 'vishu') {
         localStorage.setItem('adminMode', 'true');
     }
     const isAdmin = localStorage.getItem('adminMode') === 'true';
 
+    // 🟢 2. SPAM PROTECTION (Admin ko wait nahi karna padega)
     const lastOrderTime = localStorage.getItem("last_order_time");
     if (!isAdmin && lastOrderTime && (Date.now() - parseInt(lastOrderTime)) < 60000) { 
         alert("⏳ Security Alert: Please wait 1 minute before placing another order.");
         return;
     }
 
+    // 🟢 3. NAYA SECURITY CHECK: Input Sanitization (Name & Mobile ko saaf karna)
     const rawName = document.getElementById("name").value.trim();
     const rawMobile = document.getElementById("mobile").value.trim();
     
@@ -612,9 +560,10 @@ async function submitOrder() {
         return;
     }
 
-    if (!uploadedPdfFile && uploadedImagesList.length === 0) return alert("Please select a document.");
+    // File check
+    if (!cachedFileObject) return alert("Please select a document.");
     
-    if (uploadedImagesList.length > 0 && processedA4Images.length !== uploadedImagesList.length) {
+    if (currentMode === "image" && processedA4Images.length !== uploadedImagesList.length) {
         return alert("Please crop and save all selected images first.");
     }
 
@@ -626,29 +575,17 @@ async function submitOrder() {
     try {
         let processedBlob = null;
         let finalMime = "application/pdf";
-        let layoutVal = document.getElementById("layout_mode") ? document.getElementById("layout_mode").value : 1;
+        let layoutVal = 1;
 
-        // 🚀 MASTER PDF FOR COMBINING
-        const outPdf = await PDFLib.PDFDocument.create();
-        
-        // 1. ADD CROPPED IMAGES
-        if (processedA4Images.length > 0) {
-            for (let dataUrl of processedA4Images) {
-                const imgBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
-                const image = await outPdf.embedJpg(imgBytes);
-                const page = outPdf.addPage([2480, 3508]); 
-                page.drawImage(image, { x: 0, y: 0, width: 2480, height: 3508 });
-            }
-        }
-
-        // 2. ADD PDF PAGES
-        if (uploadedPdfFile) {
-            const srcPdfDoc = await PDFLib.PDFDocument.load(await uploadedPdfFile.arrayBuffer());
+        if (currentMode === "pdf") {
+            const srcPdfDoc = await PDFLib.PDFDocument.load(await cachedFileObject.arrayBuffer());
             let pagesSel = parsePageSelection(document.getElementById("pages").value);
             let indices = pagesSel ? pagesSel.filter(p => p <= srcPdfDoc.getPageCount()).map(p => p - 1) : Array.from({length: srcPdfDoc.getPageCount()}, (_, i) => i);
+            const outPdf = await PDFLib.PDFDocument.create();
 
             if (document.getElementById("type").value == 5) {
-                const fileArrayBuffer = await uploadedPdfFile.arrayBuffer();
+                // 🟢 PDF TO BLACK & WHITE (RASTERIZE)
+                const fileArrayBuffer = await cachedFileObject.arrayBuffer();
                 const pdfjsDoc = await pdfjsLib.getDocument({ data: fileArrayBuffer }).promise;
                 
                 for (let i of indices) {
@@ -679,26 +616,29 @@ async function submitOrder() {
                     });
                 }
             } else {
+                // 🎨 ORIGINAL COLOR PDF
                 const copied = await outPdf.copyPages(srcPdfDoc, indices);
                 copied.forEach(p => outPdf.addPage(p));
             }
+            
+            processedBlob = new Blob([await outPdf.save()], { type: "application/pdf" });
+            layoutVal = document.getElementById("layout_mode").value;
+        } else {
+            const pdfDoc = await PDFLib.PDFDocument.create();
+            for (let dataUrl of processedA4Images) {
+                const imgBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+                const image = await pdfDoc.embedJpg(imgBytes);
+                const page = pdfDoc.addPage([2480, 3508]);
+                page.drawImage(image, { x: 0, y: 0, width: 2480, height: 3508 });
+            }
+            processedBlob = new Blob([await pdfDoc.save()], { type: "application/pdf" });
         }
-        
-        processedBlob = new Blob([await outPdf.save()], { type: "application/pdf" });
 
         const ext = ".pdf";
         const typeSelect = document.getElementById("type");
         const selectedTypeValue = typeSelect.value;
         const pre = selectedTypeValue == 5 ? "bw_" : "color_";
-        
-        let baseName = "mixed_doc";
-        if (uploadedPdfFile) {
-            baseName = uploadedPdfFile.name.split('.')[0];
-        } else if (uploadedImagesList.length > 0) {
-            baseName = uploadedImagesList[0].name.split('.')[0];
-        }
-        
-        const fileName = `${Date.now()}_${pre}${baseName}${ext}`;
+        const fileName = `${Date.now()}_${pre}${cachedFileObject.name.split('.')[0] || "doc"}${ext}`;
 
         const { error: uploadError } = await client.storage.from("documents").upload(fileName, processedBlob, { contentType: finalMime, upsert: true });
         if (uploadError) throw uploadError;
@@ -707,11 +647,12 @@ async function submitOrder() {
         const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
         const printStr = `${typeSelect.options[typeSelect.selectedIndex].text}`;
 
+        // 👑 4. ADMIN PAYMENT STATUS LOGIC
         const finalPaymentStatus = isAdmin ? "Paid (Admin)" : "Pending";
         const finalPaymentId = isAdmin ? "Direct-Shop-Print" : "";
 
         const { data: order, error } = await client.from("orders").insert([{
-            customer_name: name || (isAdmin ? "Shop Admin" : "Guest"),
+            customer_name: name || (isAdmin ? "Shop Admin" : "Guest"), // Admin ke liye 'Shop Admin' likh dega agar khali hai
             mobile: mobile || "N/A", 
             pages: copies, print_type: printStr, amount: amount,
             file_url: client.storage.from("documents").getPublicUrl(fileName).data.publicUrl, 
@@ -722,16 +663,18 @@ async function submitOrder() {
 
         if (error) throw error;
         
+        // Success hone par LocalStorage set karna
         localStorage.setItem("last_order_time", Date.now());
         localStorage.setItem("amount", amount); 
         localStorage.setItem("mobile", mobile); 
         localStorage.setItem("current_order_id", order[0].id);
         
+        // 👑 5. PAYMENT PAGE BYPASS
         if (isAdmin) {
             alert("👑 Owner Mode: Document sent directly to printer! No payment required.");
-            window.location.reload(); 
+            window.location.reload(); // Page refresh ho jayega ready for next print
         } else {
-            window.location.href = "payment.html"; 
+            window.location.href = "payment.html"; // Customer normal payment page par jayega
         }
 
     } catch (err) {
