@@ -418,7 +418,6 @@ function drawCrop() {
 // ==========================================
 // 🚀 SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
-// ==========================================
 // 🚀 SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
 async function saveCropAndNext() {
@@ -429,7 +428,6 @@ async function saveCropAndNext() {
     btn.style.opacity = "0.5";
     btn.innerText = "Processing Fast...";
 
-    // Screen ko thoda sa time dena (UI freeze na ho)
     await new Promise(resolve => setTimeout(resolve, 50));
 
     const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
@@ -448,7 +446,6 @@ async function saveCropAndNext() {
         Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[1])*s.img.height)
     ));
 
-    // Memory Safe Limits (Speed aur badhegi)
     if (targetW > 2500 || targetH > 3500) {
         const scale = 2500 / Math.max(targetW, targetH);
         targetW = Math.round(targetW * scale);
@@ -463,36 +460,31 @@ async function saveCropAndNext() {
         let src, dest, srcTri, dstTri, M;
 
         try {
-            // Original Image ko padhna
             let imgCanvas = document.createElement('canvas');
             imgCanvas.width = s.img.width; imgCanvas.height = s.img.height;
             imgCanvas.getContext('2d').drawImage(s.img, 0, 0);
             src = cv.imread(imgCanvas);
 
-            // 🚀 MAGIC: Fast OpenCV Perspective Mapping (No Slow Loops!)
             srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                p1[0] * src.cols, p1[1] * src.rows, // Top-Left
-                p2[0] * src.cols, p2[1] * src.rows, // Top-Right
-                p3[0] * src.cols, p3[1] * src.rows, // Bottom-Right
-                p4[0] * src.cols, p4[1] * src.rows  // Bottom-Left
+                p1[0] * src.cols, p1[1] * src.rows, 
+                p2[0] * src.cols, p2[1] * src.rows, 
+                p3[0] * src.cols, p3[1] * src.rows, 
+                p4[0] * src.cols, p4[1] * src.rows  
             ]);
             dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                0, 0,
-                targetW, 0,
-                targetW, targetH,
-                0, targetH
+                0, 0, targetW, 0, targetW, targetH, 0, targetH
             ]);
 
             M = cv.getPerspectiveTransform(srcTri, dstTri);
             dest = new cv.Mat();
             cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
-            // 🎨 Filters Lagana (B/W or Color)
             if (printType == "5") {
-                cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0); 
+                // 🚀 FIX: Isko RGBA se seedha GRAYSCALE banayenge
+                cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0); 
                 let bg = new cv.Mat();
                 let diff = new cv.Mat();
-                let scalar = new cv.Mat(dest.rows, dest.cols, dest.type(), new cv.Scalar(255, 255, 255));
+                let scalar = new cv.Mat(dest.rows, dest.cols, dest.type(), new cv.Scalar(255)); // 1-Channel Grayscale ke liye
 
                 cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
                 cv.subtract(bg, dest, diff);
@@ -508,7 +500,6 @@ async function saveCropAndNext() {
             cv.imshow(hCvs, dest);
         } catch (e) { 
             console.warn("CV Error", e); 
-            // Agar OpenCV fail hua toh simple crop
             hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
         } finally {
             if (src) src.delete(); if (dest) dest.delete();
@@ -518,7 +509,6 @@ async function saveCropAndNext() {
         hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
     }
 
-    // 🚀 NEW FAST A4 CONVERSION
     const a4DataUrl = await convertToA4(hCvs);
     processedA4Images.push(a4DataUrl);
     
@@ -534,19 +524,27 @@ async function convertToA4(sourceCanvas) {
         const ctx = a4.getContext('2d'); 
         ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
         
-        // Image ko center mein set karna taaki stretch na ho
         const scale = Math.min(2400 / sourceCanvas.width, 3400 / sourceCanvas.height);
         const finalW = sourceCanvas.width * scale;
         const finalH = sourceCanvas.height * scale;
         const offsetX = (a4.width - finalW) / 2;
         const offsetY = (a4.height - finalH) / 2;
 
+        // 🚀 BULLETPROOF FIX: Hardware Accelerated B/W Filter!
+        // Isme 0 lag (delay) aayega aur photo 100% Black & White ho jayegi.
+        if (document.getElementById("type").value == 5) {
+            ctx.filter = 'grayscale(100%) contrast(120%) brightness(105%)';
+        }
+
         ctx.drawImage(sourceCanvas, offsetX, offsetY, finalW, finalH);
         
-        // Quality 0.85 tak compress karke size chota kar diya
+        // Filter reset karna taaki aage wali photo kharab na ho
+        ctx.filter = 'none';
+
         resolve(a4.toDataURL("image/jpeg", 0.85));
     });
 }
+
 
 function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
 cropEngine.canvas.addEventListener('touchstart', e=>{ const s=cropEngine; if(e.touches.length===2){ s.activeCorner=-1; s.isPanning=false; s.lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); s.lastTouchX=(e.touches[0].clientX+e.touches[1].clientX)/2; s.lastTouchY=(e.touches[0].clientY+e.touches[1].clientY)/2; } else if(e.touches.length===1){ const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY;} } }, {passive:false});
