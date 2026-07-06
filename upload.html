@@ -511,32 +511,49 @@ async function saveCropAndNext() {
     loadCurrentImageForCrop();
     calculate();
 }
-
 async function convertToA4(sourceCanvas) {
     return new Promise(resolve => {
         const a4 = document.createElement('canvas'); 
-        a4.width = 2480; a4.height = 3508; 
+        a4.width = 2480; 
+        a4.height = 3508; 
         const ctx = a4.getContext('2d'); 
-        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
+        ctx.fillStyle = '#FFFFFF'; 
+        ctx.fillRect(0,0,a4.width,a4.height);
         
-        const scale = Math.min(2400 / sourceCanvas.width, 3400 / sourceCanvas.height);
-        const finalW = sourceCanvas.width * scale;
-        const finalH = sourceCanvas.height * scale;
+        // 🚀 MAGIC FIX 1: AUTO-ROTATE (Agar marksheet aadi/landscape hai, toh use ghumakar seedha karega)
+        let drawCanvas = sourceCanvas;
+        if (sourceCanvas.width > sourceCanvas.height) {
+            drawCanvas = document.createElement('canvas');
+            drawCanvas.width = sourceCanvas.height;
+            drawCanvas.height = sourceCanvas.width;
+            const rotCtx = drawCanvas.getContext('2d');
+            rotCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
+            rotCtx.rotate(Math.PI / 2); // 90 degree rotate kiya
+            rotCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
+        }
+        
+        // 🚀 MAGIC FIX 2: PERFECT FIT (A4 paper ka 98% hissa bhar dega bina khinche/stretch kiye)
+        const margin = 40; // Sirf 40 pixels ka safe border print ke liye chhodega
+        const scale = Math.min((a4.width - margin*2) / drawCanvas.width, (a4.height - margin*2) / drawCanvas.height);
+        
+        const finalW = drawCanvas.width * scale;
+        const finalH = drawCanvas.height * scale;
+        
         const offsetX = (a4.width - finalW) / 2;
         const offsetY = (a4.height - finalH) / 2;
 
-        // 🚀 NEW FIX: Hardware Accelerated B/W Filter ko bhi normal kiya
+        // Hardware Accelerated B/W Filter (Agar OpenCV fail ho)
         if (document.getElementById("type").value == 5 && typeof cv === 'undefined') {
-            ctx.filter = 'grayscale(100%) contrast(110%)'; // Brightness hata di jo text ko wash out kar rahi thi
+            ctx.filter = 'grayscale(100%) contrast(110%)'; 
         }
 
-        ctx.drawImage(sourceCanvas, offsetX, offsetY, finalW, finalH);
-        
+        ctx.drawImage(drawCanvas, offsetX, offsetY, finalW, finalH);
         ctx.filter = 'none';
 
         resolve(a4.toDataURL("image/jpeg", 0.85));
     });
 }
+
 
 
 function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
