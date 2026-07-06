@@ -415,14 +415,18 @@ function drawCrop() {
     s.corners.forEach(c => { s.ctx.fillStyle = '#28a745'; s.ctx.beginPath(); s.ctx.arc(c.x, c.y, 14, 0, Math.PI * 2); s.ctx.fill(); s.ctx.strokeStyle = '#fff'; s.ctx.lineWidth = 3; s.ctx.stroke(); });
 }
 
+// ==========================================
+// 🚀 SUPER-FAST CROP & FILTER ENGINE (OPENCV)
+// ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
     const btn = document.getElementById("saveCropBtn");
     btn.disabled = true;
     btn.style.opacity = "0.5";
-    btn.innerText = "Processing...";
+    btn.innerText = "Processing Fast...";
 
+    // Screen ko thoda sa time dena (UI freeze na ho)
     await new Promise(resolve => setTimeout(resolve, 50));
 
     const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
@@ -441,65 +445,78 @@ async function saveCropAndNext() {
         Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[1])*s.img.height)
     ));
 
+    // Memory Safe Limits (Speed aur badhegi)
     if (targetW > 2500 || targetH > 3500) {
-        const scale = 3000 / Math.max(targetW, targetH);
+        const scale = 2500 / Math.max(targetW, targetH);
         targetW = Math.round(targetW * scale);
         targetH = Math.round(targetH * scale);
     }
 
-    let hCvs = document.createElement('canvas'); hCvs.width = targetW; hCvs.height = targetH;
-    const ctx = hCvs.getContext('2d');
-    
-    for (let y = 0; y < targetH; y++) {
-        for (let x = 0; x < targetW; x++) {
-            let u = x/targetW, v = y/targetH;
-            let topX = p1[0]+u*(p2[0]-p1[0]), topY = p1[1]+u*(p2[1]-p1[1]);
-            let botX = p4[0]+u*(p3[0]-p4[0]), botY = p4[1]+u*(p3[1]-p4[1]);
-            ctx.drawImage(s.img, (topX+v*(botX-topX))*s.img.width, (topY+v*(botY-topY))*s.img.height, 1, 1, x, y, 1, 1);
-        }
-    }
+    let hCvs = document.createElement('canvas'); 
+    hCvs.width = targetW; hCvs.height = targetH;
 
     if (typeof cv !== 'undefined') {
         let printType = document.getElementById("type").value; 
+        let src, dest, srcTri, dstTri, M;
 
-        if (printType == "5") {
-            let src, bg, diff, dest, scalar;
-            try {
-                src = cv.imread(hCvs);
-                cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0); 
-                bg = new cv.Mat();
-                diff = new cv.Mat();
-                dest = new cv.Mat();
-                scalar = new cv.Mat(src.rows, src.cols, src.type(), new cv.Scalar(255, 255, 255));
+        try {
+            // Original Image ko padhna
+            let imgCanvas = document.createElement('canvas');
+            imgCanvas.width = s.img.width; imgCanvas.height = s.img.height;
+            imgCanvas.getContext('2d').drawImage(s.img, 0, 0);
+            src = cv.imread(imgCanvas);
 
-                cv.GaussianBlur(src, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
-                cv.subtract(bg, src, diff);
+            // 🚀 MAGIC: Fast OpenCV Perspective Mapping (No Slow Loops!)
+            srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                p1[0] * src.cols, p1[1] * src.rows, // Top-Left
+                p2[0] * src.cols, p2[1] * src.rows, // Top-Right
+                p3[0] * src.cols, p3[1] * src.rows, // Bottom-Right
+                p4[0] * src.cols, p4[1] * src.rows  // Bottom-Left
+            ]);
+            dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                0, 0,
+                targetW, 0,
+                targetW, targetH,
+                0, targetH
+            ]);
+
+            M = cv.getPerspectiveTransform(srcTri, dstTri);
+            dest = new cv.Mat();
+            cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+            // 🎨 Filters Lagana (B/W or Color)
+            if (printType == "5") {
+                cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0); 
+                let bg = new cv.Mat();
+                let diff = new cv.Mat();
+                let scalar = new cv.Mat(dest.rows, dest.cols, dest.type(), new cv.Scalar(255, 255, 255));
+
+                cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
+                cv.subtract(bg, dest, diff);
                 cv.convertScaleAbs(diff, diff, 2.5, 0); 
                 cv.subtract(scalar, diff, dest);
-                cv.imshow(hCvs, dest);
-            } catch (e) { 
-                console.warn("CV Error", e); 
-            } finally {
-                if (src) src.delete(); if (bg) bg.delete(); if (diff) diff.delete(); 
-                if (dest) dest.delete(); if (scalar) scalar.delete();
+                
+                bg.delete(); diff.delete(); scalar.delete();
+            } else {
+                cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
+                cv.convertScaleAbs(dest, dest, 1.15, 10); 
             }
-        } else {
-            let src, dest;
-            try {
-                src = cv.imread(hCvs);
-                dest = new cv.Mat();
-                cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
-                cv.convertScaleAbs(src, dest, 1.15, 10); 
-                cv.imshow(hCvs, dest);
-            } catch (e) { 
-                console.warn("CV Error", e); 
-            } finally {
-                if (src) src.delete(); if (dest) dest.delete();
-            }
+
+            cv.imshow(hCvs, dest);
+        } catch (e) { 
+            console.warn("CV Error", e); 
+            // Agar OpenCV fail hua toh simple crop
+            hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
+        } finally {
+            if (src) src.delete(); if (dest) dest.delete();
+            if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
         }
+    } else {
+        hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
     }
 
-    const a4DataUrl = await convertToA4(hCvs.toDataURL("image/jpeg", 0.85));
+    // 🚀 NEW FAST A4 CONVERSION
+    const a4DataUrl = await convertToA4(hCvs);
     processedA4Images.push(a4DataUrl);
     
     currentImageIndex++;
@@ -507,27 +524,24 @@ async function saveCropAndNext() {
     calculate();
 }
 
-async function convertToA4(imgSrc) {
+async function convertToA4(sourceCanvas) {
     return new Promise(resolve => {
         const a4 = document.createElement('canvas'); 
         a4.width = 2480; a4.height = 3508; 
         const ctx = a4.getContext('2d'); 
         ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,a4.width,a4.height);
         
-        const img = new Image();
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0, a4.width, a4.height);
-            if (document.getElementById("type").value == 5) {
-                const d = ctx.getImageData(0,0,a4.width,a4.height);
-                for(let i=0; i<d.data.length; i+=4){ 
-                    let g = 0.299 * d.data[i] + 0.587 * d.data[i+1] + 0.114 * d.data[i+2]; 
-                    d.data[i] = d.data[i+1] = d.data[i+2] = g; 
-                }
-                ctx.putImageData(d,0,0);
-            }
-            resolve(a4.toDataURL("image/jpeg", 0.85));
-        };
-        img.src = imgSrc;
+        // Image ko center mein set karna taaki stretch na ho
+        const scale = Math.min(2400 / sourceCanvas.width, 3400 / sourceCanvas.height);
+        const finalW = sourceCanvas.width * scale;
+        const finalH = sourceCanvas.height * scale;
+        const offsetX = (a4.width - finalW) / 2;
+        const offsetY = (a4.height - finalH) / 2;
+
+        ctx.drawImage(sourceCanvas, offsetX, offsetY, finalW, finalH);
+        
+        // Quality 0.85 tak compress karke size chota kar diya
+        resolve(a4.toDataURL("image/jpeg", 0.85));
     });
 }
 
