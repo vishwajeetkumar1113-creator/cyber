@@ -474,6 +474,9 @@ async function saveCropAndNext() {
 // ==========================================
 // 🚀 2. HIGH QUALITY A4 & AUTO-ROTATE
 // ==========================================
+// ==========================================
+// 🚀 2. HIGH QUALITY A4 & ZERO MARGIN (FULL STRETCH)
+// ==========================================
 async function convertToA4(sourceCanvas) {
     return new Promise(resolve => {
         const a4 = document.createElement('canvas'); 
@@ -484,6 +487,8 @@ async function convertToA4(sourceCanvas) {
         ctx.fillRect(0,0,a4.width,a4.height);
         
         let drawCanvas = sourceCanvas;
+        
+        // Auto-Rotate logic
         if (sourceCanvas.width > sourceCanvas.height) {
             drawCanvas = document.createElement('canvas');
             drawCanvas.width = sourceCanvas.height;
@@ -494,23 +499,16 @@ async function convertToA4(sourceCanvas) {
             rotCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
         }
         
-        const margin = 40; 
-        const scale = Math.min((a4.width - margin*2) / drawCanvas.width, (a4.height - margin*2) / drawCanvas.height);
-        
-        const finalW = drawCanvas.width * scale;
-        const finalH = drawCanvas.height * scale;
-        
-        const offsetX = (a4.width - finalW) / 2;
-        const offsetY = (a4.height - finalH) / 2;
-
         if (document.getElementById("type").value == 5 && typeof cv === 'undefined') {
             ctx.filter = 'grayscale(100%) contrast(110%)'; 
         }
 
-        ctx.drawImage(drawCanvas, offsetX, offsetY, finalW, finalH);
+        // 🚀 FIX: Margin ko hata diya aur drawCanvas ko poore A4 par stretch kar diya
+        ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height);
+        
         ctx.filter = 'none';
 
-        // High Quality JPEG Compression (0.95 = ~95% Quality)
+        // High Quality JPEG Compression
         resolve(a4.toDataURL("image/jpeg", 0.95));
     });
 }
