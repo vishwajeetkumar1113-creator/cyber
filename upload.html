@@ -547,7 +547,7 @@ async function saveCropAndNext() {
 
     if (typeof cv !== 'undefined') {
         let printType = document.getElementById("type").value; 
-        let filterType = document.getElementById("imageFilter").value; // 🚀 MAGIC FILTER CHOICE
+        let filterType = document.getElementById("imageFilter").value; 
         let src, dest, srcTri, dstTri, M;
 
         try {
@@ -572,21 +572,22 @@ async function saveCropAndNext() {
 
             if (printType == "5") {
                 if (filterType === "clean") {
-                    // Clean Document Scan Logic
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
                     let bg = new cv.Mat();
                     let diff = new cv.Mat();
                     let scalar = new cv.Mat(dest.rows, dest.cols, dest.type(), new cv.Scalar(255)); 
 
-                    // 🚀 FIX: Blur area badhaya (15->21) aur contrast (2.5->1.5) kiya taaki photo natural aur dark rahe
-                    cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 21, 21, cv.BORDER_DEFAULT);
+                    // 🚀 MAGIC FIX 1: Whitening ko aggressive se ekdum normal (1.0) kar diya
+                    cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 51, 51, cv.BORDER_DEFAULT);
                     cv.subtract(bg, dest, diff);
-                    cv.convertScaleAbs(diff, diff, 1.5, 0); 
+                    cv.convertScaleAbs(diff, diff, 1.0, 0); 
                     cv.subtract(scalar, diff, dest);
+                    
+                    // 🚀 MAGIC FIX 2: Chehre (Face) aur Ink ko wapas deep dark black kiya
+                    cv.convertScaleAbs(dest, dest, 1.1, -25);
                     
                     bg.delete(); diff.delete(); scalar.delete();
                 } else {
-                    // NORMAL: Safe Grayscale
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
                     cv.convertScaleAbs(dest, dest, 1.1, 0); 
                 }
