@@ -203,11 +203,67 @@ async function handleFileSelectionChange(){
     }
 }
 
+async function handleFileSelectionChange(){
+    const files = document.getElementById("file").files;
+    if (!files || files.length === 0) return;
+
+    let maxSizeInBytes = 20 * 1024 * 1024; // 20 MB
+    for (let i = 0; i < files.length; i++) {
+        if (files[i].size > maxSizeInBytes) {
+            alert(`⚠️ Error: "${files[i].name}" bahut badi file hai! Kripya 20MB se choti file upload karein.`);
+            document.getElementById("file").value = ""; 
+            return;
+        }
+    }
+
+    document.getElementById("type").disabled = true;
+
+    uploadedImagesList = [];
+    uploadedPdfFile = null;
+    processedA4Images = [];
+    currentImageIndex = 0;
+
+    for (let i = 0; i < files.length; i++) {
+        if (files[i].type.startsWith("image/")) {
+            uploadedImagesList.push(files[i]);
+        } else if (files[i].type === "application/pdf" && !uploadedPdfFile) {
+            uploadedPdfFile = files[i]; 
+        }
+    }
+
+    if (uploadedPdfFile) {
+        const fileArrayBuffer = await uploadedPdfFile.arrayBuffer();
+        const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
+        totalDetectedPDFPages = srcPdf.getPageCount();
+    } else {
+        totalDetectedPDFPages = 0;
+    }
+
+    if (uploadedImagesList.length > 0) {
+        // 🚀 Purana File Name wala jugaad hata diya, ab live Whiteness Check hoga
+        document.getElementById("pdfUI").style.display = "none";
+        document.getElementById("imageUI").style.display = "block";
+        document.getElementById("docTypeGroup").style.display = "block";
+        document.getElementById("cropPreviewContainer").style.display = "none";
+        document.getElementById("cropAreaWrapper").style.display = "block";
+        
+        loadCurrentImageForCrop();
+        calculate();
+    } else if (uploadedPdfFile) {
+        cachedFileObject = uploadedPdfFile;
+        document.getElementById("pdfUI").style.display = "block";
+        document.getElementById("imageUI").style.display = "none";
+        document.getElementById("docTypeGroup").style.display = "none";
+        
+        await previewDocument();
+        calculate();
+    }
+}
+
 function loadCurrentImageForCrop() {
     if (currentImageIndex >= uploadedImagesList.length) {
         document.getElementById("cropAreaWrapper").style.display = "none";
         
-        // 🚀 PDF SWITCH LOGIC
         if (uploadedPdfFile) {
             document.getElementById("imageUI").style.display = "none";
             cachedFileObject = uploadedPdfFile;
@@ -217,6 +273,7 @@ function loadCurrentImageForCrop() {
         } else {
             document.getElementById("cropPreviewContainer").style.display = "block";
             document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
+            document.getElementById("autoDetectMsg").style.display = "none";
         }
         return;
     }
@@ -255,8 +312,37 @@ function loadCurrentImageForCrop() {
 
                     let src = cv.imread(tempCanvas);
                     let gray = new cv.Mat();
-                    
                     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+                    // ========================================================
+                    // 🚀 SMART AI WHITENESS DETECTOR (PRO LEVEL)
+                    // ========================================================
+                    let thresh = new cv.Mat();
+                    // 190 pixel value ke upar walo ko "Safed (White)" maanega
+                    cv.threshold(gray, thresh, 190, 255, cv.THRESH_BINARY); 
+                    
+                    let whitePixelCount = cv.countNonZero(thresh);
+                    let totalPixels = gray.rows * gray.cols;
+                    let whitenessPercentage = (whitePixelCount / totalPixels) * 100;
+                    
+                    let filterDropdown = document.getElementById("imageFilter");
+                    let autoMsg = document.getElementById("autoDetectMsg");
+                    
+                    // Agar photo mein 35% se zyada white hai, toh wo Document hai
+                    if (whitenessPercentage > 35) {
+                        filterDropdown.value = "clean";
+                        autoMsg.innerHTML = `🤖 <b>Auto-Detect:</b> White Paper Detected (<b>${Math.round(whitenessPercentage)}% Whiteness</b>). Set to Clean.`;
+                        autoMsg.style.color = "#2e7d32"; // Green color
+                    } else {
+                        // Warna wo Screenshot ya Photo hai
+                        filterDropdown.value = "normal";
+                        autoMsg.innerHTML = `🤖 <b>Auto-Detect:</b> Photo/Screenshot Detected (<b>${Math.round(whitenessPercentage)}% Whiteness</b>). Set to Normal.`;
+                        autoMsg.style.color = "#d32f2f"; // Red color
+                    }
+                    autoMsg.style.display = "block";
+                    thresh.delete();
+                    // ========================================================
+
                     cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
                     cv.Canny(gray, gray, 75, 200);
 
@@ -299,7 +385,7 @@ function loadCurrentImageForCrop() {
 
                     src.delete(); gray.delete(); contours.delete(); hierarchy.delete(); bestApprox.delete();
                 } catch (err) {
-                    console.log("Auto-Detect skip hua, normal crop on hai.", err);
+                    console.log("Auto-Detect fail hua.", err);
                 }
             }
 
