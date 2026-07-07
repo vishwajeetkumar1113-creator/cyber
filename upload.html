@@ -578,9 +578,10 @@ async function saveCropAndNext() {
                     let diff = new cv.Mat();
                     let scalar = new cv.Mat(dest.rows, dest.cols, dest.type(), new cv.Scalar(255)); 
 
-                    cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 15, 15, cv.BORDER_DEFAULT);
+                    // 🚀 FIX: Blur area badhaya (15->21) aur contrast (2.5->1.5) kiya taaki photo natural aur dark rahe
+                    cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 21, 21, cv.BORDER_DEFAULT);
                     cv.subtract(bg, dest, diff);
-                    cv.convertScaleAbs(diff, diff, 2.5, 0); 
+                    cv.convertScaleAbs(diff, diff, 1.5, 0); 
                     cv.subtract(scalar, diff, dest);
                     
                     bg.delete(); diff.delete(); scalar.delete();
@@ -640,7 +641,8 @@ async function convertToA4(sourceCanvas) {
         if (document.getElementById("type").value == 5 && typeof cv === 'undefined') {
             let filterType = document.getElementById("imageFilter") ? document.getElementById("imageFilter").value : "normal";
             if (filterType === "clean") {
-                ctx.filter = 'grayscale(100%) contrast(150%) brightness(115%)'; 
+                // 🚀 FIX: Fallback filter ko bhi thoda soft kiya
+                ctx.filter = 'grayscale(100%) contrast(115%) brightness(105%)'; 
             } else {
                 ctx.filter = 'grayscale(100%) contrast(110%)'; 
             }
