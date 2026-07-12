@@ -37,6 +37,7 @@
 <body>
 <div class="card">
     <h2>Upload Document</h2>
+    <p id="cvStatus" style="text-align:center; font-size:12px; color:#e65100; margin:-5px 0 10px 0;">⏳ Loading image enhancer...</p>
 
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
@@ -85,18 +86,18 @@
     <div id="imageUI" style="display: none;">
         <h4 id="imageStatus" style="text-align: center; color: #1976d2; margin-bottom: 10px;"></h4>
         
-        <!-- 🚀 HIDDEN: Magic Clean Filter (AI background me check karega) -->
-        <div class="input-group" style="display: none !important;">
-            <label style="color: #2e7d32;">✨ Magic Image Filter:</label>
-            <select id="imageFilter" style="border: 2px solid #4caf50; font-weight: bold;">
-                <option value="clean">Clean Document (Marksheet/Aadhaar ke liye)</option>
-                <option value="normal">Normal (WhatsApp Chats/Photos ke liye)</option>
+        <!-- Magic clean is automatic for B&W documents; customer can switch it off if not wanted -->
+        <div class="input-group" style="background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #90caf9;">
+            <label style="color: #1565c0;">Auto Clean Filter (for B&amp;W documents):</label>
+            <select id="autoCleanToggle">
+                <option value="on" selected>On (Recommended)</option>
+                <option value="off">Off - No Filter</option>
             </select>
-            <p id="autoDetectMsg"></p> <!-- Safe guard for JS -->
         </div>
 
         <div id="cropAreaWrapper">
             <p style="font-size: 13px; color: #555; text-align: center;">Drag corners to crop your document perfectly.</p>
+            <p id="cropDetectStatus" style="text-align:center; font-size:12px; color:#888; margin:-3px 0 5px 0; min-height:15px;"></p>
             <div class="canvas-container" id="cropContainer">
                 <canvas id="cropCanvas"></canvas>
             </div>
@@ -135,6 +136,20 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
+// 🔍 Visible feedback while OpenCV.js (used for auto-crop-detection & enhance) loads in the background
+(function pollCvReady() {
+    const cvStatusEl = document.getElementById('cvStatus');
+    if (typeof cv !== 'undefined' && cv.Mat) {
+        if (cvStatusEl) {
+            cvStatusEl.textContent = '✓ Image enhancer ready';
+            cvStatusEl.style.color = '#28a745';
+            setTimeout(() => { if (cvStatusEl) cvStatusEl.style.display = 'none'; }, 2000);
+        }
+        return;
+    }
+    setTimeout(pollCvReady, 300);
+})();
+
 // 🚀 MIXED FILES LOGIC VARIABLES
 let uploadedPdfFile = null;
 let uploadedImagesList = [];
@@ -145,6 +160,186 @@ let currentImageIndex = 0;
 let processedA4Images = []; 
 
 const cropEngine = { canvas: document.getElementById('cropCanvas'), ctx: document.getElementById('cropCanvas').getContext('2d'), img: null, corners: [], activeCorner: -1, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 };
+
+// ========================================================================
+// 🔍 ROBUST AUTO CORNER DETECTION (OpenCV.js — multi-strategy contour search)
+// ========================================================================
+// Orders 4 arbitrary points into [top-left, top-right, bottom-right, bottom-left]
+function orderCornersClockwise(pts) {
+    const sums = pts.map(p => p.x + p.y);
+    const diffs = pts.map(p => p.x - p.y);
+    const tl = pts[sums.indexOf(Math.min(...sums))];
+    const br = pts[sums.indexOf(Math.max(...sums))];
+    const tr = pts[diffs.indexOf(Math.max(...diffs))];
+    const bl = pts[diffs.indexOf(Math.min(...diffs))];
+    return [tl, tr, br, bl];
+}
+
+// Manually compute the 4 corners of a cv.RotatedRect (from cv.minAreaRect).
+// NOTE: cv.RotatedRect.points() is NOT a real bound method in OpenCV.js — calling
+// it throws, which silently aborts detection if wrapped in a broad try/catch.
+function rotatedRectCorners(rect) {
+    const angleRad = (rect.angle * Math.PI) / 180;
+    const cos = Math.cos(angleRad), sin = Math.sin(angleRad);
+    const w2 = rect.size.width / 2, h2 = rect.size.height / 2;
+    const cx = rect.center.x, cy = rect.center.y;
+    return [
+        { x: -w2, y: -h2 }, { x: w2, y: -h2 }, { x: w2, y: h2 }, { x: -w2, y: h2 }
+    ].map(p => ({
+        x: cx + p.x * cos - p.y * sin,
+        y: cy + p.x * sin + p.y * cos
+    }));
+}
+
+// Finds the best card/document-shaped quadrilateral in an image.
+//  - bilateralFilter: smooths busy/textured backgrounds while keeping true edges
+//  - runs several adaptive Canny threshold bands (a single fixed pair fails on
+//    glare or low-contrast backgrounds) PLUS Otsu thresholding (bright and dark
+//    variants) — a document is usually a plain, evenly-lit region, which Otsu
+//    segments far more reliably than edge detection does on textured surfaces
+//  - RETR_LIST (not RETR_EXTERNAL): still finds the document contour even if
+//    nested inside a larger background contour
+//  - approxPolyDP first, falling back to cv.minAreaRect when a contour never
+//    cleanly reduces to 4 points (common with glare/shadow-fragmented edges)
+//  - scores candidates by area * rectangularity, favoring the largest, most
+//    rectangular region — no fixed aspect-ratio assumption, since documents
+//    vary (ID cards, A4 sheets, marksheets, etc.)
+//  - every candidate is wrapped in its own try/catch so a single bad candidate
+//    can't silently abort the whole detection pass
+// Returns the 4 ordered corner points, or null if nothing usable was found.
+function autoDetectDocumentCorners(canvasEl, imgEl, debugLabel) {
+    const w = canvasEl.width;
+    const h = canvasEl.height;
+    const canvasArea = w * h;
+
+    let src, gray, blurred, kernel;
+    let bestQuad = null;
+    let bestScore = -1;
+    let candidatesSeen = 0;
+    let candidatesRejected = { size: 0, shape: 0, error: 0 };
+
+    // Document is usually the dominant object in frame (unlike a small ID card
+    // that might occupy only a fraction of a wider photo)
+    const minArea = canvasArea * 0.15;
+    const maxArea = canvasArea * 0.95;
+
+    function scanContours(binaryMat, label) {
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        cv.findContours(binaryMat, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+        for (let i = 0; i < contours.size(); i++) {
+            const cnt = contours.get(i);
+            let hull = null;
+            try {
+                const area = cv.contourArea(cnt);
+                if (area < minArea || area > maxArea) { candidatesRejected.size++; continue; }
+                candidatesSeen++;
+
+                hull = new cv.Mat();
+                cv.convexHull(cnt, hull);
+                const peri = cv.arcLength(hull, true);
+
+                let quadPts = null;
+                for (let epsFactor = 0.02; epsFactor <= 0.1; epsFactor += 0.01) {
+                    const approx = new cv.Mat();
+                    cv.approxPolyDP(hull, approx, epsFactor * peri, true);
+                    if (approx.rows === 4) {
+                        quadPts = [];
+                        for (let j = 0; j < 4; j++) {
+                            quadPts.push({ x: approx.intPtr(j, 0)[0], y: approx.intPtr(j, 0)[1] });
+                        }
+                        approx.delete();
+                        break;
+                    }
+                    approx.delete();
+                }
+
+                if (!quadPts) {
+                    const rotRect = cv.minAreaRect(hull);
+                    quadPts = rotatedRectCorners(rotRect);
+                }
+
+                const rect = cv.boundingRect(cnt);
+                const rectangularity = area / Math.max(1, (rect.width * rect.height));
+
+                if (rectangularity > 0.6) {
+                    const ordered = orderCornersClockwise(quadPts);
+                    const score = area * rectangularity;
+                    if (score > bestScore) {
+                        bestQuad = ordered;
+                        bestScore = score;
+                    }
+                } else {
+                    candidatesRejected.shape++;
+                }
+            } catch (candidateErr) {
+                candidatesRejected.error++;
+                console.warn(`[autoDetectDoc/${debugLabel}] candidate from ${label} threw:`, candidateErr);
+            } finally {
+                if (hull) hull.delete();
+                cnt.delete();
+            }
+        }
+        contours.delete();
+        hierarchy.delete();
+    }
+
+    try {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = w;
+        tempCanvas.height = h;
+        tempCanvas.getContext('2d').drawImage(imgEl, 0, 0, w, h);
+
+        src = cv.imread(tempCanvas);
+        gray = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+        blurred = new cv.Mat();
+        cv.bilateralFilter(gray, blurred, 9, 75, 75);
+
+        kernel = cv.Mat.ones(5, 5, cv.CV_8U);
+        const meanVal = cv.mean(blurred)[0];
+
+        // Strategy A: Canny edges at several adaptive threshold bands
+        const multiplierSets = [[0.66, 1.33], [0.4, 1.6], [0.2, 2.0]];
+        for (const [loMult, hiMult] of multiplierSets) {
+            const lower = Math.max(0, loMult * meanVal);
+            const upper = Math.min(255, hiMult * meanVal);
+            let edged = new cv.Mat();
+            let dilated = new cv.Mat();
+            cv.Canny(blurred, edged, lower, upper);
+            cv.dilate(edged, dilated, kernel, new cv.Point(-1, -1), 2);
+            scanContours(dilated, `canny(${loMult},${hiMult})`);
+            edged.delete();
+            dilated.delete();
+        }
+
+        // Strategy B: Otsu threshold (bright regions) — most documents are a
+        // plain, evenly-lit surface, which segments as one solid blob reliably
+        let otsu = new cv.Mat();
+        cv.threshold(blurred, otsu, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+        scanContours(otsu, "otsu-bright");
+        otsu.delete();
+
+        // Strategy C: inverse Otsu, in case the document is darker than its background
+        let otsuInv = new cv.Mat();
+        cv.threshold(blurred, otsuInv, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+        scanContours(otsuInv, "otsu-dark");
+        otsuInv.delete();
+
+        console.log(`[autoDetectDoc/${debugLabel}] candidates evaluated: ${candidatesSeen}, rejected(size/shape/error): ${candidatesRejected.size}/${candidatesRejected.shape}/${candidatesRejected.error}, bestScore: ${bestScore}`);
+
+        return bestQuad;
+    } catch (e) {
+        console.warn(`[autoDetectDoc/${debugLabel}] detection pass failed:`, e);
+        return null;
+    } finally {
+        [src, gray, blurred, kernel].forEach(m => {
+            if (m && typeof m.delete === 'function') m.delete();
+        });
+    }
+}
 
 async function handleFileSelectionChange(){
     const files = document.getElementById("file").files;
@@ -232,6 +427,9 @@ function loadCurrentImageForCrop() {
         btn.innerText = `Save Crop & Next (${currentImageIndex + 1}/${uploadedImagesList.length})`;
     }
 
+    const detectStatusEl = document.getElementById("cropDetectStatus");
+    if (detectStatusEl) detectStatusEl.textContent = '';
+
     const reader = new FileReader();
     reader.onload = e => {
         const img = new Image();
@@ -247,83 +445,31 @@ function loadCurrentImageForCrop() {
             cropEngine.corners = defaultCorners;
 
             if (typeof cv !== 'undefined' && typeof cv.imread === 'function') {
+                // ========================================================
+                // 🔍 ROBUST CORNER AUTO-DETECT (multi-strategy)
+                // ========================================================
+                if (detectStatusEl) {
+                    detectStatusEl.textContent = '🔍 Detecting document edges...';
+                    detectStatusEl.style.color = '#888';
+                }
                 try {
-                    let tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = w; tempCanvas.height = h;
-                    tempCanvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
-                    let src = cv.imread(tempCanvas);
-                    let gray = new cv.Mat();
-                    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-
-                    // ========================================================
-                    // 🚀 SMART AI WHITENESS DETECTOR (PRO LEVEL)
-                    // ========================================================
-                    let thresh = new cv.Mat();
-                    cv.threshold(gray, thresh, 190, 255, cv.THRESH_BINARY); 
-                    
-                    let whitePixelCount = cv.countNonZero(thresh);
-                    let totalPixels = gray.rows * gray.cols;
-                    let whitenessPercentage = (whitePixelCount / totalPixels) * 100;
-                    
-                    let filterDropdown = document.getElementById("imageFilter");
-                    let autoMsg = document.getElementById("autoDetectMsg");
-                    
-                    if (filterDropdown && autoMsg) {
-                        if (whitenessPercentage > 35) {
-                            filterDropdown.value = "clean";
-                            autoMsg.innerHTML = `🤖 <b>Auto-Detect:</b> White Paper Detected (<b>${Math.round(whitenessPercentage)}% Whiteness</b>). Set to Clean.`;
-                        } else {
-                            filterDropdown.value = "normal";
-                            autoMsg.innerHTML = `🤖 <b>Auto-Detect:</b> Photo/Screenshot Detected (<b>${Math.round(whitenessPercentage)}% Whiteness</b>). Set to Normal.`;
+                    const detectedQuad = autoDetectDocumentCorners(cropEngine.canvas, img, `image-${currentImageIndex + 1}`);
+                    if (detectedQuad) {
+                        cropEngine.corners = detectedQuad;
+                        if (detectStatusEl) {
+                            detectStatusEl.textContent = '✓ Document edges auto-detected — adjust if needed';
+                            detectStatusEl.style.color = '#28a745';
                         }
+                    } else if (detectStatusEl) {
+                        detectStatusEl.textContent = 'ℹ️ Could not auto-detect — please drag corners manually';
+                        detectStatusEl.style.color = '#e65100';
                     }
-                    thresh.delete();
-                    // ========================================================
-
-                    cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-                    cv.Canny(gray, gray, 75, 200);
-
-                    let contours = new cv.MatVector();
-                    let hierarchy = new cv.Mat();
-                    cv.findContours(gray, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-                    let maxArea = 0;
-                    let bestApprox = new cv.Mat();
-                    
-                    for (let i = 0; i < contours.size(); ++i) {
-                        let cnt = contours.get(i);
-                        let area = cv.contourArea(cnt);
-                        
-                        if (area > maxArea) {
-                            let peri = cv.arcLength(cnt, true);
-                            let approx = new cv.Mat();
-                            cv.approxPolyDP(cnt, approx, 0.05 * peri, true);
-                            
-                            if (approx.rows === 4) {
-                                maxArea = area;
-                                approx.copyTo(bestApprox);
-                            }
-                            approx.delete();
-                        }
-                    }
-
-                    if (maxArea > (w * h * 0.1)) { 
-                        let pts = [];
-                        for (let i = 0; i < 4; i++) {
-                            pts.push({ x: bestApprox.data32S[i * 2], y: bestApprox.data32S[i * 2 + 1] });
-                        }
-                        
-                        pts.sort((a, b) => a.y - b.y); 
-                        let top = pts.slice(0, 2).sort((a, b) => a.x - b.x); 
-                        let bottom = pts.slice(2, 4).sort((a, b) => b.x - a.x); 
-                        
-                        cropEngine.corners = [top[0], top[1], bottom[0], bottom[1]];
-                    }
-
-                    src.delete(); gray.delete(); contours.delete(); hierarchy.delete(); bestApprox.delete();
                 } catch (err) {
-                    console.log("Auto-Detect fail hua.", err);
+                    console.warn("Auto-Detect fail hua.", err);
+                    if (detectStatusEl) {
+                        detectStatusEl.textContent = 'ℹ️ Could not auto-detect — please drag corners manually';
+                        detectStatusEl.style.color = '#e65100';
+                    }
                 }
             }
 
@@ -425,6 +571,27 @@ function rotateImage() {
             cropEngine.canvas.height = (rotatedImg.height * 400) / rotatedImg.width;
             cropEngine.img = rotatedImg;
             cropEngine.corners = [{x:30, y:30}, {x:400-30, y:30}, {x:400-30, y:cropEngine.canvas.height-30}, {x:30, y:cropEngine.canvas.height-30}];
+
+            // Re-run auto-detect since orientation changed
+            if (typeof cv !== 'undefined' && typeof cv.imread === 'function') {
+                const detectStatusEl = document.getElementById("cropDetectStatus");
+                try {
+                    const detectedQuad = autoDetectDocumentCorners(cropEngine.canvas, rotatedImg, `image-${currentImageIndex + 1}-rotated`);
+                    if (detectedQuad) {
+                        cropEngine.corners = detectedQuad;
+                        if (detectStatusEl) {
+                            detectStatusEl.textContent = '✓ Document edges auto-detected — adjust if needed';
+                            detectStatusEl.style.color = '#28a745';
+                        }
+                    } else if (detectStatusEl) {
+                        detectStatusEl.textContent = 'ℹ️ Could not auto-detect — please drag corners manually';
+                        detectStatusEl.style.color = '#e65100';
+                    }
+                } catch (err) {
+                    console.warn("Auto-Detect fail hua (rotate).", err);
+                }
+            }
+
             drawCrop();
         };
         rotatedImg.src = internalCanvas.toDataURL("image/jpeg");
@@ -485,8 +652,7 @@ async function saveCropAndNext() {
 
     if (typeof cv !== 'undefined') {
         let printType = document.getElementById("type").value; 
-        let filterType = document.getElementById("imageFilter").value; // 🚀 MAGIC FILTER CHOICE (Auto selected in background)
-        let src, dest, srcTri, dstTri, M;
+        let src, dest, srcTri, dstTri, M, bg, diffMat;
 
         try {
             let imgCanvas = document.createElement('canvas');
@@ -508,20 +674,46 @@ async function saveCropAndNext() {
             dest = new cv.Mat();
             cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
+            let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
+
             if (printType == "5") {
-                if (filterType === "clean") {
-                    cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
-                    
-                    cv.normalize(dest, dest, 0, 255, cv.NORM_MINMAX);
-                    cv.convertScaleAbs(dest, dest, 1.4, -40); 
-                    
-                } else {
-                    cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
-                    cv.convertScaleAbs(dest, dest, 1.1, 0); 
+                cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
+
+                if (autoCleanEnabled) {
+                    // Detect whether this looks like a document/marksheet (mostly flat white
+                    // paper background + sparse dark ink) vs a regular photo (continuous
+                    // mid-tone shading/gradients from lighting, product shots, faces, etc.),
+                    // so we only auto-clean documents and leave normal photos untouched.
+                    let whiteMat = new cv.Mat();
+                    let darkMat = new cv.Mat();
+                    cv.threshold(dest, whiteMat, 225, 255, cv.THRESH_BINARY);
+                    cv.threshold(dest, darkMat, 60, 255, cv.THRESH_BINARY_INV);
+                    let totalPixels = dest.rows * dest.cols;
+                    let whitePercentage = (cv.countNonZero(whiteMat) / totalPixels) * 100;
+                    let darkPercentage = (cv.countNonZero(darkMat) / totalPixels) * 100;
+                    let midtonePercentage = 100 - whitePercentage - darkPercentage;
+                    whiteMat.delete();
+                    darkMat.delete();
+
+                    const looksLikeDocument = whitePercentage > 30 && midtonePercentage < 25;
+
+                    if (looksLikeDocument) {
+                        // Document / marksheet with dirty or uneven background -> auto clean
+                        bg = new cv.Mat();
+                        cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 25); // estimate background illumination
+                        diffMat = new cv.Mat();
+                        cv.absdiff(dest, bg, diffMat);
+                        cv.bitwise_not(diffMat, diffMat);
+                        // Cap the ceiling below pure 255 so the background doesn't get stretched
+                        // into blown-out white — this is the actual whiteness control.
+                        cv.normalize(diffMat, dest, 20, 205, cv.NORM_MINMAX);
+                    }
+                    // else: looks like a regular photo — leave as plain grayscale, no other edits
                 }
+                // if autoCleanEnabled is false, leave as plain grayscale — no detection, no cleanup
             } else {
+                // Color images: leave untouched, just ensure correct color space
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
-                cv.convertScaleAbs(dest, dest, 1.05, 5); 
             }
 
             cv.imshow(hCvs, dest);
@@ -531,6 +723,7 @@ async function saveCropAndNext() {
         } finally {
             if (src) src.delete(); if (dest) dest.delete();
             if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
+            if (bg) bg.delete(); if (diffMat) diffMat.delete();
         }
     } else {
         hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
@@ -568,12 +761,7 @@ async function convertToA4(sourceCanvas) {
         }
         
         if (document.getElementById("type").value == 5 && typeof cv === 'undefined') {
-            let filterType = document.getElementById("imageFilter") ? document.getElementById("imageFilter").value : "normal";
-            if (filterType === "clean") {
-                ctx.filter = 'grayscale(100%) contrast(115%) brightness(105%)'; 
-            } else {
-                ctx.filter = 'grayscale(100%) contrast(110%)'; 
-            }
+            ctx.filter = 'grayscale(100%)';
         }
 
         ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height); 
@@ -627,9 +815,9 @@ function calculate() {
 async function submitOrder() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('admin') === 'vishu') {
-        localStorage.setItem('adminMode', 'true');
+        sessionStorage.setItem('adminMode', 'true');
     }
-    const isAdmin = localStorage.getItem('adminMode') === 'true';
+    const isAdmin = sessionStorage.getItem('adminMode') === 'true';
 
     const lastOrderTime = localStorage.getItem("last_order_time");
     if (!isAdmin && lastOrderTime && (Date.now() - parseInt(lastOrderTime)) < 60000) { 
