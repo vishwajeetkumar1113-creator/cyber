@@ -114,6 +114,7 @@
             margin: 15px auto;
             text-align: center;
             display: none;
+            scroll-margin-top: 20px;
         }
         .side-preview img {
             width: 180px;
@@ -155,6 +156,7 @@
 
 <div class="card">
     <h2>ID Card Print Layout Engine</h2>
+    <p id="cvStatus" style="text-align:center; font-size:12px; color:#e65100; margin:-5px 0 10px 0;">⏳ Loading image enhancer...</p>
 
     <input type="text" id="name" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" placeholder="Mobile Number (Optional)">
@@ -237,6 +239,20 @@
 <script>
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
+// 🔍 Visible feedback while OpenCV.js (used for auto-enhance) loads in the background
+(function pollCvReady() {
+    const cvStatusEl = document.getElementById('cvStatus');
+    if (typeof cv !== 'undefined' && cv.Mat) {
+        if (cvStatusEl) {
+            cvStatusEl.textContent = '✓ Image enhancer ready';
+            cvStatusEl.style.color = '#28a745';
+            setTimeout(() => { if (cvStatusEl) cvStatusEl.style.display = 'none'; }, 2000);
+        }
+        return;
+    }
+    setTimeout(pollCvReady, 300);
+})();
+
 let frontDataUrl = null;
 let backDataUrl = null;
 
@@ -316,7 +332,7 @@ function loadImageData(side, src) {
 }
 
 // ========================================================================
-// 🔍 AUTO CORNER DETECTION (OpenCV.js — multi-strategy contour search)
+// 🔍 AUTO CORNER DETECTION (OpenCV.js Canny + Contour detection)
 // ========================================================================
 function tryAutoDetectCorners(side, attempt) {
     attempt = attempt || 0;
@@ -364,36 +380,19 @@ function orderCornersClockwise(pts) {
     return [tl, tr, br, bl];
 }
 
-// Manually compute the 4 corners of a cv.RotatedRect (from cv.minAreaRect).
-// NOTE: cv.RotatedRect.points() is NOT a real bound method in OpenCV.js — calling
-// it throws, which would silently abort detection if wrapped in a broad try/catch.
-function rotatedRectCorners(rect) {
-    const angleRad = (rect.angle * Math.PI) / 180;
-    const cos = Math.cos(angleRad), sin = Math.sin(angleRad);
-    const w2 = rect.size.width / 2, h2 = rect.size.height / 2;
-    const cx = rect.center.x, cy = rect.center.y;
-    return [
-        { x: -w2, y: -h2 }, { x: w2, y: -h2 }, { x: w2, y: h2 }, { x: -w2, y: h2 }
-    ].map(p => ({
-        x: cx + p.x * cos - p.y * sin,
-        y: cy + p.x * sin + p.y * cos
-    }));
-}
-
-// Finds the best ID-card-shaped quadrilateral in the image.
-//  - bilateralFilter: smooths busy/textured backgrounds while keeping true edges
-//  - runs several adaptive Canny threshold bands PLUS Otsu thresholding
-//    (bright and dark variants) — a card is usually a plain, evenly-lit
-//    region, which Otsu segments far more reliably than edges alone on
-//    textured/glare-prone surfaces
-//  - RETR_LIST (not RETR_EXTERNAL): still finds the card contour even if
-//    nested inside a larger background contour
-//  - approxPolyDP first, falling back to cv.minAreaRect when a contour never
+// Corner detection strategy:
+//  - bilateralFilter instead of GaussianBlur: smooths busy/textured backgrounds
+//    (wood, stone, fabric) while preserving the card's actual edges
+//  - multiple adaptive Canny threshold bands tried per image, instead of a single
+//    fixed pair — glare on plastic sleeves and low-contrast backgrounds often need
+//    a wider or narrower band than the standard auto-canny ratio
+//  - RETR_LIST instead of RETR_EXTERNAL: still finds the card contour even if
+//    it's nested inside a larger background contour
+//  - approxPolyDP first, with a cv.minAreaRect fallback when the contour never
 //    cleanly reduces to 4 points (common with glare-fragmented edges)
-//  - scores candidates by area * rectangularity * closeness to a real ID
-//    card's aspect ratio (856:540 ≈ 1.586)
-//  - every candidate is wrapped in its own try/catch so a single bad
-//    candidate can't silently abort the whole detection pass
+//  - scores candidate quads by area + rectangularity + how close their
+//    aspect ratio is to a real ID card (856:540 ≈ 1.586), instead of just
+//    picking the single largest 4-point contour
 function autoDetectCorners(side) {
     const s = engine[side];
     const w = s.canvas.width;
@@ -423,11 +422,30 @@ function autoDetectCorners(side) {
         return { ordered, ratioError, area };
     }
 
-    // Card can be a small part of the frame (lots of background/table visible), but
-    // shouldn't be near-zero (noise) or the entire frame (a false "whole image" contour)
+    // Manually compute the 4 corners of a cv.RotatedRect (from cv.minAreaRect).
+    // NOTE: cv.RotatedRect.points() is NOT a real method in OpenCV.js's bindings —
+    // calling it throws, which was silently aborting detection entirely before.
+    function rotatedRectCorners(rect) {
+        const angleRad = (rect.angle * Math.PI) / 180;
+        const cos = Math.cos(angleRad), sin = Math.sin(angleRad);
+        const w2 = rect.size.width / 2, h2 = rect.size.height / 2;
+        const cx = rect.center.x, cy = rect.center.y;
+        return [
+            { x: -w2, y: -h2 }, { x: w2, y: -h2 }, { x: w2, y: h2 }, { x: -w2, y: h2 }
+        ].map(p => ({
+            x: cx + p.x * cos - p.y * sin,
+            y: cy + p.x * sin + p.y * cos
+        }));
+    }
+
+    // Card can be a small part of the frame, but shouldn't be near-zero (noise)
+    // or the entire frame (a false "whole image" contour)
     const minArea = canvasArea * 0.02;
     const maxArea = canvasArea * 0.95;
 
+    // Evaluates every contour in a given binary/edge Mat against the scoring
+    // criteria, updating bestQuad/bestScore as it goes. Isolated per-contour
+    // try/catch so one bad candidate can't abort the whole detection pass.
     function scanContours(binaryMat, label) {
         let contours = new cv.MatVector();
         let hierarchy = new cv.Mat();
@@ -491,7 +509,6 @@ function autoDetectCorners(side) {
     }
 
     try {
-        // Render the (un-zoomed) image at canvas resolution so coordinates line up with s.corners
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = w;
         tempCanvas.height = h;
@@ -521,8 +538,9 @@ function autoDetectCorners(side) {
             dilated.delete();
         }
 
-        // Strategy B: Otsu threshold (bright regions) — a white/light card against
-        // a duller background segments as one solid blob more reliably than edges alone
+        // Strategy B: Otsu threshold on brightness. A white/light ID card against
+        // a duller background (wood, stone, fabric, skin) segments as one bright
+        // blob far more reliably than edge detection does on textured surfaces.
         let otsu = new cv.Mat();
         cv.threshold(blurred, otsu, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
         scanContours(otsu, "otsu-bright");
@@ -757,6 +775,7 @@ function dataURLtoBlob(dataurl) {
 }
 
 // 🚀 FIXED: Added "Please Wait" loading logic for Save Buttons
+// 🚀 FIXED: Auto-scroll so the saved preview lands at the top of the viewport
 async function saveSide(side) {
     const s = engine[side];
     if (!s.img) { alert(`Choose an image for ${side} first.`); return; }
@@ -783,12 +802,20 @@ async function saveSide(side) {
     
     const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
     
+    const previewContainer = document.getElementById(`${side}PreviewContainer`);
     document.getElementById(`${side}PreviewImg`).src = croppedDataUrl;
-    document.getElementById(`${side}PreviewContainer`).style.display = "block";
+    previewContainer.style.display = "block";
     applyLiveGrayscalePreviewFilter();
 
     if (side === 'front') frontDataUrl = croppedDataUrl;
     else backDataUrl = croppedDataUrl;
+
+    // 📜 Auto-scroll so the freshly saved preview appears at the top of the screen.
+    // requestAnimationFrame ensures display:"block" has been painted first,
+    // so the browser measures the container's real position before scrolling.
+    requestAnimationFrame(() => {
+        previewContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
 
     // Restore button states
     buttons.forEach(btn => {
@@ -870,9 +897,9 @@ async function submitID() {
     // 👑 1. ADMIN MODE CHECK
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('admin') === 'vishu') {
-        localStorage.setItem('adminMode', 'true');
+        sessionStorage.setItem('adminMode', 'true');
     }
-    const isAdmin = localStorage.getItem('adminMode') === 'true';
+    const isAdmin = sessionStorage.getItem('adminMode') === 'true';
 
     // 🟢 2. SPAM PROTECTION (Admin ko wait nahi karna padega)
     const lastOrderTime = localStorage.getItem("last_order_time");
