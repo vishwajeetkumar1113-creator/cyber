@@ -626,6 +626,9 @@ function drawCrop() {
 // ==========================================
     // ==========================================
 // 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
+
+                // ==========================================
+// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
@@ -663,7 +666,7 @@ async function saveCropAndNext() {
 
     if (typeof cv !== 'undefined') {
         let printType = document.getElementById("type").value; 
-        let src, dest, srcTri, dstTri, M, bg;
+        let src, dest, srcTri, dstTri, M;
 
         try {
             let imgCanvas = document.createElement('canvas');
@@ -691,18 +694,20 @@ async function saveCropAndNext() {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                 if (autoCleanEnabled) {
-                    // 🔥 MAGIC FILTER (Contrast set to 3.0) 🔥
-                    bg = new cv.Mat();
+                    // 🔥 ULTIMATE CAMSCANNER B&W (ADAPTIVE THRESHOLD) 🔥
+                    // Ye kisi manual contrast number par rely nahi karta. Ye paper ki lighting ko
+                    // locally samajhta hai aur fade text ko dhundh kar black kar deta hai!
+
+                    // 1. Halka blur taaki photo ka grain/noise hat jaye
+                    cv.GaussianBlur(dest, dest, new cv.Size(3, 3), 0, 0, cv.BORDER_DEFAULT);
+
+                    // 2. Adaptive Threshold (The Real Magic Engine)
+                    cv.adaptiveThreshold(dest, dest, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 25, 12);
                     
-                    // 1. Shadow background extract karo
-                    cv.GaussianBlur(dest, bg, new cv.Size(61, 61), 0, 0, cv.BORDER_DEFAULT);
-
-                    // 2. Shadows remove karo (Background white)
-                    cv.divide(dest, bg, dest, 255);
-
-                    // 3. ✨ Level 3.0 Contrast ✨
-                    // Contrast ko 3.0 par aur brightness minus ko -350 par lock kiya hai
-                    dest.convertTo(dest, -1, 3.0, -350);
+                    // 3. Text ko thoda bold/solid rakhne ke liye (taaki letters tootey nahi)
+                    let M_erode = cv.Mat.ones(2, 2, cv.CV_8U);
+                    cv.erode(dest, dest, M_erode);
+                    M_erode.delete();
                 }
             } else {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
@@ -715,7 +720,6 @@ async function saveCropAndNext() {
         } finally {
             if (src) src.delete(); if (dest) dest.delete();
             if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
-            if (bg) bg.delete();
         }
     } else {
         hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
@@ -727,7 +731,8 @@ async function saveCropAndNext() {
     currentImageIndex++;
     loadCurrentImageForCrop();
     calculate();
-}
+                }
+                        
     
 async function convertToA4(sourceCanvas) {
     return new Promise(resolve => {
