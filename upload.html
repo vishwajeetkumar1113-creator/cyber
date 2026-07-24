@@ -629,6 +629,9 @@ function drawCrop() {
 
                 // ==========================================
 // 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
+//
+    // ==========================================
+// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
@@ -666,7 +669,7 @@ async function saveCropAndNext() {
 
     if (typeof cv !== 'undefined') {
         let printType = document.getElementById("type").value; 
-        let src, dest, srcTri, dstTri, M;
+        let src, dest, srcTri, dstTri, M, bg;
 
         try {
             let imgCanvas = document.createElement('canvas');
@@ -694,20 +697,21 @@ async function saveCropAndNext() {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                 if (autoCleanEnabled) {
-                    // 🔥 ULTIMATE CAMSCANNER B&W (ADAPTIVE THRESHOLD) 🔥
-                    // Ye kisi manual contrast number par rely nahi karta. Ye paper ki lighting ko
-                    // locally samajhta hai aur fade text ko dhundh kar black kar deta hai!
-
-                    // 1. Halka blur taaki photo ka grain/noise hat jaye
-                    cv.GaussianBlur(dest, dest, new cv.Size(3, 3), 0, 0, cv.BORDER_DEFAULT);
-
-                    // 2. Adaptive Threshold (The Real Magic Engine)
-                    cv.adaptiveThreshold(dest, dest, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 25, 12);
+                    // 🔥 BALANCED CAMSCANNER FILTER (No More Black Blobs) 🔥
+                    bg = new cv.Mat();
                     
-                    // 3. Text ko thoda bold/solid rakhne ke liye (taaki letters tootey nahi)
-                    let M_erode = cv.Mat.ones(2, 2, cv.CV_8U);
-                    cv.erode(dest, dest, M_erode);
-                    M_erode.delete();
+                    // 1. Ek medium size ka blur lagakar shadow extract karo
+                    cv.GaussianBlur(dest, bg, new cv.Size(41, 41), 0, 0, cv.BORDER_DEFAULT);
+
+                    // 2. Shadows ko hata do (Background doodh jaisa safed ho jayega)
+                    cv.divide(dest, bg, dest, 255);
+
+                    // 3. Contrast ko perfectly normalize karo (0 se 255 ke beech fit karo)
+                    cv.normalize(dest, dest, 0, 255, cv.NORM_MINMAX);
+
+                    // 4. Safe Contrast Boost: Isko 1.5 aur -40 par set kiya hai.
+                    // Isse text deep black rahega lekin letters failege nahi.
+                    dest.convertTo(dest, -1, 1.5, -40);
                 }
             } else {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
@@ -720,6 +724,7 @@ async function saveCropAndNext() {
         } finally {
             if (src) src.delete(); if (dest) dest.delete();
             if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
+            if (bg) bg.delete();
         }
     } else {
         hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
@@ -731,9 +736,8 @@ async function saveCropAndNext() {
     currentImageIndex++;
     loadCurrentImageForCrop();
     calculate();
-                }
-                        
-    
+    }
+            
 async function convertToA4(sourceCanvas) {
     return new Promise(resolve => {
         const a4 = document.createElement('canvas'); 
