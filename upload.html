@@ -885,7 +885,7 @@ async function submitOrder() {
                     }
                     ctx.putImageData(imgData, 0, 0);
                     
-                    const imgDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+                    const imgDataUrl = canvas.toDataURL("image/jpeg", 1.0);
                     const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
                     const embeddedImage = await outPdf.embedJpg(imgBytes);
                     
