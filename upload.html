@@ -623,6 +623,10 @@ function drawCrop() {
 // 🚀// ==========================================
 // 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
+// ==========================================
+    // ==========================================
+// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
+// ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -687,20 +691,18 @@ async function saveCropAndNext() {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                 if (autoCleanEnabled) {
-                    // 🔥 PERFECT MAGIC FILTER (Sweet Spot) 🔥
+                    // 🔥 MAGIC FILTER (Contrast set to 3.0) 🔥
                     bg = new cv.Mat();
                     
-                    // 1. Shadow aur uneven light extract karo
+                    // 1. Shadow background extract karo
                     cv.GaussianBlur(dest, bg, new cv.Size(61, 61), 0, 0, cv.BORDER_DEFAULT);
 
-                    // 2. Shadows remove karo (Background pure white ho jayega)
+                    // 2. Shadows remove karo (Background white)
                     cv.divide(dest, bg, dest, 255);
 
-                    // 3. ✨ THE SWEET SPOT CONTRAST ✨
-                    // Pehle 1.8 tha (jo light tha), aur usse pehle 3.5 (jo bahut dark tha).
-                    // Ab isko 2.5 aur -250 par lock kiya hai. 
-                    // Result: Text ekdum crisp, clear Dark Black hoga, aur mota bhi nahi hoga!
-                    dest.convertTo(dest, -1, 2.5, -250);
+                    // 3. ✨ Level 3.0 Contrast ✨
+                    // Contrast ko 3.0 par aur brightness minus ko -350 par lock kiya hai
+                    dest.convertTo(dest, -1, 3.0, -350);
                 }
             } else {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
@@ -725,12 +727,8 @@ async function saveCropAndNext() {
     currentImageIndex++;
     loadCurrentImageForCrop();
     calculate();
-                }
-                
-
-// ==========================================
-// 🚀 2. ZERO MARGIN (FULL STRETCH) & AUTO-ROTATE
-// ==========================================
+}
+    
 async function convertToA4(sourceCanvas) {
     return new Promise(resolve => {
         const a4 = document.createElement('canvas'); 
