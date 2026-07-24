@@ -625,6 +625,9 @@ function drawCrop() {
 // ==========================================
 // 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
+// ==========================================
+// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
+// ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -689,25 +692,21 @@ async function saveCropAndNext() {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                 if (autoCleanEnabled) {
-                    // 🔥 THE REAL MAGIC FILTER (Fix for Faded & Thin Text) 🔥
+                    // 🔥 BALANCED MAGIC FILTER (Natural Text Look) 🔥
                     bg = new cv.Mat();
                     
-                    // 1. Ek bada blur lagao taaki sirf paper ka andhera (shadow) bache, text nahi.
+                    // 1. Blur to extract shadow background
                     cv.GaussianBlur(dest, bg, new cv.Size(61, 61), 0, 0, cv.BORDER_DEFAULT);
 
-                    // 2. Division Method: Asli image ko shadow background se divide karo.
-                    // Ye paper ke dark/grey shadow ko 100% white kar deta hai bina text mitaye.
+                    // 2. Division method to remove shadows and make paper white
                     cv.divide(dest, bg, dest, 255);
 
-                    // 3. Faded/halke text ko deep black banane ke liye Super Contrast boost karo!
-                    // Halki pencil/ink seedha dark black me convert ho jayegi.
-                    dest.convertTo(dest, -1, 3.5, -600);
+                    // 3. Normal Contrast Boost: Pehle 3.5 tha (jo bahut dark tha), 
+                    // Ab isko 1.8 kar diya hai taaki text natural aur clear rahe, over-dark na ho.
+                    dest.convertTo(dest, -1, 1.8, -150);
 
-                    // 4. Text ko thoda BOLD (Mota) karne ke liye halka sa Erode filter lagao.
-                    // Isse patla text thoda gaadha (thick) ho jayega taaki print me mast aaye.
-                    let M_erode = cv.Mat.ones(2, 2, cv.CV_8U);
-                    cv.erode(dest, dest, M_erode);
-                    M_erode.delete();
+                    // 🔥 BOLD/ERODE FILTER YAHAN SE HATA DIYA GAYA HAI 🔥
+                    // Jisse text bilkul patla aur asoolan waisa hi dikhega jaisa original photo me tha.
                 }
             } else {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
