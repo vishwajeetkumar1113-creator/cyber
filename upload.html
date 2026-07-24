@@ -619,6 +619,9 @@ function drawCrop() {
 // ==========================================
 // 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
+// ==========================================
+// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
+// ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -683,15 +686,23 @@ async function saveCropAndNext() {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                 if (autoCleanEnabled) {
-                    // 🔥 Removed the faulty "looksLikeDocument" math that was skipping dirty photos
+                    // 🔥 CAMSCANNER MAGIC FILTER LOGIC 🔥
                     bg = new cv.Mat();
-                    cv.GaussianBlur(dest, bg, new cv.Size(0, 0), 25, 25, cv.BORDER_DEFAULT); 
+                    // 1. Ek bada blur lagao taaki sirf shadows bache aur text gayab ho jaye
+                    cv.GaussianBlur(dest, bg, new cv.Size(51, 51), 0, 0, cv.BORDER_DEFAULT);
+
                     diffMat = new cv.Mat();
-                    cv.absdiff(dest, bg, diffMat);
-                    cv.bitwise_not(diffMat, diffMat);
-                    
-                    // 🔥 Cap pushed to 255 for a truly clean pure white background
-                    cv.normalize(diffMat, dest, 0, 255, cv.NORM_MINMAX);
+                    // 2. Background (shadows) me se original image ghatao (Shadows hat jayengi, text bright ho jayega)
+                    cv.subtract(bg, dest, diffMat);
+
+                    // 3. Contrast stretch karo (Max bright ko 255, dark ko 0 par lock karo)
+                    cv.normalize(diffMat, diffMat, 0, 255, cv.NORM_MINMAX);
+
+                    // 4. Invert karo (Text Black banega, Background Pure White)
+                    cv.bitwise_not(diffMat, dest);
+
+                    // 5. Final sharpness aur contrast boost (Text ko ekdum deep dark black karne ke liye)
+                    dest.convertTo(dest, -1, 1.3, -30);
                 }
             } else {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
