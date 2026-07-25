@@ -616,23 +616,6 @@ function drawCrop() {
 // ==========================================
 // 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
-// ==========================================
-// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
-// ==========================================
-// ==========================================
-// 🚀// ==========================================
-// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
-// ==========================================
-// ==========================================
-    // ==========================================
-// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
-
-                // ==========================================
-// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
-//
-    // ==========================================
-// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
-// ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -697,21 +680,39 @@ async function saveCropAndNext() {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                 if (autoCleanEnabled) {
-                    // 🔥 BALANCED CAMSCANNER FILTER (No More Black Blobs) 🔥
+                    // 🔥 IMPROVED CLEAN FILTER (text-safe) 🔥
+                    // Fixes: on high-res crops (up to ~2500-3500px) a fixed small
+                    // blur kernel captured letter strokes into the "background"
+                    // estimate, so divide() washed thin/faint text out to near-white.
+                    // Fix: scale the blur kernel to image size (illumination only,
+                    // not letters) + finish with adaptiveThreshold so text is always
+                    // forced solid black regardless of upstream contrast drift.
                     bg = new cv.Mat();
-                    
-                    // 1. Ek medium size ka blur lagakar shadow extract karo
-                    cv.GaussianBlur(dest, bg, new cv.Size(41, 41), 0, 0, cv.BORDER_DEFAULT);
 
-                    // 2. Shadows ko hata do (Background doodh jaisa safed ho jayega)
+                    // 1. Kernel size relative to resolution (odd, minimum 21)
+                    let kSize = Math.round(Math.min(dest.rows, dest.cols) / 20);
+                    if (kSize % 2 === 0) kSize++;
+                    if (kSize < 21) kSize = 21;
+
+                    cv.GaussianBlur(dest, bg, new cv.Size(kSize, kSize), 0, 0, cv.BORDER_DEFAULT);
+
+                    // 2. Remove shadow / uneven lighting
                     cv.divide(dest, bg, dest, 255);
-
-                    // 3. Contrast ko perfectly normalize karo (0 se 255 ke beech fit karo)
                     cv.normalize(dest, dest, 0, 255, cv.NORM_MINMAX);
 
-                    // 4. Safe Contrast Boost: Isko 1.5 aur -40 par set kiya hai.
-                    // Isse text deep black rahega lekin letters failege nahi.
-                    dest.convertTo(dest, -1, 1.5, -40);
+                    // 3. Mild contrast only — big boosts here clip faint strokes
+                    //    before thresholding gets a chance to fix them
+                    dest.convertTo(dest, -1, 1.15, -10);
+
+                    // 4. Adaptive threshold: locks text to solid black locally,
+                    //    regardless of any residual brightness drift from steps 1-3
+                    cv.adaptiveThreshold(
+                        dest, dest, 255,
+                        cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY,
+                        31,   // block size (odd) — raise if text looks speckled/noisy
+                        15    // C constant — raise if background still greyish,
+                              // lower if text strokes look too thin/broken
+                    );
                 }
             } else {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
