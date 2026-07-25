@@ -717,7 +717,21 @@ async function saveCropAndNext() {
                         //    Raise the first number (contrast) if text is still too light;
                         //    raise the second (brightness offset, more negative) if background
                         //    still looks grey.
-                        dest.convertTo(dest, -1, 1.6, -75);
+                        // 4. Gamma darkening curve (not a linear stretch): pins true white
+                        //    at white, but pushes every other tone darker — the darker a
+                        //    pixel already is, the harder it gets pulled down. A linear
+                        //    contrast stretch (alpha/beta) pushes light/mid-gray text
+                        //    (light printer toner, pencil) toward white before it gets a
+                        //    chance to darken; gamma avoids that by compressing the whole
+                        //    sub-white range downward instead of just adding brightness.
+                        let floatMat = new cv.Mat();
+                        try {
+                            dest.convertTo(floatMat, cv.CV_32F, 1.0 / 255.0, 0);
+                            cv.pow(floatMat, 2.4, floatMat); // raise (e.g. 3.0) for darker text, lower (e.g. 1.8) if text is getting too heavy/blotchy
+                            floatMat.convertTo(dest, cv.CV_8U, 255.0, 0);
+                        } finally {
+                            floatMat.delete();
+                        }
                     } finally {
                         if (morphKernel) morphKernel.delete();
                     }
