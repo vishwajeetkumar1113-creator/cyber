@@ -680,39 +680,47 @@ async function saveCropAndNext() {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                 if (autoCleanEnabled) {
-                    // 🔥 IMPROVED CLEAN FILTER (text-safe) 🔥
-                    // Fixes: on high-res crops (up to ~2500-3500px) a fixed small
-                    // blur kernel captured letter strokes into the "background"
-                    // estimate, so divide() washed thin/faint text out to near-white.
-                    // Fix: scale the blur kernel to image size (illumination only,
-                    // not letters) + finish with adaptiveThreshold so text is always
-                    // forced solid black regardless of upstream contrast drift.
-                    bg = new cv.Mat();
+                    // 🔥 SOFT CLEAN FILTER — dark text, clean white background, NOT binarized 🔥
+                    // Previous version used adaptiveThreshold, which forces every pixel to
+                    // pure black/white — this loses thin or anti-aliased strokes and can look
+                    // broken/dotted. This version stays grayscale: background gets flattened to
+                    // clean white, text gets pulled dark with a contrast curve, but stroke edges
+                    // stay smooth and visible.
+                    let morphKernel = null;
+                    try {
+                        bg = new cv.Mat();
 
-                    // 1. Kernel size relative to resolution (odd, minimum 21)
-                    let kSize = Math.round(Math.min(dest.rows, dest.cols) / 20);
-                    if (kSize % 2 === 0) kSize++;
-                    if (kSize < 21) kSize = 21;
+                        // 1. Estimate background with MORPHOLOGICAL CLOSING, not blur.
+                        //    Closing (dilate then erode) with a kernel bigger than any text
+                        //    stroke completely erases the text from the estimate — a blur
+                        //    kernel, however large, still partially blends text into it,
+                        //    which is what caused text to wash out before.
+                        let closeSize = Math.round(Math.min(dest.rows, dest.cols) / 15);
+                        if (closeSize % 2 === 0) closeSize++;
+                        if (closeSize < 15) closeSize = 15;
+                        morphKernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(closeSize, closeSize));
+                        cv.morphologyEx(dest, bg, cv.MORPH_CLOSE, morphKernel);
 
-                    cv.GaussianBlur(dest, bg, new cv.Size(kSize, kSize), 0, 0, cv.BORDER_DEFAULT);
+                        // 2. Flatten illumination: background converges to ~255 (clean white),
+                        //    text stays dark relative to its local background regardless of
+                        //    shadows or uneven lighting across the page.
+                        cv.divide(dest, bg, dest, 255);
 
-                    // 2. Remove shadow / uneven lighting
-                    cv.divide(dest, bg, dest, 255);
-                    cv.normalize(dest, dest, 0, 255, cv.NORM_MINMAX);
+                        // 3. Light denoise — removes speckle from step 2 without eating
+                        //    text edges (median preserves edges better than blur).
+                        cv.medianBlur(dest, dest, 3);
 
-                    // 3. Mild contrast only — big boosts here clip faint strokes
-                    //    before thresholding gets a chance to fix them
-                    dest.convertTo(dest, -1, 1.15, -10);
-
-                    // 4. Adaptive threshold: locks text to solid black locally,
-                    //    regardless of any residual brightness drift from steps 1-3
-                    cv.adaptiveThreshold(
-                        dest, dest, 255,
-                        cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY,
-                        31,   // block size (odd) — raise if text looks speckled/noisy
-                        15    // C constant — raise if background still greyish,
-                              // lower if text strokes look too thin/broken
-                    );
+                        // 4. Contrast curve (not a threshold) to push text darker and pin
+                        //    background to solid white. Saturating cast on convertTo clips
+                        //    values >255 to 255 and <0 to 0, so background stays flat white
+                        //    while midtone text gets meaningfully darker.
+                        //    Raise the first number (contrast) if text is still too light;
+                        //    raise the second (brightness offset, more negative) if background
+                        //    still looks grey.
+                        dest.convertTo(dest, -1, 1.4, -55);
+                    } finally {
+                        if (morphKernel) morphKernel.delete();
+                    }
                 }
             } else {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
