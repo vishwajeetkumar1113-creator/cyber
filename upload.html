@@ -695,11 +695,21 @@ async function saveCropAndNext() {
                         //    stroke completely erases the text from the estimate — a blur
                         //    kernel, however large, still partially blends text into it,
                         //    which is what caused text to wash out before.
-                        let closeSize = Math.round(Math.min(dest.rows, dest.cols) / 10);
+                        let closeSize = Math.round(Math.min(dest.rows, dest.cols) / 15);
                         if (closeSize % 2 === 0) closeSize++;
-                        if (closeSize < 25) closeSize = 25;
+                        if (closeSize < 15) closeSize = 15;
                         morphKernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(closeSize, closeSize));
                         cv.morphologyEx(dest, bg, cv.MORPH_CLOSE, morphKernel);
+
+                        // Smooth the background ESTIMATE itself (not the image). Closing with
+                        // a large elliptical kernel can otherwise leave visible oval-shaped
+                        // blotches in sparser regions of the page (margins, blank space) —
+                        // those then blow out to solid white blobs once divided in. Blurring
+                        // the estimate turns it into a genuinely smooth lighting surface with
+                        // no hard/rounded edges, while the text (already erased by closing)
+                        // stays erased.
+                        let blurSize = closeSize % 2 === 0 ? closeSize + 1 : closeSize;
+                        cv.GaussianBlur(bg, bg, new cv.Size(blurSize, blurSize), 0, 0, cv.BORDER_DEFAULT);
 
                         // 2. Flatten illumination: background converges to ~255 (clean white),
                         //    text stays dark relative to its local background regardless of
