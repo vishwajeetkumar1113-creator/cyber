@@ -20,10 +20,9 @@
 <body>
 
 <div class="card">
-    <h2>Admin Login</h2>
+    <h2>🔒 Staff Login</h2>
     <p id="errorMsg"></p>
-    <!-- 🔥 Changed from email to tel for mobile number input -->
-    <input type="tel" id="mobile" placeholder="Enter 10-digit mobile number" autocomplete="username" maxlength="10">
+    <input type="email" id="email" placeholder="Staff email" autocomplete="username">
     <input type="password" id="password" placeholder="Password" autocomplete="current-password">
     <button id="loginBtn" onclick="login()">Sign In</button>
 </div>
@@ -38,49 +37,24 @@
     });
 
     async function login() {
-        const mobile = document.getElementById("mobile").value.trim();
+        const email = document.getElementById("email").value.trim();
         const password = document.getElementById("password").value;
         const errorMsg = document.getElementById("errorMsg");
         const loginBtn = document.getElementById("loginBtn");
 
         errorMsg.textContent = "";
-        
-        // 🔥 Basic Validation
-        if (!mobile || !password) {
-            errorMsg.textContent = "Enter your mobile number and password.";
-            return;
-        }
-
-        // 🔥 Mobile Number 10-digit Validation
-        if (mobile.length !== 10 || isNaN(mobile)) {
-            errorMsg.textContent = "Please enter a valid 10-digit mobile number.";
+        if (!email || !password) {
+            errorMsg.textContent = "Enter your email and password.";
             return;
         }
 
         loginBtn.disabled = true;
         loginBtn.textContent = "Signing in...";
 
-        // 🚀 SMART JUGAAD: Convert Mobile to Fake Email
-        const fakeEmail = mobile + "@msshop.com";
-
-        // 👇 DEBUGGING KE LIYE NAYI LINES 👇
-        console.log("------------------------------------");
-        console.log("Checking Login Details:");
-        console.log("Sending Email to Supabase: ", fakeEmail);
-        console.log("Password Length: ", password.length);
-        console.log("------------------------------------");
-        // 👆 DEBUGGING END 👆
-
-        // Supabase Call using the fake email
-        const { error } = await client.auth.signInWithPassword({ 
-            email: fakeEmail, 
-            password: password 
-        });
+        const { error } = await client.auth.signInWithPassword({ email, password });
 
         if (error) {
-            // Error message clean up for user
-            console.error("Supabase Error Details: ", error); // Console me exact error dikhayega
-            errorMsg.textContent = "Login failed: Incorrect Number or Password";
+            errorMsg.textContent = "Login failed: " + error.message;
             loginBtn.disabled = false;
             loginBtn.textContent = "Sign In";
             return;
