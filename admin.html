@@ -20,6 +20,7 @@
             background-color: #f4f6f9;
             color: #333;
             padding: 20px;
+            visibility: hidden; /* shown only after the login check passes */
         }
 
         .dashboard-container {
@@ -106,6 +107,7 @@
         .badge-unpaid { background-color: #f8d7da; color: #721c24; }
         .badge-paid { background-color: #c6efce; color: #006100; }
         .badge-cash { background-color: #cce5ff; color: #004085; }
+        .badge-cancelled { background-color: #e2e3e5; color: #383d41; }
 
         .action-btn {
             padding: 6px 12px;
@@ -138,6 +140,7 @@
         <div style="display: flex; align-items: center; gap: 15px;">
             <span class="auto-print-badge">🟢 AUTO-PRINT VIA PYTHON ROUTER</span>
             <button class="refresh-btn" onclick="fetchOrders()">🔄 Refresh Orders</button>
+            <button class="refresh-btn" style="background-color:#6c757d;" onclick="client.auth.signOut()">🚪 Log Out</button>
         </div>
     </div>
 
@@ -170,15 +173,35 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
     const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
-    window.onload = function() {
+    // Keep track of last fetched data signature to prevent unnecessary DOM wipes
+    let lastOrderDataHash = "";
+
+    (async function requireAuth() {
+        const { data } = await client.auth.getSession();
+        if (!data.session) {
+            window.location.href = "login.html?returnTo=admin.html";
+            return;
+        }
+        document.body.style.visibility = "visible";
+        startDashboard();
+    })();
+    
+    client.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_OUT") window.location.href = "login.html?returnTo=admin.html";
+    });
+
+    function startDashboard() {
         if(window.SITE_CONFIG.STORE_NAME) {
             document.getElementById("dashboardTitle").innerText = window.SITE_CONFIG.STORE_NAME;
         }
         fetchOrders();
-        setInterval(fetchOrders, 5000); 
-    };
+        setInterval(fetchOrders, 5000);
+    }
 
     async function fetchOrders() {
+        // Agar user page par text select kar raha hai ya koi popup khula hai, toh refresh skip kar do taaki reading disturb na ho
+        if (window.getSelection().toString().length > 0) return;
+
         const tableBody = document.getElementById("ordersTableBody");
         
         const { data: orders, error } = await client
@@ -196,9 +219,16 @@
             return;
         }
 
+        // Quick hash check: Agar data mein koi badlav nahi hua hai, toh table ko dobara render mat karo (No Flickering!)
+        const currentHash = JSON.stringify(orders.map(o => ({ id: o.id, pay: o.payment_status, prnt: o.print_status })));
+        if (currentHash === lastOrderDataHash && tableBody.children.length > 0) {
+            return; 
+        }
+        lastOrderDataHash = currentHash;
+
         tableBody.innerHTML = ""; 
 
-        orders.forEach(order => {
+        for (const order of orders) {
             const row = document.createElement("tr");
             
             let formattedTimeStr = "N/A";
@@ -222,10 +252,13 @@
                 displayStatusText = "Paid Online"; 
             } else if (lowerPay === "paid cash" || lowerPay === "cash_paid") {
                 payBadgeClass = "badge-paid";
-                displayStatusText = "Paid Cash";   
+                displayStatusText = "Paid Cash";    
             } else if (lowerPay === "cash payment pending" || lowerPay === "cash counter" || lowerPay === "cash") {
                 payBadgeClass = "badge-cash";
                 displayStatusText = "Cash Payment Pending"; 
+            } else if (lowerPay === "cancelled" || lowerPay === "canceled") {
+                payBadgeClass = "badge-cancelled";
+                displayStatusText = "Cancelled by Customer";
             }
 
             const prntStatus = order.print_status || 'Pending';
@@ -234,27 +267,44 @@
             const isIdCardOrder = order.front_url && order.front_url !== "";
             const trueTargetRawSourceUrl = isIdCardOrder ? order.front_url : order.file_url;
 
-            // 🟢 CORES REMOVED: Automatic web iframe printing loop completely blocked.
-            // Python handles hardware pipelines now so browser printing is disabled.
+            // 🟢 Direct URL handle karne ke liye fixed function
+            const sign = async (path) => {
+                if (!path) return null;
+                // Agar pehle se poora http URL saved hai, toh wahi wapas kar do
+                if (path.startsWith("http")) return path;
+                
+                // Nahi toh public URL generate kar lo
+                const { data } = client.storage.from("documents").getPublicUrl(path);
+                return data ? data.publicUrl : null;
+            };
 
             let actionsHtml = "";
-            
-            // Checking if the layout explicitly carries a combined A4 format matrix label
+
             const printTypeLabel = (order.print_type || '').toLowerCase();
             if (printTypeLabel.includes("document id") || printTypeLabel.includes("single id")) {
                 if (order.file_url) {
-                    actionsHtml += `<a href="${order.file_url}" target="_blank" class="action-btn print-btn" style="background-color: #28a745;">👁️ View Combined A4 ID</a>`;
-                    actionsHtml += `<a href="${order.file_url}" download class="action-btn download-btn">📥 Download</a>`;
+                    const signedUrl = await sign(order.file_url);
+                    if (signedUrl) {
+                        actionsHtml += `<a href="${signedUrl}" target="_blank" class="action-btn print-btn" style="background-color: #28a745;">👁️ View Combined A4 ID</a>`;
+                        actionsHtml += `<a href="${signedUrl}" download class="action-btn download-btn">📥 Download</a>`;
+                    }
                 } else if (order.front_url) {
-                    actionsHtml += `<a href="${order.front_url}" target="_blank" class="action-btn print-btn">👁️ View Front</a>`;
+                    const frontUrl = await sign(order.front_url);
+                    if (frontUrl) actionsHtml += `<a href="${frontUrl}" target="_blank" class="action-btn print-btn">👁️ View Front</a>`;
                     if (order.back_url) {
-                        actionsHtml += `<a href="${order.back_url}" target="_blank" class="action-btn print-btn" style="background-color: #6f42c1;">👁️ View Back</a>`;
+                        const backUrl = await sign(order.back_url);
+                        if (backUrl) actionsHtml += `<a href="${backUrl}" target="_blank" class="action-btn print-btn" style="background-color: #6f42c1;">👁️ View Back</a>`;
                     }
                 }
             } else {
                 if (trueTargetRawSourceUrl) {
-                    actionsHtml += `<a href="${trueTargetRawSourceUrl}" target="_blank" class="action-btn print-btn">👁️ View File</a>`;
-                    actionsHtml += `<a href="${trueTargetRawSourceUrl}" download class="action-btn download-btn">📥 Download</a>`;
+                    const signedUrl = `https://nmjajotbgtgwtxkclozt.supabase.co/storage/v1/object/sign/documents/${trueTargetRawSourceUrl}?token=...`; // fallback or signed function
+                    // keeping your original sign logic:
+                    const originalSignedUrl = await sign(trueTargetRawSourceUrl);
+                    if (originalSignedUrl) {
+                        actionsHtml += `<a href="${originalSignedUrl}" target="_blank" class="action-btn print-btn">👁️ View File</a>`;
+                        actionsHtml += `<a href="${originalSignedUrl}" download class="action-btn download-btn">📥 Download</a>`;
+                    }
                 }
             }
 
@@ -262,7 +312,7 @@
                 actionsHtml += `<button onclick="markAsPaid('${order.id}')" class="action-btn pay-btn">💰 Mark Paid</button>`;
             }
 
-            if (prntStatus !== "Completed") {
+            if (prntStatus !== "Completed" && lowerPay !== "cancelled" && lowerPay !== "canceled") {
                 actionsHtml += `<button onclick="markAsPrinted('${order.id}')" class="action-btn complete-btn">✓ Done</button>`;
             }
 
@@ -272,7 +322,7 @@
                 <td><strong>${escapeHtml(order.customer_name)}</strong></td>
                 <td>${escapeHtml(order.mobile)}</td>
                 <td><span style="font-size:12px; color:#555;">${escapeHtml(order.print_type || 'Document Print')}</span></td>
-                <td>${order.pages || 1}</td>
+                data-order="${order.pages || 1}"<td>${order.pages || 1}</td>
                 <td><strong>₹${order.amount || 0}</strong></td>
                 <td><span class="badge ${payBadgeClass}">${escapeHtml(displayStatusText)}</span></td>
                 <td><span class="badge ${prntBadgeClass}">${escapeHtml(prntStatus)}</span></td>
@@ -280,7 +330,7 @@
             `;
 
             tableBody.appendChild(row);
-        });
+        }
     }
 
     async function markAsPaid(orderId) {
