@@ -63,6 +63,14 @@
         // 🚀 SMART JUGAAD: Convert Mobile to Fake Email
         const fakeEmail = mobile + "@msshop.com";
 
+        // 👇 DEBUGGING KE LIYE NAYI LINES 👇
+        console.log("------------------------------------");
+        console.log("Checking Login Details:");
+        console.log("Sending Email to Supabase: ", fakeEmail);
+        console.log("Password Length: ", password.length);
+        console.log("------------------------------------");
+        // 👆 DEBUGGING END 👆
+
         // Supabase Call using the fake email
         const { error } = await client.auth.signInWithPassword({ 
             email: fakeEmail, 
@@ -71,6 +79,7 @@
 
         if (error) {
             // Error message clean up for user
+            console.error("Supabase Error Details: ", error); // Console me exact error dikhayega
             errorMsg.textContent = "Login failed: Incorrect Number or Password";
             loginBtn.disabled = false;
             loginBtn.textContent = "Sign In";
