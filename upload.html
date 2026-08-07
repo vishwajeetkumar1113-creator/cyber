@@ -84,33 +84,43 @@
     </div>
 
     <div id="imageUI" style="display: none;">
-        <h4 id="imageStatus" style="text-align: center; color: #1976d2; margin-bottom: 10px;"></h4>
-        
-        <!-- Magic clean is automatic for B&W documents; customer can switch it off if not wanted -->
-        <div class="input-group" style="background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #90caf9;">
-            <label style="color: #1565c0;">Auto Clean Filter (for B&amp;W documents):</label>
-            <select id="autoCleanToggle">
-                <option value="on" selected>On (Recommended)</option>
-                <option value="off">Off - No Filter</option>
-            </select>
-        </div>
+    <h4 id="imageStatus" style="text-align: center; color: #1976d2; margin-bottom: 5px;"></h4>
+    
+    <!-- 🚀 NEW: Progress Bar Wrapper -->
+    <div id="cropProgressWrapper" style="width: 100%; max-width: 400px; height: 6px; background: #e0e0e0; border-radius: 4px; margin: 0 auto 15px auto; overflow: hidden; display: none;">
+        <div id="cropProgressBar" style="width: 0%; height: 100%; background: #28a745; transition: width 0.3s ease;"></div>
+    </div>
+    
+    <div class="input-group" style="background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #90caf9;">
+        <label style="color: #1565c0;">Auto Clean Filter (for B&amp;W documents):</label>
+        <select id="autoCleanToggle">
+            <option value="on" selected>On (Recommended)</option>
+            <option value="off">Off - No Filter</option>
+        </select>
+    </div>
 
-        <div id="cropAreaWrapper">
-            <p style="font-size: 13px; color: #555; text-align: center;">Drag corners to crop your document perfectly.</p>
-            <p id="cropDetectStatus" style="text-align:center; font-size:12px; color:#888; margin:-3px 0 5px 0; min-height:15px;"></p>
-            <div class="canvas-container" id="cropContainer">
-                <canvas id="cropCanvas"></canvas>
-            </div>
-            <div class="crop-controls">
-                <button type="button" style="background:#28a745;" onclick="rotateImage()">↻ Rotate</button>
-                <button type="button" style="background:#6c757d;" onclick="resetZoom()">Reset Zoom</button>
-                <button type="button" style="background:#1976d2;" id="saveCropBtn" onclick="saveCropAndNext()">Save Crop</button>
-            </div>
+    <div id="cropAreaWrapper">
+        <p style="font-size: 13px; color: #555; text-align: center;">Drag corners to crop your document perfectly.</p>
+        <p id="cropDetectStatus" style="text-align:center; font-size:12px; color:#888; margin:-3px 0 5px 0; min-height:15px;"></p>
+        <div class="canvas-container" id="cropContainer">
+            <canvas id="cropCanvas"></canvas>
         </div>
-        <div id="cropPreviewContainer" style="text-align: center; display: none; margin-bottom: 15px;">
-            <p style="font-size: 14px; color: #28a745; font-weight: bold; margin-top: 5px;">✓ All Images Cropped & Ready</p>
+        <div class="crop-controls">
+            <button type="button" style="background:#28a745;" onclick="rotateImage()">↻ Rotate</button>
+            <button type="button" style="background:#6c757d;" onclick="resetZoom()">Reset Zoom</button>
+            <button type="button" style="background:#1976d2;" id="saveCropBtn" onclick="saveCropAndNext()">Save Crop</button>
         </div>
     </div>
+    
+    <!-- 🚀 UPDATED: Success Container with Thumbnail Gallery -->
+    <div id="cropPreviewContainer" style="text-align: center; display: none; margin-bottom: 15px;">
+        <p style="font-size: 14px; color: #28a745; font-weight: bold; margin-top: 5px;">✓ All Images Cropped & Ready</p>
+        <!-- Horizontal Scrollable Gallery -->
+        <div id="thumbnailGallery" style="display: flex; gap: 10px; overflow-x: auto; padding: 10px 5px; margin-top: 10px; border: 1px solid #ddd; border-radius: 6px; background: #fdfdfd; align-items: center;">
+            <!-- Thumbnails will be injected here via JavaScript -->
+        </div>
+    </div>
+</div>
 
     <div class="input-group">
         <label>Number of Copies:</label>
@@ -398,8 +408,21 @@ async function handleFileSelectionChange(){
 }
 
 function loadCurrentImageForCrop() {
+    // 🚀 NEW: Calculate and animate the progress bar
+    const progressWrapper = document.getElementById("cropProgressWrapper");
+    const progressBar = document.getElementById("cropProgressBar");
+    
+    if (uploadedImagesList.length > 1) {
+        progressWrapper.style.display = "block";
+        let progressPercent = (currentImageIndex / uploadedImagesList.length) * 100;
+        progressBar.style.width = progressPercent + "%";
+    } else {
+        progressWrapper.style.display = "none";
+    }
+
     if (currentImageIndex >= uploadedImagesList.length) {
         document.getElementById("cropAreaWrapper").style.display = "none";
+        progressWrapper.style.display = "none"; // Hide progress bar when done
         
         if (uploadedPdfFile) {
             document.getElementById("imageUI").style.display = "none";
@@ -411,10 +434,37 @@ function loadCurrentImageForCrop() {
             document.getElementById("cropPreviewContainer").style.display = "block";
             document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
             if(document.getElementById("autoDetectMsg")) document.getElementById("autoDetectMsg").style.display = "none";
+            
+            // 🚀 NEW: Render Thumbnail Gallery
+            const gallery = document.getElementById("thumbnailGallery");
+            gallery.innerHTML = ""; // Clear any old images
+            
+            processedA4Images.forEach((dataUrl, index) => {
+                const imgWrap = document.createElement("div");
+                imgWrap.style.flex = "0 0 auto";
+                
+                const img = document.createElement("img");
+                img.src = dataUrl;
+                img.style.height = "120px"; // Adjust thumbnail height here
+                img.style.border = "1px solid #ccc";
+                img.style.borderRadius = "4px";
+                img.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+                
+                const label = document.createElement("div");
+                label.innerText = `Page ${index + 1}`;
+                label.style.fontSize = "11px";
+                label.style.color = "#555";
+                label.style.marginTop = "4px";
+                
+                imgWrap.appendChild(img);
+                imgWrap.appendChild(label);
+                gallery.appendChild(imgWrap);
+            });
         }
         return;
     }
 
+    // Update status text
     document.getElementById("imageStatus").innerText = `Cropping Image ${currentImageIndex + 1} of ${uploadedImagesList.length}`;
     
     const btn = document.getElementById("saveCropBtn");
@@ -445,9 +495,6 @@ function loadCurrentImageForCrop() {
             cropEngine.corners = defaultCorners;
 
             if (typeof cv !== 'undefined' && typeof cv.imread === 'function') {
-                // ========================================================
-                // 🔍 ROBUST CORNER AUTO-DETECT (multi-strategy)
-                // ========================================================
                 if (detectStatusEl) {
                     detectStatusEl.textContent = '🔍 Detecting document edges...';
                     detectStatusEl.style.color = '#888';
@@ -482,7 +529,6 @@ function loadCurrentImageForCrop() {
     };
     reader.readAsDataURL(uploadedImagesList[currentImageIndex]);
 }
-
 function updateLivePreviewGrid() {
     const layoutMode = document.getElementById("layout_mode").value;
     const previewBox = document.getElementById("docPreview");
