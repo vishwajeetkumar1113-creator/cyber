@@ -675,7 +675,7 @@ async function compressImage(dataUrl, maxSizeKB = 500) {
 }
 
 // ==========================================
-// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
+// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPTIMIZED)
 // ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
@@ -700,7 +700,7 @@ async function saveCropAndNext() {
     ));
     let targetH = Math.round(Math.max(
         Math.hypot((p4[0]-p1[0])*s.img.width, (p4[1]-p1[1])*s.img.height),
-        Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[1])*s.img.height)
+        Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[0])*s.img.height)
     ));
 
     if (targetW > 2500 || targetH > 3500) {
@@ -713,7 +713,7 @@ async function saveCropAndNext() {
 
     if (typeof cv !== 'undefined') {
         let printType = document.getElementById("type").value; 
-        let src, dest, srcTri, dstTri, M, bg;
+        let src, dest, srcTri, dstTri, M;
 
         try {
             let imgCanvas = document.createElement('canvas');
@@ -741,17 +741,37 @@ async function saveCropAndNext() {
                 cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                 if (autoCleanEnabled) {
+                    let smallDest = new cv.Mat();
+                    let bgSmall = new cv.Mat();
+                    let bg = new cv.Mat();
                     let morphKernel = null;
                     try {
-                        bg = new cv.Mat();
-                        let closeSize = Math.round(Math.min(dest.rows, dest.cols) / 15);
+                        // ⚡ FAST BACKGROUND ESTIMATION (Downscale for lightning-fast math)
+                        let maxDim = Math.max(dest.rows, dest.cols);
+                        let scale = maxDim > 800 ? 800 / maxDim : 1.0;
+                        
+                        if (scale < 1.0) {
+                            cv.resize(dest, smallDest, new cv.Size(), scale, scale, cv.INTER_AREA);
+                        } else {
+                            dest.copyTo(smallDest);
+                        }
+
+                        let closeSize = Math.round(Math.min(smallDest.rows, smallDest.cols) / 15);
                         if (closeSize % 2 === 0) closeSize++;
-                        if (closeSize < 15) closeSize = 15;
+                        if (closeSize < 11) closeSize = 11;
+                        
                         morphKernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(closeSize, closeSize));
-                        cv.morphologyEx(dest, bg, cv.MORPH_CLOSE, morphKernel);
+                        cv.morphologyEx(smallDest, bgSmall, cv.MORPH_CLOSE, morphKernel);
 
                         let blurSize = closeSize % 2 === 0 ? closeSize + 1 : closeSize;
-                        cv.GaussianBlur(bg, bg, new cv.Size(blurSize, blurSize), 0, 0, cv.BORDER_DEFAULT);
+                        cv.GaussianBlur(bgSmall, bgSmall, new cv.Size(blurSize, blurSize), 0, 0, cv.BORDER_DEFAULT);
+
+                        // Upscale background back to full resolution instantly
+                        if (scale < 1.0) {
+                            cv.resize(bgSmall, bg, new cv.Size(dest.cols, dest.rows), 0, 0, cv.INTER_LINEAR);
+                        } else {
+                            bgSmall.copyTo(bg);
+                        }
 
                         cv.divide(dest, bg, dest, 255);
                         cv.medianBlur(dest, dest, 3);
@@ -765,6 +785,9 @@ async function saveCropAndNext() {
                             floatMat.delete();
                         }
                     } finally {
+                        if (smallDest) smallDest.delete();
+                        if (bgSmall) bgSmall.delete();
+                        if (bg) bg.delete();
                         if (morphKernel) morphKernel.delete();
                     }
                 }
@@ -779,7 +802,6 @@ async function saveCropAndNext() {
         } finally {
             if (src) src.delete(); if (dest) dest.delete();
             if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
-            if (bg) bg.delete();
         }
     } else {
         hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
