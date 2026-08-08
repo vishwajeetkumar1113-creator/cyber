@@ -52,7 +52,6 @@
 
     <div class="input-group">
         <label>2. Select File(s) (Multiple PDFs or Images):</label>
-        <!-- Allows multiple selection for both images and PDFs -->
         <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
     </div>
 
@@ -154,7 +153,6 @@ const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, win
     setTimeout(pollCvReady, 300);
 })();
 
-// 🚀 MIXED FILES LOGIC VARIABLES (UPDATED FOR MULTIPLE PDFs)
 let uploadedPdfFilesList = [];
 let uploadedImagesList = [];
 let totalDetectedPDFPages = 0;
@@ -484,6 +482,7 @@ function loadCurrentImageForCrop() {
     };
     reader.readAsDataURL(uploadedImagesList[currentImageIndex]);
 }
+
 function updateLivePreviewGrid() {
     const layoutMode = document.getElementById("layout_mode").value;
     const previewBox = document.getElementById("docPreview");
@@ -629,6 +628,53 @@ function drawCrop() {
 }
 
 // ==========================================
+// 🗜️ 1.1 IMAGE COMPRESSION HELPER FUNCTION (< 500KB)
+// ==========================================
+async function compressImage(dataUrl, maxSizeKB = 500) {
+    return new Promise((resolve) => {
+        if (dataUrl.length < maxSizeKB * 1024 * 1.33) {
+            return resolve(dataUrl);
+        }
+
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            const MAX_DIMENSION = 2000;
+            if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                if (width > height) {
+                    height = Math.round((height * MAX_DIMENSION) / width);
+                    width = MAX_DIMENSION;
+                } else {
+                    width = Math.round((width * MAX_DIMENSION) / height);
+                    height = MAX_DIMENSION;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            let quality = 0.90;
+            let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+
+            while (compressedDataUrl.length > maxSizeKB * 1024 * 1.33 && quality > 0.4) {
+                quality -= 0.1;
+                compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+            }
+
+            resolve(compressedDataUrl);
+        };
+        img.src = dataUrl;
+    });
+}
+
+// ==========================================
 // 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPENCV)
 // ==========================================
 async function saveCropAndNext() {
@@ -739,13 +785,17 @@ async function saveCropAndNext() {
         hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
     }
 
-    const a4DataUrl = await convertToA4(hCvs);
+    let a4DataUrl = await convertToA4(hCvs);
+    
+    // 🗜️ Compress image if size exceeds 500KB
+    a4DataUrl = await compressImage(a4DataUrl, 500);
+
     processedA4Images.push(a4DataUrl);
     
     currentImageIndex++;
     loadCurrentImageForCrop();
     calculate();
-    }
+}
             
 async function convertToA4(sourceCanvas) {
     return new Promise(resolve => {
@@ -873,7 +923,6 @@ async function submitOrder() {
         // 2. ADD PAGES FROM ALL UPLOADED PDFs
         if (uploadedPdfFilesList.length > 0) {
             let pagesSel = parsePageSelection(document.getElementById("pages").value);
-            // Convert to 0-based array of indices of all total pages
             let globalIndicesToKeep = pagesSel ? pagesSel.map(p => p - 1) : Array.from({length: totalDetectedPDFPages}, (_, i) => i);
             
             let globalPdfPageIndex = 0;
