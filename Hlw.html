@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>For You</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,600;1,500&display=swap');
+
+  :root{
+    --wine: #2b0a1a;
+    --wine-deep: #1c0611;
+    --blush: #f2c9d6;
+    --rose: #d98aa1;
+    --gold: #cfa15e;
+    --cream: #f9ede4;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html,body{
+    margin:0;
+    height:100%;
+    background: radial-gradient(ellipse at 50% 20%, var(--wine) 0%, var(--wine-deep) 70%);
+    overflow:hidden;
+    font-family: 'Cormorant Garamond', serif;
+  }
+
+  .stage{
+    position:relative;
+    width:100%;
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  /* floating petals */
+  .petal{
+    position:absolute;
+    top:-5%;
+    width:14px;
+    height:14px;
+    background: var(--rose);
+    border-radius: 0 100% 0 100%;
+    opacity:0.55;
+    animation: fall linear infinite;
+    filter: drop-shadow(0 0 3px rgba(217,138,161,0.4));
+  }
+  @keyframes fall{
+    0%{ transform: translateY(0) rotate(0deg); opacity:0; }
+    10%{ opacity:0.6; }
+    100%{ transform: translateY(110vh) rotate(340deg); opacity:0; }
+  }
+
+  .seal-wrap{
+    position:relative;
+    z-index:2;
+    text-align:center;
+    cursor:pointer;
+    user-select:none;
+  }
+
+  .seal{
+    width:120px;
+    height:120px;
+    margin:0 auto 28px;
+    border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #e6b876, var(--gold) 55%, #9c7538 100%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.45), inset 0 -4px 10px rgba(0,0,0,0.25);
+    animation: pulse 2.6s ease-in-out infinite;
+    transition: transform 0.5s ease, opacity 0.6s ease;
+  }
+  .seal svg{ width:52px; height:52px; }
+
+  @keyframes pulse{
+    0%,100%{ transform: scale(1); }
+    50%{ transform: scale(1.06); }
+  }
+
+  .hint{
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight:400;
+    font-size: 1.15rem;
+    color: var(--blush);
+    letter-spacing: 0.08em;
+    opacity:0.85;
+    animation: fade 3s ease-in-out infinite;
+  }
+  @keyframes fade{
+    0%,100%{ opacity:0.5; }
+    50%{ opacity:0.95; }
+  }
+
+  .letter{
+    position:absolute;
+    z-index:3;
+    max-width: 560px;
+    width: 88%;
+    padding: 56px 44px;
+    background: linear-gradient(180deg, #fdf6ef, var(--cream));
+    border-radius: 4px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+    text-align:center;
+    opacity:0;
+    transform: scale(0.85) translateY(20px);
+    pointer-events:none;
+    transition: opacity 0.7s ease, transform 0.7s cubic-bezier(.2,.9,.25,1);
+  }
+  .letter::before{
+    content:"";
+    position:absolute;
+    inset:14px;
+    border: 1px solid rgba(207,161,94,0.5);
+    pointer-events:none;
+  }
+  .letter.show{
+    opacity:1;
+    transform: scale(1) translateY(0);
+    pointer-events:auto;
+  }
+
+  .eyebrow{
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    color: var(--rose);
+    font-size: 1rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin: 0 0 18px;
+  }
+
+  .headline{
+    font-family:'Playfair Display', serif;
+    font-weight:600;
+    font-style: italic;
+    color: var(--wine-deep);
+    font-size: clamp(2.2rem, 6vw, 3.4rem);
+    margin: 0 0 22px;
+    line-height:1.15;
+  }
+
+  .body-text{
+    font-size: 1.35rem;
+    line-height: 1.65;
+    color: #4a2532;
+    margin: 0 0 10px;
+    min-height: 2.5em;
+  }
+
+  .cursor{
+    display:inline-block;
+    width:1px;
+    background: #4a2532;
+    margin-left:2px;
+    animation: blink 0.9s step-end infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  .signature{
+    margin-top: 30px;
+    font-family:'Playfair Display', serif;
+    font-style: italic;
+    color: var(--gold);
+    font-size: 1.3rem;
+    opacity:0;
+    transition: opacity 0.8s ease 0.3s;
+  }
+  .signature.show{ opacity:1; }
+
+  .close-note{
+    margin-top:26px;
+    font-size:0.85rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:#a98a90;
+    opacity:0;
+    transition: opacity 0.8s ease 0.6s;
+  }
+  .close-note.show{ opacity:1; }
+
+  @media (prefers-reduced-motion: reduce){
+    .petal, .seal, .hint{ animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <div class="seal-wrap" id="sealWrap">
+    <div class="seal">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 21s-7.5-4.6-10-9.2C0.3 8.1 2 4.5 5.6 4c2-.3 3.7.7 6.4 3.2C14.7 4.7 16.4 3.7 18.4 4c3.6.5 5.3 4.1 3.6 7.8C19.5 16.4 12 21 12 21z" stroke="#3a2410" stroke-width="1.3" fill="#3a2410" fill-opacity="0.12"/>
+      </svg>
+    </div>
+    <p class="hint">tap the seal to open</p>
+  </div>
+
+  <div class="letter" id="letter">
+    <p class="eyebrow">a small confession</p>
+    <h1 class="headline">I love you Moni </h1>
+    <p class="body-text" id="bodyText"></p>
+    <p class="signature" id="signature">— always</p>
+    <p class="close-note" id="closeNote">tap anywhere to close</p>
+  </div>
+</div>
+
+<script>
+  const stage = document.getElementById('stage');
+
+  // floating petals
+  for(let i=0;i<24;i++){
+    const p = document.createElement('div');
+    p.className='petal';
+    p.style.left = Math.random()*100+'%';
+    p.style.animationDuration = (9 + Math.random()*8)+'s';
+    p.style.animationDelay = (Math.random()*10)+'s';
+    p.style.width = p.style.height = (8 + Math.random()*10)+'px';
+    stage.appendChild(p);
+  }
+
+  const sealWrap = document.getElementById('sealWrap');
+  const letter = document.getElementById('letter');
+  const bodyText = document.getElementById('bodyText');
+  const signature = document.getElementById('signature');
+  const closeNote = document.getElementById('closeNote');
+
+  const message = "Not the loud kind of love, though it could shout if it needed to — the kind that notices you before it notices anything else in the room. Whatever today held, I'm glad it held you.";
+
+  let typed = false;
+
+  function typeMessage(){
+    if(typed) return;
+    typed = true;
+    let i = 0;
+    bodyText.innerHTML = '<span id="typedSpan"></span><span class="cursor">&nbsp;</span>';
+    const span = document.getElementById('typedSpan');
+    const cursor = bodyText.querySelector('.cursor');
+    const interval = setInterval(()=>{
+      span.textContent += message[i];
+      i++;
+      if(i >= message.length){
+        clearInterval(interval);
+        cursor.remove();
+        signature.classList.add('show');
+        closeNote.classList.add('show');
+      }
+    }, 28);
+  }
+
+  function openLetter(){
+    sealWrap.style.opacity = '0';
+    sealWrap.style.transform = 'scale(0.9)';
+    sealWrap.style.pointerEvents = 'none';
+    letter.classList.add('show');
+    setTimeout(typeMessage, 500);
+  }
+
+  function closeLetter(){
+    letter.classList.remove('show');
+    sealWrap.style.opacity = '1';
+    sealWrap.style.transform = 'scale(1)';
+    sealWrap.style.pointerEvents = 'auto';
+  }
+
+  sealWrap.addEventListener('click', openLetter);
+  letter.addEventListener('click', (e)=>{
+    if(typed && bodyText.querySelector('.cursor')===null){
+      closeLetter();
+    }
+  });
+</script>
+
+</body>
+</html>
