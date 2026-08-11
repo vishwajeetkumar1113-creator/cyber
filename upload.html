@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Document Upload</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <!-- 🔥 Mobile Compatible Legacy PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
@@ -16,7 +17,7 @@
         .input-group { margin-bottom: 15px; }
         .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
-        .preview-wrapper { width: 100%; max-width: 400px; height: 350px; margin: 15px auto; border: 2px dashed #1976d2; border-radius: 8px; background: #f8f9fa; overflow: auto; padding: 10px; }
+        .preview-wrapper { width: 100%; max-width: 400px; height: 350px; margin: 15px auto; border: 2px dashed #1976d2; border-radius: 8px; background: #f8f9fa; overflow: auto; padding: 10px; -webkit-overflow-scrolling: touch; }
         .preview-box { width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; gap: 16px; }
         
         .preview-box.layout-grid-2 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
@@ -137,7 +138,18 @@
         if (e.ctrlKey && e.keyCode === 85) return false;
     };
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+// 🔥 MOBILE BLOB WORKER SETUP (Bypasses Mobile CORS Block)
+const PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+(async function initMobilePdfWorker() {
+    try {
+        const response = await fetch(PDF_WORKER_URL);
+        const blob = await response.blob();
+        pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+    } catch (e) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL;
+    }
+})();
+
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
 (function pollCvReady() {
@@ -338,18 +350,17 @@ async function handleFileSelectionChange(){
         }
     }
 
-    // 🔥 FIX: Properly converting ArrayBuffer to Uint8Array to avoid silent PDFLib crash
     if (uploadedPdfFilesList.length > 0) {
         try {
             for (let pdf of uploadedPdfFilesList) {
                 const arrayBuffer = await pdf.arrayBuffer();
-                const uint8Data = new Uint8Array(arrayBuffer); // Essential Fix for modern PDFLib
+                const uint8Data = new Uint8Array(arrayBuffer);
                 const srcPdf = await PDFLib.PDFDocument.load(uint8Data);
                 totalDetectedPDFPages += srcPdf.getPageCount();
             }
         } catch (err) {
             console.error("PDF Parsing Error:", err);
-            alert("⚠️ Error: Ek ya usse zyada PDF file padhne mein dikkat aayi hai. Ho sakta hai file corrupted ya password protected ho.");
+            alert("⚠️ Error: PDF file load nahi ho saki. File corrupted ho sakti hai.");
             document.getElementById("file").value = ""; 
             return;
         }
@@ -519,7 +530,6 @@ async function previewDocument() {
     try {
         let allPdfjsDocs = [];
         for(let pdfFile of uploadedPdfFilesList) {
-            // 🔥 FIX: ArrayBuffer to Uint8Array for PDF.js to avoid silent render crash
             const arrayBuffer = await pdfFile.arrayBuffer();
             const uint8Data = new Uint8Array(arrayBuffer);
             const pdfjsDoc = await pdfjsLib.getDocument({ data: uint8Data }).promise;
@@ -550,8 +560,11 @@ async function previewDocument() {
 
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
+                    
+                    // Mobile Canvas Resolution Optimization
                     const initialViewport = page.getViewport({ scale: 1.0 });
-                    const viewport = page.getViewport({ scale: 380 / initialViewport.width });
+                    const renderScale = Math.min(2.0, (window.innerWidth || 380) / initialViewport.width);
+                    const viewport = page.getViewport({ scale: renderScale });
 
                     canvas.width = viewport.width;
                     canvas.height = viewport.height;
@@ -571,7 +584,10 @@ async function previewDocument() {
                 globalPageCounter++;
             }
         }
-    } catch (err) { console.error("PDF Preview Render Error: ", err); }
+    } catch (err) { 
+        console.error("PDF Preview Error: ", err); 
+        previewContainer.innerHTML = "<span style='color:red;'>⚠️ Mobile preview render error. Order can still be submitted safely.</span>";
+    }
     updateLivePreviewGrid();
     applyPreviewFilter();
 }
@@ -638,9 +654,6 @@ function drawCrop() {
     s.corners.forEach(c => { s.ctx.fillStyle = '#28a745'; s.ctx.beginPath(); s.ctx.arc(c.x, c.y, 14, 0, Math.PI * 2); s.ctx.fill(); s.ctx.strokeStyle = '#fff'; s.ctx.lineWidth = 3; s.ctx.stroke(); });
 }
 
-// ==========================================
-// 🗜️ 1.1 IMAGE COMPRESSION HELPER FUNCTION (< 500KB)
-// ==========================================
 async function compressImage(dataUrl, maxSizeKB = 500) {
     return new Promise((resolve) => {
         if (dataUrl.length < maxSizeKB * 1024 * 1.33) {
@@ -685,9 +698,6 @@ async function compressImage(dataUrl, maxSizeKB = 500) {
     });
 }
 
-// ==========================================
-// 🚀 1. SUPER-FAST CROP & FILTER ENGINE (OPTIMIZED)
-// ==========================================
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -817,8 +827,6 @@ async function saveCropAndNext() {
     }
 
     let a4DataUrl = await convertToA4(hCvs);
-    
-    // 🗜️ Compress image if size exceeds 500KB
     a4DataUrl = await compressImage(a4DataUrl, 500);
 
     processedA4Images.push(a4DataUrl);
@@ -896,9 +904,6 @@ function calculate() {
     document.getElementById("total").innerHTML = "Total: ₹" + (sheets * price * copies);
 }
 
-// ==========================================
-// 👑 SUBMIT ORDER (MIXED FILES MERGE & SAVE)
-// ==========================================
 async function submitOrder() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('admin') === 'vishu') {
@@ -941,7 +946,6 @@ async function submitOrder() {
 
         const outPdf = await PDFLib.PDFDocument.create();
         
-        // 1. ADD CROPPED IMAGES
         if (processedA4Images.length > 0) {
             for (let dataUrl of processedA4Images) {
                 const imgBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
@@ -951,7 +955,6 @@ async function submitOrder() {
             }
         }
 
-        // 2. ADD PAGES FROM ALL UPLOADED PDFs
         if (uploadedPdfFilesList.length > 0) {
             let pagesSel = parsePageSelection(document.getElementById("pages").value);
             let globalIndicesToKeep = pagesSel ? pagesSel.map(p => p - 1) : Array.from({length: totalDetectedPDFPages}, (_, i) => i);
@@ -959,7 +962,6 @@ async function submitOrder() {
             let globalPdfPageIndex = 0;
 
             for (let pdfFile of uploadedPdfFilesList) {
-                // 🔥 FIX: ArrayBuffer to Uint8Array here too for save order
                 const arrayBuffer = await pdfFile.arrayBuffer();
                 const uint8Data = new Uint8Array(arrayBuffer);
                 const srcPdfDoc = await PDFLib.PDFDocument.load(uint8Data);
@@ -978,7 +980,7 @@ async function submitOrder() {
                         
                         for (let localIdx of localIndicesToKeep) {
                             const page = await pdfjsDoc.getPage(localIdx + 1);
-                            const viewport = page.getViewport({ scale: 3.0 }); 
+                            const viewport = page.getViewport({ scale: 2.0 }); 
                             const canvas = document.createElement('canvas');
                             canvas.width = viewport.width;
                             canvas.height = viewport.height;
@@ -994,7 +996,7 @@ async function submitOrder() {
                             }
                             ctx.putImageData(imgData, 0, 0);
                             
-                            const imgDataUrl = canvas.toDataURL("image/jpeg", 1.0);
+                            const imgDataUrl = canvas.toDataURL("image/jpeg", 0.9);
                             const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
                             const embeddedImage = await outPdf.embedJpg(imgBytes);
                             
