@@ -338,11 +338,20 @@ async function handleFileSelectionChange(){
         }
     }
 
+    // 🔥 FIX: Properly converting ArrayBuffer to Uint8Array to avoid silent PDFLib crash
     if (uploadedPdfFilesList.length > 0) {
-        for (let pdf of uploadedPdfFilesList) {
-            const fileArrayBuffer = await pdf.arrayBuffer();
-            const srcPdf = await PDFLib.PDFDocument.load(fileArrayBuffer);
-            totalDetectedPDFPages += srcPdf.getPageCount();
+        try {
+            for (let pdf of uploadedPdfFilesList) {
+                const arrayBuffer = await pdf.arrayBuffer();
+                const uint8Data = new Uint8Array(arrayBuffer); // Essential Fix for modern PDFLib
+                const srcPdf = await PDFLib.PDFDocument.load(uint8Data);
+                totalDetectedPDFPages += srcPdf.getPageCount();
+            }
+        } catch (err) {
+            console.error("PDF Parsing Error:", err);
+            alert("⚠️ Error: Ek ya usse zyada PDF file padhne mein dikkat aayi hai. Ho sakta hai file corrupted ya password protected ho.");
+            document.getElementById("file").value = ""; 
+            return;
         }
     }
 
@@ -510,8 +519,10 @@ async function previewDocument() {
     try {
         let allPdfjsDocs = [];
         for(let pdfFile of uploadedPdfFilesList) {
-            const fileArrayBuffer = await pdfFile.arrayBuffer();
-            const pdfjsDoc = await pdfjsLib.getDocument({ data: fileArrayBuffer }).promise;
+            // 🔥 FIX: ArrayBuffer to Uint8Array for PDF.js to avoid silent render crash
+            const arrayBuffer = await pdfFile.arrayBuffer();
+            const uint8Data = new Uint8Array(arrayBuffer);
+            const pdfjsDoc = await pdfjsLib.getDocument({ data: uint8Data }).promise;
             allPdfjsDocs.push(pdfjsDoc);
         }
         
@@ -560,7 +571,7 @@ async function previewDocument() {
                 globalPageCounter++;
             }
         }
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("PDF Preview Render Error: ", err); }
     updateLivePreviewGrid();
     applyPreviewFilter();
 }
@@ -746,7 +757,6 @@ async function saveCropAndNext() {
                     let bg = new cv.Mat();
                     let morphKernel = null;
                     try {
-                        // ⚡ FAST BACKGROUND ESTIMATION (Downscale for lightning-fast math)
                         let maxDim = Math.max(dest.rows, dest.cols);
                         let scale = maxDim > 800 ? 800 / maxDim : 1.0;
                         
@@ -766,7 +776,6 @@ async function saveCropAndNext() {
                         let blurSize = closeSize % 2 === 0 ? closeSize + 1 : closeSize;
                         cv.GaussianBlur(bgSmall, bgSmall, new cv.Size(blurSize, blurSize), 0, 0, cv.BORDER_DEFAULT);
 
-                        // Upscale background back to full resolution instantly
                         if (scale < 1.0) {
                             cv.resize(bgSmall, bg, new cv.Size(dest.cols, dest.rows), 0, 0, cv.INTER_LINEAR);
                         } else {
@@ -950,8 +959,10 @@ async function submitOrder() {
             let globalPdfPageIndex = 0;
 
             for (let pdfFile of uploadedPdfFilesList) {
-                const fileArrayBuffer = await pdfFile.arrayBuffer();
-                const srcPdfDoc = await PDFLib.PDFDocument.load(fileArrayBuffer);
+                // 🔥 FIX: ArrayBuffer to Uint8Array here too for save order
+                const arrayBuffer = await pdfFile.arrayBuffer();
+                const uint8Data = new Uint8Array(arrayBuffer);
+                const srcPdfDoc = await PDFLib.PDFDocument.load(uint8Data);
                 
                 let localIndicesToKeep = [];
                 for(let localIdx = 0; localIdx < srcPdfDoc.getPageCount(); localIdx++) {
@@ -963,7 +974,7 @@ async function submitOrder() {
 
                 if (localIndicesToKeep.length > 0) {
                     if (document.getElementById("type").value == 5) {
-                        const pdfjsDoc = await pdfjsLib.getDocument({ data: fileArrayBuffer }).promise;
+                        const pdfjsDoc = await pdfjsLib.getDocument({ data: uint8Data }).promise;
                         
                         for (let localIdx of localIndicesToKeep) {
                             const page = await pdfjsDoc.getPage(localIdx + 1);
