@@ -5,13 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport & Ration Card Photo Maker Pro</title>
     
-    <!-- 🔥 SMART OPENCV LOADER -->
+    <!-- 🔥 SMART OPENCV LOADER & AI FACE MODEL DOWNLOADER -->
     <script>
         window.cvReady = false;
+        window.faceCascade = null;
+        
         var Module = {
             onRuntimeInitialized: function() {
                 window.cvReady = true;
-                console.log("✅ OpenCV Core loaded and initialized successfully!");
+                console.log("✅ OpenCV Core loaded!");
+                
+                // 🤖 Background me AI Face Model Download karna
+                const url = 'https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml';
+                fetch(url).then(response => response.arrayBuffer()).then(data => {
+                    cv.FS_createDataFile('/', 'haarcascade_frontalface_default.xml', new Uint8Array(data), true, false, false);
+                    window.faceCascade = new cv.CascadeClassifier();
+                    window.faceCascade.load('haarcascade_frontalface_default.xml');
+                    console.log("🤖 AI Face Model Loaded & Ready!");
+                }).catch(err => console.error("Face model error:", err));
+
                 const cropBtn = document.getElementById('cropBtn');
                 if (cropBtn && cropBtn.disabled) {
                     cropBtn.disabled = false;
@@ -71,6 +83,13 @@
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
+    <div class="controls">
+        <select id="photoType" onchange="onPhotoTypeChange()">
+            <option value="passport" selected>Type: Passport (Auto-Face Detect) 🤖</option>
+            <option value="ration">Type: Ration Card (Manual Crop) 📐</option>
+        </select>
+    </div>
+
     <div style="text-align: center; margin-bottom: 15px;">
         <label for="imageInput" class="upload-btn">
             📸 1. Open Camera / Select Photo
@@ -97,11 +116,6 @@
     </div>
 
     <div class="controls">
-        <select id="photoType" onchange="onPhotoTypeChange()">
-            <option value="passport" selected>Type: Passport (8 Photos)</option>
-            <option value="ration">Type: Ration Card (6 Photos Landscape)</option>
-        </select>
-
         <select id="bgMode" onchange="if(window.noBgImg) window.redrawCanvas()">
             <option value="keep">Background: Keep Original (No BG Remove)</option>
             <option value="remove">Background: Remove BG (AI)</option>
@@ -113,7 +127,6 @@
             <option value="#ef4444">BG: Red</option>
         </select>
 
-        <!-- 🔥 Face Clean Default Set to OFF to preserve 100% original sharpness -->
         <select id="faceClean" onchange="if(window.noBgImg) window.redrawCanvas()">
             <option value="no" selected>Face Clean: OFF (Sharp)</option>
             <option value="yes">Face Clean: Soft ✨</option>
@@ -150,7 +163,6 @@
             <input type="range" id="xSlider" min="-1000" max="1000" step="10" value="0" oninput="window.updateSliders()">
         </div>
 
-        <!-- 🔥 NAYE ADVANCED FEATURES: Brightness, Contrast, Saturation -->
         <hr style="border: 0.5px solid #bbdefb; margin: 15px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <label style="font-size: 14px; font-weight: bold; color: #1565c0; margin: 0;">🎨 Pro Color Tuning</label>
@@ -200,6 +212,7 @@
     const perSheetRate = 30; 
     const PYTHON_SERVER_URL = "http://localhost:5000/api/remove-bg";
     window.noBgImg = null; 
+    window.lastUploadedSrc = null;
 
     const pCanvas = document.getElementById('perspectiveCanvas');
     const pCtx = pCanvas.getContext('2d');
@@ -219,8 +232,9 @@
     };
 
     window.onPhotoTypeChange = function() {
-        if (window.noBgImg && document.getElementById('finalCanvas').style.display === "block") {
-            window.redrawCanvas();
+        if (window.lastUploadedSrc) {
+            // Re-run the flow if user changes from Passport to Ration after upload
+            processSelectedImageFlow(window.lastUploadedSrc);
         }
     };
 
@@ -235,6 +249,7 @@
         document.getElementById('submitBtn').style.display = "none";
         document.getElementById('previewText').style.display = "none";
         statusBox.style.display = "none";
+        cropContainer.style.display = "none";
 
         if (window.cvReady) {
             cropBtn.innerText = "✨ 2. Confirm Warp & Process";
@@ -246,11 +261,89 @@
 
         const reader = new FileReader();
         reader.onload = function(event) {
-            initPerspective(event.target.result);
+            window.lastUploadedSrc = event.target.result;
+            processSelectedImageFlow(window.lastUploadedSrc);
         };
         reader.readAsDataURL(file);
     });
 
+    // 🚀 NEW: Smart Flow Manager (Decides AI vs Manual)
+    function processSelectedImageFlow(imgSrc) {
+        const pType = document.getElementById('photoType').value;
+        if (pType === 'passport' && window.cvReady && window.faceCascade) {
+            statusBox.style.display = "block";
+            statusBox.innerText = "🤖 AI Detecting Face & Auto-Cropping...";
+            setTimeout(() => runAutoFaceCrop(imgSrc), 100);
+        } else {
+            initPerspective(imgSrc); // Manual mode for Ration Card OR if AI is still loading
+        }
+    }
+
+    // 🤖 NEW: AI Auto Face Crop Logic
+    function runAutoFaceCrop(imgSrc) {
+        let tmpImg = new Image();
+        tmpImg.onload = () => {
+            try {
+                let src = cv.imread(tmpImg);
+                let gray = new cv.Mat();
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+                
+                let faces = new cv.RectVector();
+                window.faceCascade.detectMultiScale(gray, faces, 1.1, 3, 0);
+                
+                if (faces.size() > 0) {
+                    console.log("✅ Face Detected!");
+                    let face = faces.get(0);
+                    let fw = face.width, fh = face.height, fx = face.x, fy = face.y;
+                    
+                    let cx = fx + (fw / 2);
+                    let cy = fy + (fh / 2);
+                    
+                    // Standard Passport Bounding Box Calculation
+                    let cropH = fh * 2.5; // Give space for chest/shoulders
+                    let cropW = cropH * (413 / 531); // Force passport ratio
+                    
+                    let startX = cx - (cropW / 2);
+                    let startY = cy - (cropH * 0.40); // 40% head, 60% shoulders
+                    
+                    // Constrain bounds to prevent errors
+                    startX = Math.max(0, startX);
+                    startY = Math.max(0, startY);
+                    if (startX + cropW > src.cols) cropW = src.cols - startX;
+                    if (startY + cropH > src.rows) cropH = src.rows - startY;
+                    
+                    let rect = new cv.Rect(Math.floor(startX), Math.floor(startY), Math.floor(cropW), Math.floor(cropH));
+                    let cropped = src.roi(rect);
+                    
+                    let finalMat = new cv.Mat();
+                    cv.resize(cropped, finalMat, new cv.Size(413, 531), 0, 0, cv.INTER_CUBIC);
+                    
+                    let tempCanvas = document.createElement('canvas');
+                    cv.imshow(tempCanvas, finalMat);
+                    
+                    // Cleanup memory
+                    src.delete(); gray.delete(); faces.delete(); cropped.delete(); finalMat.delete();
+                    
+                    tempCanvas.toBlob(blob => {
+                        processCroppedBlob(blob); // Instantly jump to background processing
+                    }, 'image/jpeg', 0.95);
+                    
+                } else {
+                    console.warn("⚠️ No face detected. Falling back to manual crop.");
+                    src.delete(); gray.delete(); faces.delete();
+                    alert("🤖 AI ko clear chehra nahi mila! Kripya khud crop set karein.");
+                    statusBox.style.display = "none";
+                    initPerspective(imgSrc);
+                }
+            } catch (e) {
+                console.error("AI Auto Crop Error:", e);
+                initPerspective(imgSrc); // Safe fallback
+            }
+        };
+        tmpImg.src = imgSrc;
+    }
+
+    // 📐 MANUAL CROP SYSTEM (For Ration Card)
     function initPerspective(imgSrc) {
         pImg = new Image();
         pImg.onload = () => {
@@ -264,7 +357,6 @@
 
             const w = pCanvas.width;
             const h = pCanvas.height;
-            
             const padX = 0; 
             const padY = 0; 
 
@@ -344,14 +436,13 @@
         ctx.translate(tempCvs.width/2, tempCvs.height/2);
         ctx.rotate(angle * Math.PI / 180);
         ctx.drawImage(pImg, -pImg.width/2, -pImg.height/2);
-        initPerspective(tempCvs.toDataURL('image/jpeg'));
+        window.lastUploadedSrc = tempCvs.toDataURL('image/jpeg');
+        initPerspective(window.lastUploadedSrc);
     };
 
+    // Confirm button for MANUAL CROP ONLY
     cropBtn.addEventListener('click', function() {
-        if (!window.cvReady || typeof cv === 'undefined' || !cv.Mat) {
-            alert("Please wait a few more seconds for core modules to finish downloading. The button will automatically turn green when ready.");
-            return;
-        }
+        if (!window.cvReady || typeof cv === 'undefined' || !cv.Mat) return;
 
         const photoType = document.getElementById('photoType').value;
         const targetW = photoType === 'ration' ? 584 : 413;
@@ -393,15 +484,13 @@
     });
 
     async function processCroppedBlob(blob) {
-        cropBtn.innerText = "⏳ Processing Image...";
-        cropBtn.disabled = true;
         statusBox.style.display = "block";
         
         const bgMode = document.getElementById('bgMode').value;
         if (bgMode === 'remove') {
             statusBox.innerText = "🤖 Removing Background & Scanning Body... Please wait";
         } else {
-            statusBox.innerText = "✨ Processing Warped Image...";
+            statusBox.innerText = "✨ Generating Final Grid...";
         }
 
         try {
@@ -435,14 +524,11 @@
 
         } catch (error) {
             alert(error.message);
-            cropBtn.disabled = false;
-            cropBtn.innerText = "Try Again";
             statusBox.style.display = "none";
             cropContainer.style.display = 'block';
         }
     }
 
-    // 🔥 Reset all values on new photo load
     window.autoAdjustFrame = function() {
         if(!window.noBgImg) return;
         document.getElementById('zoomSlider').value = "1.0";
@@ -456,7 +542,6 @@
         window.updateSliders();
     };
 
-    // 🔥 Update labels and trigger redraw
     window.updateSliders = function() {
         document.getElementById('zoomValTxt').innerText = parseFloat(document.getElementById('zoomSlider').value).toFixed(2) + "x";
         
@@ -486,7 +571,6 @@
             sCtx.imageSmoothingEnabled = true;
             sCtx.imageSmoothingQuality = 'high';
 
-            // 1. BG Color Fill karo (Filter ke bina)
             const bgMode = document.getElementById('bgMode').value;
             if (bgMode === 'remove') {
                 sCtx.fillStyle = document.getElementById('bgColor').value;
@@ -504,18 +588,14 @@
             const dx = (pWidth - drawW) / 2 + xOffset;
             const dy = (pHeight - drawH) / 2 + yOffset; 
 
-            // 2. 🔥 APPLY PRO COLOR FILTERS (Brightness, Contrast, Saturation)
             const bright = document.getElementById('brightness').value;
             const contrast = document.getElementById('contrast').value;
             const sat = document.getElementById('saturation').value;
             
             sCtx.filter = `brightness(${bright}%) contrast(${contrast}%) saturate(${sat}%)`;
             sCtx.drawImage(window.noBgImg, dx, dy, drawW, drawH);
-            
-            // 3. Reset filter (Taaki border aur face-clean par asar na pade)
             sCtx.filter = 'none';
 
-            // 4. OpenCV Face Clean (agar ON kiya ho)
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (window.cvReady && typeof cv !== 'undefined' && cv.Mat) {
@@ -531,12 +611,10 @@
                 }
             }
 
-            // 5. Border Draw
             sCtx.lineWidth = 2; 
             sCtx.strokeStyle = "black";
             sCtx.strokeRect(1, 1, pWidth - 2, pHeight - 2); 
 
-            // 6. Print Grid par paste karna (4x6 layout)
             const finalCvs = document.getElementById('finalCanvas');
             const fCtx = finalCvs.getContext('2d');
             
