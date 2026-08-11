@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Passport & Ration Card Photo Maker Pro</title>
+    
+    <!-- 🔥 SMART OPENCV LOADER -->
+    <script>
+        window.cvReady = false;
+        var Module = {
+            onRuntimeInitialized: function() {
+                window.cvReady = true;
+                console.log("✅ OpenCV Core loaded and initialized successfully!");
+                const cropBtn = document.getElementById('cropBtn');
+                if (cropBtn && cropBtn.disabled) {
+                    cropBtn.disabled = false;
+                    cropBtn.innerText = "✨ 2. Confirm Warp & Process";
+                    cropBtn.style.background = "#28a745";
+                }
+            }
+        };
+    </script>
+    
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js?v=auto_studio_v2"></script>
+    
+    <style>
+        * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
+        body { background: #eef2f3; padding: 10px; text-align: center; }
+        .card { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h2 { color: #1976d2; margin-top: 0; }
+        
+        .offline-banner { font-size: 13px; font-weight: bold; color: #1565c0; background: #e3f2fd; padding: 5px; border-radius: 4px; margin-bottom: 15px; }
+        
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="tel"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        
+        .upload-btn { background: #d97706; color: white; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-block; width: 100%; margin-bottom: 15px; border: 2px solid #b45309; transition: opacity 0.3s; }
+        input[type="file"] { display: none; }
+        
+        .status-box { background: #fff3e0; color: #e65100; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; border: 1px dashed #ffb74d; }
+        
+        .controls { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .controls select { flex: 1; min-width: 45%; padding: 8px; border: 2px solid #ccc; border-radius: 6px; font-weight: bold; font-size: 13px; }
+        
+        button.process-btn { background: #28a745; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.3s; margin-bottom: 15px; }
+        button.process-btn:disabled { background: #6c757d; cursor: not-allowed; }
+        
+        .preview-container { margin-top: 10px; border: 2px dashed #1976d2; padding: 10px; background: #fafafa; border-radius: 8px; overflow: auto; display: flex; justify-content: center; }
+        #finalCanvas { max-width: 100%; height: auto; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: none; }
+        
+        #submitBtn { background: #1976d2; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 15px; display: none; transition: opacity 0.2s; }
+        
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #1976d2; cursor: pointer; margin-top: -8px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #bbdefb; border-radius: 3px; }
+
+        #perspectiveContainer { position: relative; max-width: 100%; margin-bottom: 15px; display: none; }
+        #perspectiveCanvas { max-width: 100%; border: 2px dashed #45475a; touch-action: none; border-radius: 8px; background: #fff; cursor: crosshair; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>📸 Auto-Smart Photo Maker</h2>
+    <div class="offline-banner">⚡ Powered by Python Studio Server</div>
+    
+    <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
+    <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
+
+    <div style="text-align: center; margin-bottom: 15px;">
+        <label for="imageInput" class="upload-btn">
+            📸 1. Open Camera / Select Photo
+        </label>
+        <input type="file" id="imageInput" accept="image/*">
+    </div>
+
+    <div id="cropContainer" style="display:none; max-width: 100%; margin-bottom: 15px; padding: 10px; border-radius: 8px; background: #fff;">
+        <h4 style="color: #1976d2; margin-top: 0; margin-bottom: 5px;">📐 Drag Corners to Fit Photo</h4>
+        <p style="font-size: 11px; color: #666; margin-bottom: 10px;">The image will automatically stretch to perfect dimensions.</p>
+        
+        <div id="perspectiveContainer">
+            <canvas id="perspectiveCanvas"></canvas>
+        </div>
+
+        <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 12px;">
+            <button type="button" onclick="rotateSourceImage(-90)" style="background:#6c757d; color:white; border:none; padding:8px 14px; border-radius:4px; font-weight:bold; cursor:pointer;">↺ Rotate Left</button>
+            <button type="button" onclick="rotateSourceImage(90)" style="background:#6c757d; color:white; border:none; padding:8px 14px; border-radius:4px; font-weight:bold; cursor:pointer;">↻ Rotate Right</button>
+        </div>
+
+        <button id="cropBtn" class="process-btn">
+            ⏳ Waiting for Modules...
+        </button>
+    </div>
+
+    <div class="controls">
+        <select id="photoType" onchange="onPhotoTypeChange()">
+            <option value="passport" selected>Type: Passport (8 Photos)</option>
+            <option value="ration">Type: Ration Card (6 Photos Landscape)</option>
+        </select>
+
+        <select id="bgMode" onchange="if(window.noBgImg) window.redrawCanvas()">
+            <option value="keep">Background: Keep Original (No BG Remove)</option>
+            <option value="remove">Background: Remove BG (AI)</option>
+        </select>
+        
+        <select id="bgColor" onchange="if(window.noBgImg) window.redrawCanvas()">
+            <option value="#FFFFFF">BG: White</option>
+            <option value="#3b82f6">BG: Blue</option>
+            <option value="#ef4444">BG: Red</option>
+        </select>
+
+        <!-- 🔥 Face Clean Default Set to OFF to preserve 100% original sharpness -->
+        <select id="faceClean" onchange="if(window.noBgImg) window.redrawCanvas()">
+            <option value="no" selected>Face Clean: OFF (Sharp)</option>
+            <option value="yes">Face Clean: Soft ✨</option>
+        </select>
+    </div>
+
+    <div id="statusBox" class="status-box">Processing...</div>
+
+    <div id="liveAdjustControls" style="display: none; background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #1976d2; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <label style="font-size: 14px; font-weight: bold; color: #1565c0; margin: 0;">🎛️ Manual Override</label>
+            <span style="background: #4caf50; color: white; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: bold;">✨ Auto-Aligned</span>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Zoom In/Out 🔍</span>
+                <span id="zoomValTxt">1.0x</span>
+            </div>
+            <input type="range" id="zoomSlider" min="0.5" max="5" step="0.05" value="1.0" oninput="window.updateSliders()">
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Move Up/Down ↕️</span>
+            </div>
+            <input type="range" id="ySlider" min="-1500" max="1500" step="10" value="0" oninput="window.updateSliders()">
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Move Left/Right ↔️</span>
+            </div>
+            <input type="range" id="xSlider" min="-1000" max="1000" step="10" value="0" oninput="window.updateSliders()">
+        </div>
+
+        <!-- 🔥 NAYE ADVANCED FEATURES: Brightness, Contrast, Saturation -->
+        <hr style="border: 0.5px solid #bbdefb; margin: 15px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <label style="font-size: 14px; font-weight: bold; color: #1565c0; margin: 0;">🎨 Pro Color Tuning</label>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Brightness ☀️</span>
+                <span id="brightValTxt">100%</span>
+            </div>
+            <input type="range" id="brightness" min="50" max="200" step="1" value="100" oninput="window.updateSliders()">
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Contrast 🌗</span>
+                <span id="contrastValTxt">100%</span>
+            </div>
+            <input type="range" id="contrast" min="50" max="200" step="1" value="100" oninput="window.updateSliders()">
+        </div>
+
+        <div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Saturation (Color) 🌈</span>
+                <span id="satValTxt">100%</span>
+            </div>
+            <input type="range" id="saturation" min="0" max="200" step="1" value="100" oninput="window.updateSliders()">
+        </div>
+    </div>
+
+    <div class="preview-container">
+        <p id="previewText" style="color: #999; margin: 20px 0;">Preview will appear here</p>
+        <canvas id="finalCanvas" width="1800" height="1200"></canvas>
+    </div>
+
+    <div id="orderSection" style="display: none; margin-top: 15px;">
+        <div class="input-group">
+            <label>Number of Copies (Sheets):</label>
+            <input type="number" id="copies" value="1" min="1" oninput="window.calculate()">
+        </div>
+        <h3 id="total" style="text-align:center; color: #d32f2f;">Total: ₹30</h3>
+        <button id="submitBtn" onclick="window.submitOrder()">3. Submit Order to Print</button>
+    </div>
+</div>
+
+<script>
+    const perSheetRate = 30; 
+    const PYTHON_SERVER_URL = "http://localhost:5000/api/remove-bg";
+    window.noBgImg = null; 
+
+    const pCanvas = document.getElementById('perspectiveCanvas');
+    const pCtx = pCanvas.getContext('2d');
+    let pImg = new Image();
+    let cornerPts = [];
+    let dragPointIndex = -1;
+
+    const imageInput = document.getElementById('imageInput');
+    const cropContainer = document.getElementById('cropContainer');
+    const perspectiveContainer = document.getElementById('perspectiveContainer');
+    const cropBtn = document.getElementById('cropBtn');
+    const statusBox = document.getElementById('statusBox');
+
+    window.calculate = function() {
+        let copies = parseInt(document.getElementById("copies").value) || 1;
+        document.getElementById("total").innerHTML = "Total: ₹" + (copies * perSheetRate);
+    };
+
+    window.onPhotoTypeChange = function() {
+        if (window.noBgImg && document.getElementById('finalCanvas').style.display === "block") {
+            window.redrawCanvas();
+        }
+    };
+
+    imageInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        window.noBgImg = null;
+        document.getElementById('liveAdjustControls').style.display = "none";
+        document.getElementById('finalCanvas').style.display = "none";
+        document.getElementById('orderSection').style.display = "none";
+        document.getElementById('submitBtn').style.display = "none";
+        document.getElementById('previewText').style.display = "none";
+        statusBox.style.display = "none";
+
+        if (window.cvReady) {
+            cropBtn.innerText = "✨ 2. Confirm Warp & Process";
+            cropBtn.disabled = false;
+        } else {
+            cropBtn.innerText = "⏳ Loading Extra Modules... (Please wait 5-10s)";
+            cropBtn.disabled = true;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            initPerspective(event.target.result);
+        };
+        reader.readAsDataURL(file);
+    });
+
+    function initPerspective(imgSrc) {
+        pImg = new Image();
+        pImg.onload = () => {
+            cropContainer.style.display = 'block';
+            perspectiveContainer.style.display = 'block';
+
+            const maxW = cropContainer.clientWidth - 20;
+            const scale = Math.min(1, maxW / pImg.width);
+            pCanvas.width = pImg.width * scale;
+            pCanvas.height = pImg.height * scale;
+
+            const w = pCanvas.width;
+            const h = pCanvas.height;
+            
+            const padX = 0; 
+            const padY = 0; 
+
+            cornerPts = [
+                {x: padX, y: padY},
+                {x: w - padX, y: padY},
+                {x: w - padX, y: h - padY},
+                {x: padX, y: h - padY}
+            ];
+            drawPerspective();
+        };
+        pImg.src = imgSrc;
+    }
+
+    function drawPerspective() {
+        pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+        pCtx.drawImage(pImg, 0, 0, pCanvas.width, pCanvas.height);
+
+        pCtx.beginPath();
+        pCtx.moveTo(cornerPts[0].x, cornerPts[0].y);
+        for(let i=1; i<4; i++) pCtx.lineTo(cornerPts[i].x, cornerPts[i].y);
+        pCtx.closePath();
+        
+        pCtx.strokeStyle = '#1976d2';
+        pCtx.lineWidth = 2;
+        pCtx.stroke();
+        pCtx.fillStyle = 'rgba(25, 118, 210, 0.2)';
+        pCtx.fill();
+
+        pCtx.fillStyle = '#ff3b30';
+        for(let p of cornerPts) {
+            pCtx.beginPath();
+            pCtx.arc(p.x, p.y, 8, 0, 2*Math.PI);
+            pCtx.fill();
+            pCtx.strokeStyle = '#ffffff';
+            pCtx.lineWidth = 2;
+            pCtx.stroke();
+        }
+    }
+
+    function getPointerPos(e) {
+        const rect = pCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function handleDown(e) {
+        e.preventDefault();
+        const pos = getPointerPos(e);
+        dragPointIndex = cornerPts.findIndex(p => Math.hypot(p.x - pos.x, p.y - pos.y) < 25);
+    }
+
+    function handleMove(e) {
+        if (dragPointIndex === -1) return;
+        e.preventDefault();
+        const pos = getPointerPos(e);
+        cornerPts[dragPointIndex].x = Math.max(0, Math.min(pCanvas.width, pos.x));
+        cornerPts[dragPointIndex].y = Math.max(0, Math.min(pCanvas.height, pos.y));
+        drawPerspective();
+    }
+
+    function handleUp(e) { dragPointIndex = -1; }
+
+    pCanvas.addEventListener('mousedown', handleDown);
+    pCanvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    pCanvas.addEventListener('touchstart', handleDown, {passive: false});
+    pCanvas.addEventListener('touchmove', handleMove, {passive: false});
+    window.addEventListener('touchend', handleUp);
+
+    window.rotateSourceImage = function(angle) {
+        const tempCvs = document.createElement('canvas');
+        const ctx = tempCvs.getContext('2d');
+        tempCvs.width = pImg.height; 
+        tempCvs.height = pImg.width;
+        ctx.translate(tempCvs.width/2, tempCvs.height/2);
+        ctx.rotate(angle * Math.PI / 180);
+        ctx.drawImage(pImg, -pImg.width/2, -pImg.height/2);
+        initPerspective(tempCvs.toDataURL('image/jpeg'));
+    };
+
+    cropBtn.addEventListener('click', function() {
+        if (!window.cvReady || typeof cv === 'undefined' || !cv.Mat) {
+            alert("Please wait a few more seconds for core modules to finish downloading. The button will automatically turn green when ready.");
+            return;
+        }
+
+        const photoType = document.getElementById('photoType').value;
+        const targetW = photoType === 'ration' ? 584 : 413;
+        const targetH = photoType === 'ration' ? 438 : 531;
+
+        const scaleX = pImg.width / pCanvas.width;
+        const scaleY = pImg.height / pCanvas.height;
+
+        let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            cornerPts[0].x * scaleX, cornerPts[0].y * scaleY,
+            cornerPts[1].x * scaleX, cornerPts[1].y * scaleY,
+            cornerPts[2].x * scaleX, cornerPts[2].y * scaleY,
+            cornerPts[3].x * scaleX, cornerPts[3].y * scaleY
+        ]);
+
+        let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            0, 0,
+            targetW, 0,
+            targetW, targetH,
+            0, targetH
+        ]);
+
+        let srcMat = cv.imread(pImg);
+        let dstMat = new cv.Mat();
+        let M = cv.getPerspectiveTransform(srcTri, dstTri);
+        let dsize = new cv.Size(targetW, targetH);
+
+        cv.warpPerspective(srcMat, dstMat, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+        let tempCanvas = document.createElement('canvas');
+        cv.imshow(tempCanvas, dstMat);
+        
+        srcMat.delete(); dstMat.delete(); M.delete(); srcTri.delete(); dstTri.delete();
+
+        tempCanvas.toBlob(blob => {
+            cropContainer.style.display = 'none';
+            processCroppedBlob(blob);
+        }, 'image/jpeg', 0.95);
+    });
+
+    async function processCroppedBlob(blob) {
+        cropBtn.innerText = "⏳ Processing Image...";
+        cropBtn.disabled = true;
+        statusBox.style.display = "block";
+        
+        const bgMode = document.getElementById('bgMode').value;
+        if (bgMode === 'remove') {
+            statusBox.innerText = "🤖 Removing Background & Scanning Body... Please wait";
+        } else {
+            statusBox.innerText = "✨ Processing Warped Image...";
+        }
+
+        try {
+            let processedBlob = blob;
+
+            if (bgMode === 'remove') {
+                const formData = new FormData();
+                formData.append("image", blob, 'photo_cropped.jpg');
+
+                const response = await fetch(PYTHON_SERVER_URL, {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error("Server Error! Kya aapka Python server chalu hai?");
+                processedBlob = await response.blob();
+            }
+
+            const processedUrl = URL.createObjectURL(processedBlob);
+            
+            window.noBgImg = new Image();
+            window.noBgImg.src = processedUrl;
+            await new Promise((resolve, reject) => { 
+                window.noBgImg.onload = resolve; 
+                window.noBgImg.onerror = () => reject("Image load fail.");
+            });
+            
+            statusBox.style.display = "none";
+            document.getElementById('liveAdjustControls').style.display = "block";
+            window.autoAdjustFrame();
+
+        } catch (error) {
+            alert(error.message);
+            cropBtn.disabled = false;
+            cropBtn.innerText = "Try Again";
+            statusBox.style.display = "none";
+            cropContainer.style.display = 'block';
+        }
+    }
+
+    // 🔥 Reset all values on new photo load
+    window.autoAdjustFrame = function() {
+        if(!window.noBgImg) return;
+        document.getElementById('zoomSlider').value = "1.0";
+        document.getElementById('xSlider').value = "0";
+        document.getElementById('ySlider').value = "0";
+        
+        document.getElementById('brightness').value = "100";
+        document.getElementById('contrast').value = "100";
+        document.getElementById('saturation').value = "100";
+        
+        window.updateSliders();
+    };
+
+    // 🔥 Update labels and trigger redraw
+    window.updateSliders = function() {
+        document.getElementById('zoomValTxt').innerText = parseFloat(document.getElementById('zoomSlider').value).toFixed(2) + "x";
+        
+        document.getElementById('brightValTxt').innerText = document.getElementById('brightness').value + "%";
+        document.getElementById('contrastValTxt').innerText = document.getElementById('contrast').value + "%";
+        document.getElementById('satValTxt').innerText = document.getElementById('saturation').value + "%";
+        
+        window.redrawCanvas();
+    };
+
+    let redrawTimeout = null;
+    window.redrawCanvas = function() {
+        if (!window.noBgImg) return;
+        
+        if(redrawTimeout) cancelAnimationFrame(redrawTimeout);
+        redrawTimeout = requestAnimationFrame(() => {
+            
+            const photoType = document.getElementById('photoType').value;
+            const pWidth = photoType === 'ration' ? 584 : 413;
+            const pHeight = photoType === 'ration' ? 438 : 531;
+            
+            let singleCvs = document.createElement('canvas');
+            singleCvs.width = pWidth;
+            singleCvs.height = pHeight;
+            let sCtx = singleCvs.getContext('2d');
+
+            sCtx.imageSmoothingEnabled = true;
+            sCtx.imageSmoothingQuality = 'high';
+
+            // 1. BG Color Fill karo (Filter ke bina)
+            const bgMode = document.getElementById('bgMode').value;
+            if (bgMode === 'remove') {
+                sCtx.fillStyle = document.getElementById('bgColor').value;
+                sCtx.fillRect(0, 0, pWidth, pHeight);
+            }
+
+            const zoomValue = parseFloat(document.getElementById('zoomSlider').value);
+            const yOffset = parseFloat(document.getElementById('ySlider').value);
+            const xOffset = parseFloat(document.getElementById('xSlider').value);
+
+            const scale = Math.min(pWidth / window.noBgImg.width, pHeight / window.noBgImg.height) * zoomValue;
+            const drawW = window.noBgImg.width * scale;
+            const drawH = window.noBgImg.height * scale;
+            
+            const dx = (pWidth - drawW) / 2 + xOffset;
+            const dy = (pHeight - drawH) / 2 + yOffset; 
+
+            // 2. 🔥 APPLY PRO COLOR FILTERS (Brightness, Contrast, Saturation)
+            const bright = document.getElementById('brightness').value;
+            const contrast = document.getElementById('contrast').value;
+            const sat = document.getElementById('saturation').value;
+            
+            sCtx.filter = `brightness(${bright}%) contrast(${contrast}%) saturate(${sat}%)`;
+            sCtx.drawImage(window.noBgImg, dx, dy, drawW, drawH);
+            
+            // 3. Reset filter (Taaki border aur face-clean par asar na pade)
+            sCtx.filter = 'none';
+
+            // 4. OpenCV Face Clean (agar ON kiya ho)
+            if (document.getElementById('faceClean').value === 'yes') {
+                try {
+                    if (window.cvReady && typeof cv !== 'undefined' && cv.Mat) {
+                        let src = cv.imread(singleCvs);
+                        let dst = new cv.Mat();
+                        cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
+                        cv.bilateralFilter(src, dst, 5, 40, 40, cv.BORDER_DEFAULT);
+                        cv.imshow(singleCvs, dst);
+                        src.delete(); dst.delete();
+                    }
+                } catch (cvError) {
+                    console.warn("OpenCV error on face clean");
+                }
+            }
+
+            // 5. Border Draw
+            sCtx.lineWidth = 2; 
+            sCtx.strokeStyle = "black";
+            sCtx.strokeRect(1, 1, pWidth - 2, pHeight - 2); 
+
+            // 6. Print Grid par paste karna (4x6 layout)
+            const finalCvs = document.getElementById('finalCanvas');
+            const fCtx = finalCvs.getContext('2d');
+            
+            fCtx.imageSmoothingEnabled = true;
+            fCtx.imageSmoothingQuality = 'high';
+            fCtx.fillStyle = "#FFFFFF";
+            fCtx.fillRect(0, 0, finalCvs.width, finalCvs.height);
+
+            let cols = (photoType === 'ration') ? 3 : 4;
+            let rows = (photoType === 'ration') ? 2 : 2;
+
+            const gapX = (finalCvs.width - (cols * pWidth)) / (cols + 1);
+            const gapY = (finalCvs.height - (rows * pHeight)) / (rows + 1);
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let posX = gapX + c * (pWidth + gapX);
+                    let posY = gapY + r * (pHeight + gapY);
+                    fCtx.drawImage(singleCvs, posX, posY, pWidth, pHeight);
+                }
+            }
+
+            finalCvs.style.display = "block";
+            document.getElementById('orderSection').style.display = "block";
+            document.getElementById('submitBtn').style.display = "block";
+            window.calculate();
+        });
+    };
+
+    window.submitOrder = async function() {
+        const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
+        
+        const rawName = document.getElementById("name").value.trim();
+        const rawMobile = document.getElementById("mobile").value.trim();
+        const name = rawName.replace(/<[^>]*>?/gm, '') || "Shop Admin"; 
+        const mobile = rawMobile.replace(/[^0-9+]/g, '') || "N/A"; 
+
+        const submitBtn = document.getElementById("submitBtn");
+        submitBtn.innerText = "Uploading to Printer... Please wait";
+        submitBtn.disabled = true;
+
+        try {
+            const finalCvs = document.getElementById('finalCanvas');
+            const processedBlob = await new Promise(resolve => {
+                finalCvs.toBlob(resolve, 'image/jpeg', 1.0); 
+            });
+
+            const photoTypeVal = document.getElementById('photoType').value;
+            const fileName = `${Date.now()}_${photoTypeVal}_4x6.jpg`;
+
+            const { error: uploadError } = await client.storage.from("documents").upload(fileName, processedBlob, { contentType: "image/jpeg", upsert: true });
+            if (uploadError) throw uploadError;
+
+            const copies = document.getElementById("copies").value;
+            const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
+            const printTypeName = (photoTypeVal === 'ration') ? "Ration Card Photo" : "Passport Photo";
+
+            const { data: order, error } = await client.from("orders").insert([{
+                customer_name: name,
+                mobile: mobile, 
+                pages: copies, 
+                print_type: printTypeName,
+                amount: amount,
+                file_url: client.storage.from("documents").getPublicUrl(fileName).data.publicUrl, 
+                payment_status: "PAID (ADMIN)",
+                payment_id: "Direct-Shop-Print",
+                layout_mode: 1 
+            }]).select();
+
+            if (error) throw error;
+            
+            alert("👑 Owner Mode: Order successfully sent to Python Auto-Printer!");
+            window.location.reload(); 
+
+        } catch (err) {
+            alert(err.message);
+            submitBtn.innerText = "3. Submit Order to Print";
+            submitBtn.disabled = false;
+        }
+    };
+</script>
+
+</body>
+</html>
