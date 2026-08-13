@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRANSIT — device to device</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<style>
+  :root{
+    --board:#DADFDC;
+    --panel:#F2F4F1;
+    --panel-2:#E9ECE8;
+    --ink:#182422;
+    --ink-soft:#4B5651;
+    --line:#B9C1BC;
+    --amber:#E3A13B;
+    --amber-ink:#3A2A0C;
+    --teal:#2A6C5E;
+    --teal-soft:#DCEAE5;
+    --brick:#A6402F;
+    --brick-soft:#F3DCD7;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--board);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    min-height:100%;
+    padding:24px 16px 60px;
+  }
+  .app{max-width:880px;margin:0 auto;}
+
+  /* ---- Header / board ---- */
+  .board-header{
+    background:var(--ink);
+    border-radius:var(--radius);
+    padding:22px 24px;
+    margin-bottom:18px;
+    position:relative;
+    overflow:hidden;
+  }
+  .board-header::after{
+    content:"";
+    position:absolute;inset:0;
+    background:repeating-linear-gradient(180deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px);
+    pointer-events:none;
+  }
+  .brand-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .brand{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    letter-spacing:0.28em;
+    font-size:22px;
+    color:var(--board);
+  }
+  .brand span{color:var(--amber);}
+  .tagline{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    letter-spacing:0.08em;
+    color:#8FA098;
+  }
+  .status-strip{
+    margin-top:14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.12em;
+    color:var(--amber);
+    display:flex;align-items:center;gap:8px;
+    min-height:16px;
+  }
+  .status-strip .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--amber);
+    animation:blink 1.4s infinite ease-in-out;
+  }
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.25;}}
+  @media (prefers-reduced-motion: reduce){ .status-strip .dot{animation:none;} }
+
+  /* ---- Tabs ---- */
+  .tabs{display:flex;gap:8px;margin-bottom:16px;}
+  .tab-btn{
+    flex:1;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    letter-spacing:0.14em;
+    font-size:13px;
+    padding:12px 10px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    color:var(--ink-soft);
+    cursor:pointer;
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  .tab-btn:hover{background:#E0E4DF;}
+  .tab-btn.active{
+    background:var(--ink);
+    color:var(--board);
+    border-color:var(--ink);
+  }
+  .tab-btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+
+  /* ---- Panels ---- */
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px;
+    display:none;
+  }
+  .panel.active{display:block;}
+  .panel h2{
+    margin:0 0 4px;
+    font-size:16px;
+    letter-spacing:0.02em;
+  }
+  .panel .sub{
+    margin:0 0 18px;
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+
+  /* ---- Dropzone ---- */
+  .dropzone{
+    border:2px dashed var(--line);
+    border-radius:var(--radius);
+    padding:28px 16px;
+    text-align:center;
+    cursor:pointer;
+    background:var(--panel-2);
+    transition:border-color .15s, background .15s;
+  }
+  .dropzone.drag{border-color:var(--teal);background:var(--teal-soft);}
+  .dropzone:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+  .dropzone .dz-label{font-weight:600;font-size:14px;}
+  .dropzone .dz-sub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+  .file-chip{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:12px 14px;
+    margin-top:14px;
+    font-size:13px;
+  }
+  .file-chip .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .file-chip .size{color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;}
+
+  button.primary{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    letter-spacing:0.08em;
+    font-size:13px;
+    padding:12px 18px;
+    background:var(--amber);
+    color:var(--amber-ink);
+    border:none;
+    border-radius:var(--radius);
+    cursor:pointer;
+    margin-top:16px;
+    transition:filter .15s, transform .1s;
+  }
+  button.primary:hover{filter:brightness(1.06);}
+  button.primary:active{transform:translateY(1px);}
+  button.primary:disabled{opacity:0.45;cursor:not-allowed;}
+  button.primary:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+
+  button.ghost{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.06em;
+    padding:9px 14px;
+    background:transparent;
+    color:var(--ink-soft);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    cursor:pointer;
+    margin-top:10px;
+  }
+  button.ghost:hover{background:var(--panel-2);}
+  button.ghost:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+
+  /* ---- Split-flap code display ---- */
+  .flap-row{display:flex;gap:6px;justify-content:center;margin:20px 0 6px;flex-wrap:wrap;}
+  .flap{
+    width:42px;height:56px;
+    background:var(--ink);
+    border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:26px;
+    color:var(--board);
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 2px 0 rgba(0,0,0,0.15);
+  }
+  .flap::before{
+    content:"";position:absolute;left:0;right:0;top:50%;height:1px;
+    background:rgba(0,0,0,0.35);
+  }
+  .flap.flipping{animation:flapflip .38s ease;}
+  @keyframes flapflip{
+    0%{transform:rotateX(0deg);}
+    45%{transform:rotateX(-90deg);}
+    55%{transform:rotateX(-90deg);}
+    100%{transform:rotateX(0deg);}
+  }
+  @media (prefers-reduced-motion: reduce){ .flap.flipping{animation:none;} }
+  .code-caption{
+    text-align:center;font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:0.12em;color:var(--ink-soft);margin-bottom:18px;
+  }
+
+  .qr-wrap{display:flex;justify-content:center;margin:8px 0 4px;}
+  #qr-target{background:#fff;padding:10px;border-radius:8px;}
+
+  .progress-track{
+    background:var(--panel-2);border:1px solid var(--line);
+    border-radius:8px;height:10px;overflow:hidden;margin-top:14px;
+  }
+  .progress-fill{
+    height:100%;background:var(--teal);width:0%;
+    transition:width .2s ease;
+  }
+  .progress-label{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);
+    margin-top:6px;display:flex;justify-content:space-between;
+  }
+
+  .pill{
+    display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;
+    letter-spacing:0.08em;padding:4px 10px;border-radius:999px;margin-top:14px;
+  }
+  .pill.ready{background:var(--teal-soft);color:var(--teal);}
+  .pill.done{background:var(--teal);color:#fff;}
+  .pill.err{background:var(--brick-soft);color:var(--brick);}
+
+  /* ---- Receive mode toggle ---- */
+  .recv-modes{display:flex;gap:8px;margin-bottom:16px;}
+  .recv-modes button{
+    flex:1;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;
+    padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);
+    color:var(--ink-soft);cursor:pointer;
+  }
+  .recv-modes button.active{background:var(--ink);color:var(--board);border-color:var(--ink);}
+  .recv-modes button:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+
+  .code-input-row{display:flex;gap:8px;justify-content:center;margin:10px 0 4px;}
+  .code-input-row input{
+    width:44px;height:52px;text-align:center;
+    font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:22px;
+    text-transform:uppercase;
+    border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);
+  }
+  .code-input-row input:focus-visible{outline:2px solid var(--teal);outline-offset:1px;}
+
+  .camera-wrap{position:relative;border-radius:var(--radius);overflow:hidden;background:#000;margin-top:6px;display:none;}
+  .camera-wrap.active{display:block;}
+  video{width:100%;display:block;max-height:320px;object-fit:cover;}
+  .scan-frame{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:60%;aspect-ratio:1/1;border:2px solid var(--amber);border-radius:10px;
+    box-shadow:0 0 0 999px rgba(0,0,0,0.35);
+  }
+
+  .hint{font-size:12px;color:var(--ink-soft);margin-top:10px;line-height:1.5;}
+  .msg{font-size:13px;margin-top:12px;padding:10px 12px;border-radius:8px;display:none;}
+  .msg.show{display:block;}
+  .msg.err{background:var(--brick-soft);color:var(--brick);}
+  .msg.ok{background:var(--teal-soft);color:var(--teal);}
+
+  a.download-btn{
+    display:inline-block;text-decoration:none;
+    font-family:'IBM Plex Mono',monospace;font-weight:600;letter-spacing:0.08em;
+    font-size:13px;padding:12px 18px;background:var(--teal);color:#fff;
+    border-radius:var(--radius);margin-top:16px;
+  }
+
+  @media (max-width:480px){
+    .flap{width:34px;height:46px;font-size:21px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="board-header">
+    <div class="brand-row">
+      <div class="brand">TRAN<span>SIT</span></div>
+      <div class="tagline">DEVICE&nbsp;→&nbsp;DEVICE&nbsp;RELAY</div>
+    </div>
+    <div class="status-strip" id="global-status"><span class="dot"></span><span id="global-status-text">IDLE — pick a gate below</span></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-send" data-tab="send">SEND</button>
+    <button class="tab-btn" id="tab-receive" data-tab="receive">RECEIVE</button>
+  </div>
+
+  <!-- SEND PANEL -->
+  <section class="panel active" id="panel-send">
+    <h2>Send a file</h2>
+    <p class="sub">Pick a file, get a code. Enter that code — or scan the QR — on the other device.</p>
+
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file to send">
+      <div class="dz-label">Drop a file, or tap to choose</div>
+      <div class="dz-sub">Up to 20 MB · works best for photos, PDFs, docs</div>
+      <input type="file" id="file-input" style="display:none;">
+    </div>
+
+    <div class="file-chip" id="file-chip" style="display:none;">
+      <span class="name" id="file-name"></span>
+      <span class="size" id="file-size"></span>
+    </div>
+
+    <div id="send-msg" class="msg"></div>
+
+    <button class="primary" id="btn-create" disabled>Create transfer</button>
+
+    <div id="send-result" style="display:none;">
+      <div class="flap-row" id="flap-row"></div>
+      <div class="code-caption">SESSION CODE — valid while this tab stays open</div>
+      <div class="qr-wrap"><div id="qr-target"></div></div>
+      <div style="text-align:center;">
+        <button class="ghost" id="btn-copy">Copy code</button>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="send-progress"></div></div>
+      <div class="progress-label"><span id="send-progress-label">Preparing…</span><span id="send-pill-wrap"></span></div>
+      <div style="text-align:center;"><span class="pill ready" id="send-pill">READY FOR PICKUP</span></div>
+      <button class="ghost" id="btn-reset-send">Start a new transfer</button>
+    </div>
+  </section>
+
+  <!-- RECEIVE PANEL -->
+  <section class="panel" id="panel-receive">
+    <h2>Receive a file</h2>
+    <p class="sub">Scan the sender's QR, or type in their 5-character code.</p>
+
+    <div class="recv-modes">
+      <button class="active" id="mode-scan" data-mode="scan">Scan QR</button>
+      <button id="mode-type" data-mode="type">Enter code</button>
+    </div>
+
+    <div id="scan-area">
+      <button class="primary" id="btn-start-cam" style="margin-top:0;">Start camera</button>
+      <div class="camera-wrap" id="camera-wrap">
+        <video id="video" playsinline muted></video>
+        <div class="scan-frame"></div>
+      </div>
+      <button class="ghost" id="btn-stop-cam" style="display:none;">Stop camera</button>
+      <div class="hint">Camera access needs your permission and a secure connection. No luck? Switch to "Enter code".</div>
+    </div>
+
+    <div id="type-area" style="display:none;">
+      <div class="code-input-row" id="code-input-row"></div>
+      <div style="text-align:center;">
+        <button class="primary" id="btn-fetch" style="margin-top:14px;">Find transfer</button>
+      </div>
+    </div>
+
+    <div id="recv-msg" class="msg"></div>
+
+    <div id="recv-result" style="display:none;">
+      <div class="file-chip" id="recv-file-chip">
+        <span class="name" id="recv-file-name"></span>
+        <span class="size" id="recv-file-size"></span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="recv-progress"></div></div>
+      <div class="progress-label"><span id="recv-progress-label">Waiting…</span><span></span></div>
+      <div id="recv-download-wrap" style="text-align:center;"></div>
+    </div>
+    <button class="ghost" id="btn-reset-recv" style="display:none;">Look up another code</button>
+  </section>
+
+</div>
+
+<canvas id="scan-canvas" style="display:none;"></canvas>
+
+<script>
+(function(){
+  "use strict";
+
+  const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const CODE_LEN = 5;
+  const CHUNK_RAW_BYTES = 800 * 1024; // 800KB raw per chunk (~1.1MB base64, well under 5MB cap)
+  const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB
+  const KEY_PREFIX = "xfer";
+
+  const $ = (id) => document.getElementById(id);
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function setGlobalStatus(text){ $("global-status-text").textContent = text; }
+
+  function showMsg(el, text, tone){
+    el.textContent = text;
+    el.className = "msg show " + (tone || "");
+  }
+  function hideMsg(el){ el.className = "msg"; }
+
+  function fmtSize(bytes){
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
+    return (bytes/(1024*1024)).toFixed(1) + " MB";
+  }
+
+  function genCode(){
+    let out = "";
+    const arr = new Uint32Array(CODE_LEN);
+    crypto.getRandomValues(arr);
+    for (let i=0;i<CODE_LEN;i++){ out += CODE_CHARS[arr[i] % CODE_CHARS.length]; }
+    return out;
+  }
+
+  function arrayBufferToBase64(buffer){
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 8192;
+    for (let i=0;i<bytes.length;i+=chunkSize){
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunkSize));
+    }
+    return btoa(binary);
+  }
+
+  function base64ToBytes(b64){
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  // ---------------- Tabs ----------------
+  const tabButtons = document.querySelectorAll(".tab-btn");
+  tabButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      tabButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+      $("panel-" + btn.dataset.tab).classList.add("active");
+      setGlobalStatus(btn.dataset.tab === "send" ? "IDLE — choose a file to send" : "IDLE — scan or type a code");
+    });
+  });
+
+  // ================= SEND FLOW =================
+  let selectedFile = null;
+  let sendCode = null;
+  let sendPollTimer = null;
+
+  const dropzone = $("dropzone");
+  const fileInput = $("file-input");
+
+  dropzone.addEventListener("click", () => fileInput.click());
+  dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
+  ["dragenter","dragover"].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add("drag"); }));
+  ["dragleave","drop"].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove("drag"); }));
+  dropzone.addEventListener("drop", (e) => {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileInput.addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) handleFile(f);
+  });
+
+  function handleFile(f){
+    hideMsg($("send-msg"));
+    if (f.size > MAX_FILE_BYTES){
+      showMsg($("send-msg"), "That file is " + fmtSize(f.size) + " — the demo cap is 20 MB. Pick a smaller file.", "err");
+      selectedFile = null;
+      $("btn-create").disabled = true;
+      $("file-chip").style.display = "none";
+      return;
+    }
+    selectedFile = f;
+    $("file-name").textContent = f.name;
+    $("file-size").textContent = fmtSize(f.size);
+    $("file-chip").style.display = "flex";
+    $("btn-create").disabled = false;
+  }
+
+  $("btn-create").addEventListener("click", startSend);
+
+  function renderFlaps(code){
+    const row = $("flap-row");
+    row.innerHTML = "";
+    for (const ch of code){
+      const d = document.createElement("div");
+      d.className = "flap flipping";
+      d.textContent = ch;
+      row.appendChild(d);
+    }
+  }
+
+  async function startSend(){
+    if (!selectedFile) return;
+    $("btn-create").disabled = true;
+    hideMsg($("send-msg"));
+    setGlobalStatus("PREPARING TRANSFER…");
+
+    sendCode = genCode();
+    const file = selectedFile;
+    const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_RAW_BYTES));
+
+    $("send-result").style.display = "block";
+    renderFlaps(sendCode);
+    if (window.QRCode){
+      $("qr-target").innerHTML = "";
+      new QRCode($("qr-target"), { text: sendCode, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M });
+    }
+    $("send-pill").textContent = "BOARDING…";
+    $("send-pill").className = "pill ready";
+
+    try{
+      // meta first (with placeholder), chunks after, then confirm meta as ready
+      const meta = { name: file.name, type: file.type || "application/octet-stream", size: file.size, chunks: totalChunks, ts: Date.now() };
+
+      for (let i=0;i<totalChunks;i++){
+        const start = i * CHUNK_RAW_BYTES;
+        const end = Math.min(file.size, start + CHUNK_RAW_BYTES);
+        const slice = file.slice(start, end);
+        const buf = await slice.arrayBuffer();
+        const b64 = arrayBufferToBase64(buf);
+        const res = await window.storage.set(KEY_PREFIX + ":" + sendCode + ":c" + i, b64, true);
+        if (!res) throw new Error("Storage write failed on chunk " + (i+1));
+        const pct = Math.round(((i+1)/totalChunks) * 100);
+        $("send-progress").style.width = pct + "%";
+        $("send-progress-label").textContent = "Uploading chunk " + (i+1) + " / " + totalChunks;
+      }
+
+      await window.storage.set(KEY_PREFIX + ":" + sendCode + ":meta", JSON.stringify(meta), true);
+      await window.storage.set(KEY_PREFIX + ":" + sendCode + ":status", "ready", true);
+
+      $("send-progress-label").textContent = "Uploaded " + totalChunks + " / " + totalChunks;
+      $("send-pill").textContent = "READY FOR PICKUP";
+      setGlobalStatus("READY — share the code or QR now");
+      pollForAck();
+    } catch(err){
+      showMsg($("send-msg"), "Something went wrong sending that file: " + err.message, "err");
+      $("send-pill").textContent = "TRANSFER FAILED";
+      $("send-pill").className = "pill err";
+      setGlobalStatus("ERROR — try creating the transfer again");
+      $("btn-create").disabled = false;
+    }
+  }
+
+  function pollForAck(){
+    let elapsed = 0;
+    const maxWait = 20 * 60 * 1000; // 20 minutes
+    sendPollTimer = setInterval(async () => {
+      elapsed += 2500;
+      try{
+        const res = await window.storage.get(KEY_PREFIX + ":" + sendCode + ":status", true);
+        const status = res && res.value;
+        if (status === "receiving"){
+          $("send-pill").textContent = "IN TRANSIT…";
+          setGlobalStatus("IN TRANSIT — other device is downloading");
+        } else if (status === "delivered"){
+          $("send-pill").textContent = "DELIVERED";
+          $("send-pill").className = "pill done";
+          setGlobalStatus("DELIVERED — transfer complete");
+          clearInterval(sendPollTimer);
+        }
+      } catch(e){ /* key not there yet, ignore */ }
+      if (elapsed >= maxWait) clearInterval(sendPollTimer);
+    }, 2500);
+  }
+
+  $("btn-copy").addEventListener("click", async () => {
+    try{
+      await navigator.clipboard.writeText(sendCode);
+      showMsg($("send-msg"), "Code copied.", "ok");
+    } catch(e){
+      showMsg($("send-msg"), "Couldn't copy automatically — the code is " + sendCode, "err");
+    }
+  });
+
+  $("btn-reset-send").addEventListener("click", () => {
+    if (sendPollTimer) clearInterval(sendPollTimer);
+    selectedFile = null;
+    sendCode = null;
+    $("send-result").style.display = "none";
+    $("file-chip").style.display = "none";
+    $("btn-create").disabled = true;
+    $("send-progress").style.width = "0%";
+    fileInput.value = "";
+    hideMsg($("send-msg"));
+    setGlobalStatus("IDLE — choose a file to send");
+  });
+
+  // ================= RECEIVE FLOW =================
+  let mediaStream = null;
+  let scanning = false;
+  const enteredDigits = new Array(CODE_LEN).fill("");
+
+  const modeButtons = document.querySelectorAll(".recv-modes button");
+  modeButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      modeButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (btn.dataset.mode === "scan"){
+        $("scan-area").style.display = "block";
+        $("type-area").style.display = "none";
+      } else {
+        $("scan-area").style.display = "none";
+        $("type-area").style.display = "block";
+        stopCamera();
+      }
+    });
+  });
+
+  // Build code entry boxes
+  (function buildCodeInputs(){
+    const row = $("code-input-row");
+    for (let i=0;i<CODE_LEN;i++){
+      const inp = document.createElement("input");
+      inp.setAttribute("maxlength","1");
+      inp.setAttribute("autocapitalize","characters");
+      inp.setAttribute("inputmode","text");
+      inp.dataset.idx = i;
+      inp.addEventListener("input", (e) => {
+        const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"");
+        e.target.value = v;
+        enteredDigits[i] = v;
+        if (v && i < CODE_LEN-1) row.children[i+1].focus();
+      });
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !e.target.value && i>0) row.children[i-1].focus();
+      });
+      row.appendChild(inp);
+    }
+  })();
+
+  $("btn-fetch").addEventListener("click", () => {
+    const code = enteredDigits.join("");
+    if (code.length !== CODE_LEN){
+      showMsg($("recv-msg"), "Enter all " + CODE_LEN + " characters of the code.", "err");
+      return;
+    }
+    beginReceive(code);
+  });
+
+  $("btn-start-cam").addEventListener("click", startCamera);
+  $("btn-stop-cam").addEventListener("click", stopCamera);
+
+  async function startCamera(){
+    hideMsg($("recv-msg"));
+    try{
+      mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const video = $("video");
+      video.srcObject = mediaStream;
+      await video.play();
+      $("camera-wrap").classList.add("active");
+      $("btn-start-cam").style.display = "none";
+      $("btn-stop-cam").style.display = "inline-block";
+      scanning = true;
+      requestAnimationFrame(scanFrame);
+    } catch(err){
+      showMsg($("recv-msg"), "Couldn't access the camera (" + err.message + "). Use \"Enter code\" instead.", "err");
+    }
+  }
+
+  function stopCamera(){
+    scanning = false;
+    if (mediaStream){
+      mediaStream.getTracks().forEach(t => t.stop());
+      mediaStream = null;
+    }
+    $("camera-wrap").classList.remove("active");
+    $("btn-start-cam").style.display = "inline-block";
+    $("btn-stop-cam").style.display = "none";
+  }
+
+  function scanFrame(){
+    if (!scanning) return;
+    const video = $("video");
+    const canvas = $("scan-canvas");
+    if (video.readyState === video.HAVE_ENOUGH_DATA){
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const result = window.jsQR ? jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) : null;
+      if (result && result.data){
+        const code = result.data.trim().toUpperCase();
+        if (/^[A-Z0-9]{5}$/.test(code)){
+          stopCamera();
+          beginReceive(code);
+          return;
+        }
+      }
+    }
+    requestAnimationFrame(scanFrame);
+  }
+
+  let recvPollAbort = false;
+
+  async function beginReceive(code){
+    hideMsg($("recv-msg"));
+    $("recv-result").style.display = "none";
+    $("recv-download-wrap").innerHTML = "";
+    $("recv-progress").style.width = "0%";
+    recvPollAbort = false;
+    setGlobalStatus("LOOKING UP CODE " + code + "…");
+    $("btn-fetch").disabled = true;
+
+    const meta = await waitForMeta(code);
+    $("btn-fetch").disabled = false;
+    if (!meta){
+      showMsg($("recv-msg"), "No transfer found for " + code + ". Check the code and make sure the sender's tab is still open.", "err");
+      setGlobalStatus("IDLE — scan or type a code");
+      return;
+    }
+
+    $("recv-result").style.display = "block";
+    $("recv-file-name").textContent = meta.name;
+    $("recv-file-size").textContent = fmtSize(meta.size);
+    $("btn-reset-recv").style.display = "inline-block";
+    setGlobalStatus("RECEIVING " + meta.name);
+
+    try{
+      await window.storage.set(KEY_PREFIX + ":" + code + ":status", "receiving", true);
+    } catch(e){ /* non-fatal */ }
+
+    try{
+      const parts = [];
+      for (let i=0;i<meta.chunks;i++){
+        const res = await window.storage.get(KEY_PREFIX + ":" + code + ":c" + i, true);
+        if (!res || !res.value) throw new Error("Missing chunk " + (i+1));
+        parts.push(base64ToBytes(res.value));
+        const pct = Math.round(((i+1)/meta.chunks) * 100);
+        $("recv-progress").style.width = pct + "%";
+        $("recv-progress-label").textContent = "Downloading chunk " + (i+1) + " / " + meta.chunks;
+      }
+      const blob = new Blob(parts, { type: meta.type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = meta.name;
+      a.className = "download-btn";
+      a.textContent = "Save " + meta.name;
+      $("recv-download-wrap").innerHTML = "";
+      $("recv-download-wrap").appendChild(a);
+      $("recv-progress-label").textContent = "Received " + meta.chunks + " / " + meta.chunks;
+      setGlobalStatus("ARRIVED — tap Save to keep the file");
+
+      try{ await window.storage.set(KEY_PREFIX + ":" + code + ":status", "delivered", true); } catch(e){}
+    } catch(err){
+      showMsg($("recv-msg"), "Transfer dropped partway through: " + err.message + ". Ask the sender to keep their tab open and try again.", "err");
+      setGlobalStatus("ERROR — transfer incomplete");
+    }
+  }
+
+  async function waitForMeta(code, opts){
+    const timeout = (opts && opts.timeout) || 15000;
+    const interval = (opts && opts.interval) || 1200;
+    let elapsed = 0;
+    while (elapsed < timeout){
+      try{
+        const res = await window.storage.get(KEY_PREFIX + ":" + code + ":meta", true);
+        if (res && res.value) return JSON.parse(res.value);
+      } catch(e){ /* not found yet */ }
+      await sleep(interval);
+      elapsed += interval;
+    }
+    return null;
+  }
+
+  $("btn-reset-recv").addEventListener("click", () => {
+    recvPollAbort = true;
+    $("recv-result").style.display = "none";
+    $("recv-download-wrap").innerHTML = "";
+    enteredDigits.fill("");
+    document.querySelectorAll("#code-input-row input").forEach(i => i.value = "");
+    hideMsg($("recv-msg"));
+    $("btn-reset-recv").style.display = "none";
+    setGlobalStatus("IDLE — scan or type a code");
+  });
+
+})();
+</script>
+</body>
+</html>
