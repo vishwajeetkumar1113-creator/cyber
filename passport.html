@@ -60,9 +60,36 @@
 
         #perspectiveContainer { position: relative; max-width: 100%; margin-bottom: 15px; display: none; }
         #perspectiveCanvas { max-width: 100%; border: 2px dashed #45475a; touch-action: none; border-radius: 8px; background: #fff; cursor: crosshair; }
+
+        /* 🔥 MAGIC HEAL MODAL STYLES */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        .heal-container { position: relative; background: #fff; padding: 20px; border-radius: 8px; text-align: center; max-width: 95%; max-height: 95%; display: flex; flex-direction: column; align-items: center; }
+        #healCanvas { border: 2px solid #ccc; border-radius: 4px; cursor: crosshair; max-width: 100%; max-height: 55vh; touch-action: none; }
     </style>
 </head>
 <body>
+
+<!-- 🔥 MAGIC HEAL MODAL UI -->
+<div id="healModal" class="modal-overlay">
+    <div class="heal-container">
+        <h3 style="color:#1976d2; margin-top:0;">🪄 Magic Pimple/Spot Remover</h3>
+        <p style="font-size:13px; color:#555; margin-bottom: 10px;">Daag ya pimple ke upar finger rub karein (Highlight karein) aur Apply dabayein.</p>
+        
+        <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 15px; width: 100%;">
+            <span style="font-size: 12px; font-weight: bold;">Brush Size:</span>
+            <input type="range" id="healBrushSize" min="3" max="30" value="10" style="width: 150px;">
+        </div>
+
+        <div style="position:relative; display:inline-block;">
+            <canvas id="healCanvas"></canvas>
+        </div>
+        
+        <div style="margin-top:20px; display:flex; gap:10px; width:100%;">
+            <button id="applyHealBtn" onclick="applyHeal()" style="flex:1; padding:14px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 15px;">✨ Remove Spots</button>
+            <button onclick="closeHealModal()" style="flex:1; padding:14px; background:#dc3545; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 15px;">Cancel</button>
+        </div>
+    </div>
+</div>
 
 <div class="card">
     <h2>📸 Auto-Smart Photo Maker</h2>
@@ -98,8 +125,8 @@
 
     <div class="controls">
         <select id="photoType" onchange="onPhotoTypeChange()">
-            <option value="passport" selected>Type:  8 Passport (Fixed Ratio Box)</option>
-            <option value="ration">Type: 6 Ration Card (Free Perspective)</option>
+            <option value="passport" selected>Type: Passport (Fixed Ratio Box)</option>
+            <option value="ration">Type: Ration Card (Free Perspective)</option>
         </select>
 
         <select id="bgMode" onchange="if(window.noBgImg) window.redrawCanvas()">
@@ -126,6 +153,9 @@
             <label style="font-size: 14px; font-weight: bold; color: #1565c0; margin: 0;">🎛️ Manual Override</label>
             <span style="background: #4caf50; color: white; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: bold;">✨ Auto-Aligned</span>
         </div>
+
+        <!-- 🔥 MAGIC HEAL BUTTON LAUNCHER -->
+        <button id="openHealBtn" type="button" onclick="openHealModal()" style="background:#8e44ad; color:white; width:100%; padding:12px; font-weight:bold; font-size: 15px; border:none; border-radius:6px; margin-bottom:15px; cursor: pointer; box-shadow: 0 4px 6px rgba(142, 68, 173, 0.3);">🪄 Auto-Heal (Remove Pimple / Spots)</button>
         
         <div style="margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
@@ -211,6 +241,11 @@
     const cropBtn = document.getElementById('cropBtn');
     const statusBox = document.getElementById('statusBox');
 
+    // 🔥 MAGIC HEAL VARIABLES
+    let healCtx, maskCtx, baseHealCanvas;
+    let isHealing = false;
+    let lastX, lastY;
+
     window.calculate = function() {
         let copies = parseInt(document.getElementById("copies").value) || 1;
         document.getElementById("total").innerHTML = "Total: ₹" + (copies * perSheetRate);
@@ -218,7 +253,7 @@
 
     window.onPhotoTypeChange = function() {
         if (document.getElementById('cropContainer').style.display === 'block' && pImg.src) {
-            initPerspective(pImg.src); // Reset crop box if type changes while cropping
+            initPerspective(pImg.src);
         }
         if (window.noBgImg && document.getElementById('finalCanvas').style.display === "block") {
             window.redrawCanvas();
@@ -252,7 +287,6 @@
         reader.readAsDataURL(file);
     });
 
-    // 🔥 DYNAMIC INITIAL CROP BOX SETUP
     function initPerspective(imgSrc) {
         pImg = new Image();
         pImg.onload = () => {
@@ -271,7 +305,6 @@
             let padX = 0, padY = 0;
             let boxW = w, boxH = h;
 
-            // Passport ke liye initially hi perfect ratio box banega
             if (photoType === 'passport') {
                 const targetRatio = 413 / 531;
                 if (w / h > targetRatio) {
@@ -327,7 +360,6 @@
         return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
-    // Check if mouse/touch is inside the polygon (For moving the box)
     function isPointInPoly(pt, poly) {
         let isInside = false;
         for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -344,23 +376,20 @@
         const pos = getPointerPos(e);
         dragPointIndex = cornerPts.findIndex(p => Math.hypot(p.x - pos.x, p.y - pos.y) < 25);
         
-        // Agar corner select nahi hua aur passport mode hai, toh dekho kya user poora box move karna chahta hai
         if (dragPointIndex === -1 && document.getElementById('photoType').value === 'passport') {
             if (isPointInPoly(pos, cornerPts)) {
-                dragPointIndex = 99; // 99 indicates moving the whole box
+                dragPointIndex = 99; 
                 window.dragStartPos = pos;
                 window.dragStartCorners = JSON.parse(JSON.stringify(cornerPts));
             }
         }
     }
 
-    // 🔥 DYNAMIC CROP LOGIC (Fixed vs Free)
     function handleMove(e) {
         if (dragPointIndex === -1) return;
         e.preventDefault();
         const pos = getPointerPos(e);
         
-        // Panning the whole box (Only for Passport Mode)
         if (dragPointIndex === 99) {
             let dx = pos.x - window.dragStartPos.x;
             let dy = pos.y - window.dragStartPos.y;
@@ -388,34 +417,33 @@
         const targetRatio = 413 / 531;
 
         if (pType === 'passport') {
-            // FIXED RATIO LOGIC
             let tl = cornerPts[0], tr = cornerPts[1], br = cornerPts[2], bl = cornerPts[3];
             let newX = Math.max(0, Math.min(pCanvas.width, pos.x));
             let newY = Math.max(0, Math.min(pCanvas.height, pos.y));
             const MIN_SIZE = 50;
 
-            if (dragPointIndex === 0) { // TL
+            if (dragPointIndex === 0) {
                 let w = br.x - newX, h = br.y - newY;
                 if (w < MIN_SIZE) { w = MIN_SIZE; newX = br.x - w; }
                 if (h < MIN_SIZE) { h = MIN_SIZE; newY = br.y - h; }
                 if (w / h > targetRatio) w = h * targetRatio; else h = w / targetRatio;
                 newX = br.x - w; newY = br.y - h;
                 if(newX >= 0 && newY >= 0) { tl.x=newX; tl.y=newY; tr.y=newY; bl.x=newX; }
-            } else if (dragPointIndex === 1) { // TR
+            } else if (dragPointIndex === 1) {
                 let w = newX - bl.x, h = bl.y - newY;
                 if (w < MIN_SIZE) { w = MIN_SIZE; newX = bl.x + w; }
                 if (h < MIN_SIZE) { h = MIN_SIZE; newY = bl.y - h; }
                 if (w / h > targetRatio) w = h * targetRatio; else h = w / targetRatio;
                 newX = bl.x + w; newY = bl.y - h;
                 if(newX <= pCanvas.width && newY >= 0) { tr.x=newX; tr.y=newY; tl.y=newY; br.x=newX; }
-            } else if (dragPointIndex === 2) { // BR
+            } else if (dragPointIndex === 2) {
                 let w = newX - tl.x, h = newY - tl.y;
                 if (w < MIN_SIZE) { w = MIN_SIZE; newX = tl.x + w; }
                 if (h < MIN_SIZE) { h = MIN_SIZE; newY = tl.y + h; }
                 if (w / h > targetRatio) w = h * targetRatio; else h = w / targetRatio;
                 newX = tl.x + w; newY = tl.y + h;
                 if(newX <= pCanvas.width && newY <= pCanvas.height) { br.x=newX; br.y=newY; tr.x=newX; bl.y=newY; }
-            } else if (dragPointIndex === 3) { // BL
+            } else if (dragPointIndex === 3) {
                 let w = tr.x - newX, h = newY - tr.y;
                 if (w < MIN_SIZE) { w = MIN_SIZE; newX = tr.x - w; }
                 if (h < MIN_SIZE) { h = MIN_SIZE; newY = tr.y + h; }
@@ -424,11 +452,9 @@
                 if(newX >= 0 && newY <= pCanvas.height) { bl.x=newX; bl.y=newY; tl.x=newX; br.y=newY; }
             }
         } else {
-            // FREE PERSPECTIVE LOGIC (Ration Card)
             cornerPts[dragPointIndex].x = Math.max(0, Math.min(pCanvas.width, pos.x));
             cornerPts[dragPointIndex].y = Math.max(0, Math.min(pCanvas.height, pos.y));
         }
-        
         drawPerspective();
     }
 
@@ -473,10 +499,7 @@
         ]);
 
         let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-            0, 0,
-            targetW, 0,
-            targetW, targetH,
-            0, targetH
+            0, 0, targetW, 0, targetW, targetH, 0, targetH
         ]);
 
         let srcMat = cv.imread(pImg);
@@ -546,6 +569,138 @@
             cropContainer.style.display = 'block';
         }
     }
+
+    // 🔥 MAGIC HEAL / RETOUCH FUNCTIONS 🔥
+    function openHealModal() {
+        if (!window.noBgImg || !window.cvReady) return;
+        document.getElementById('healModal').style.display = 'flex';
+        
+        const canvas = document.getElementById('healCanvas');
+        healCtx = canvas.getContext('2d');
+        
+        // Exact resolution mapping
+        canvas.width = window.noBgImg.width;
+        canvas.height = window.noBgImg.height;
+        
+        // Base canvas to hold clean original image
+        baseHealCanvas = document.createElement('canvas');
+        baseHealCanvas.width = canvas.width;
+        baseHealCanvas.height = canvas.height;
+        baseHealCanvas.getContext('2d').drawImage(window.noBgImg, 0, 0);
+        
+        // Hidden Mask canvas (Black background, white strokes)
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.id = 'hiddenMaskCanvas';
+        maskCanvas.width = canvas.width;
+        maskCanvas.height = canvas.height;
+        maskCtx = maskCanvas.getContext('2d');
+        maskCtx.fillStyle = 'black';
+        maskCtx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        healCtx.drawImage(window.noBgImg, 0, 0);
+    }
+
+    function closeHealModal() {
+        document.getElementById('healModal').style.display = 'none';
+        document.getElementById('applyHealBtn').innerText = "✨ Remove Spots";
+    }
+
+    function getHealPos(e) {
+        const rect = document.getElementById('healCanvas').getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const scaleX = document.getElementById('healCanvas').width / rect.width;
+        const scaleY = document.getElementById('healCanvas').height / rect.height;
+        return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+    }
+
+    function startHeal(e) {
+        e.preventDefault();
+        isHealing = true;
+        const pos = getHealPos(e);
+        lastX = pos.x; lastY = pos.y;
+        drawHeal(e);
+    }
+
+    function drawHeal(e) {
+        if (!isHealing) return;
+        e.preventDefault();
+        const pos = getHealPos(e);
+        
+        const radius = document.getElementById('healBrushSize').value;
+        
+        // Draw red semi-transparent line on UI so user sees what is selected
+        healCtx.beginPath();
+        healCtx.moveTo(lastX, lastY);
+        healCtx.lineTo(pos.x, pos.y);
+        healCtx.strokeStyle = 'rgba(255, 0, 0, 0.4)';
+        healCtx.lineWidth = radius;
+        healCtx.lineCap = 'round';
+        healCtx.stroke();
+        
+        // Draw solid white line on hidden mask for OpenCV
+        maskCtx.beginPath();
+        maskCtx.moveTo(lastX, lastY);
+        maskCtx.lineTo(pos.x, pos.y);
+        maskCtx.strokeStyle = 'white';
+        maskCtx.lineWidth = radius;
+        maskCtx.lineCap = 'round';
+        maskCtx.stroke();
+        
+        lastX = pos.x; lastY = pos.y;
+    }
+
+    function stopHeal() { isHealing = false; }
+
+    const hc = document.getElementById('healCanvas');
+    hc.addEventListener('mousedown', startHeal);
+    hc.addEventListener('mousemove', drawHeal);
+    window.addEventListener('mouseup', stopHeal);
+    hc.addEventListener('touchstart', startHeal, {passive: false});
+    hc.addEventListener('touchmove', drawHeal, {passive: false});
+    window.addEventListener('touchend', stopHeal);
+
+    function applyHeal() {
+        const btn = document.getElementById('applyHealBtn');
+        btn.innerText = "⏳ Applying Magic...";
+        
+        setTimeout(() => {
+            try {
+                // 1. Read Base Image & Convert to 3-Channel RGB (Drop Alpha to prevent inpaint crash)
+                let srcRGBA = cv.imread(baseHealCanvas);
+                let srcRGB = new cv.Mat();
+                cv.cvtColor(srcRGBA, srcRGB, cv.COLOR_RGBA2RGB); 
+                
+                // 2. Read Mask & Convert to 1-Channel Grayscale
+                let maskColor = cv.imread(maskCtx.canvas);
+                let mask = new cv.Mat();
+                cv.cvtColor(maskColor, mask, cv.COLOR_RGBA2GRAY, 0);
+                
+                // 3. Apply Telea Inpainting Algorithm
+                let dst = new cv.Mat();
+                cv.inpaint(srcRGB, mask, dst, 5, cv.INPAINT_TELEA);
+                
+                // 4. Update the Image & Redraw UI
+                let tempCanvas = document.createElement('canvas');
+                cv.imshow(tempCanvas, dst);
+                
+                window.noBgImg = new Image();
+                window.noBgImg.onload = function() {
+                    window.redrawCanvas();
+                    closeHealModal();
+                };
+                window.noBgImg.src = tempCanvas.toDataURL('image/jpeg', 1.0);
+                
+                // Memory Cleanup
+                srcRGBA.delete(); srcRGB.delete(); maskColor.delete(); mask.delete(); dst.delete();
+            } catch (err) {
+                console.error("OpenCV Heal Error:", err);
+                alert("Heal process fail ho gaya. Kripya image dobara try karein.");
+                btn.innerText = "✨ Remove Spots";
+            }
+        }, 50);
+    }
+    // 🔥 END MAGIC HEAL 🔥
 
     window.autoAdjustFrame = function() {
         if(!window.noBgImg) return;
