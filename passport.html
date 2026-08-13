@@ -80,7 +80,7 @@
 
     <div id="cropContainer" style="display:none; max-width: 100%; margin-bottom: 15px; padding: 10px; border-radius: 8px; background: #fff;">
         <h4 style="color: #1976d2; margin-top: 0; margin-bottom: 5px;">📐 Drag Corners to Fit Photo</h4>
-        <p style="font-size: 11px; color: #666; margin-bottom: 10px;">The image will automatically stretch to perfect dimensions.</p>
+        <p style="font-size: 11px; color: #666; margin-bottom: 10px;">Passport: Fixed Size. Ration: Free Size.</p>
         
         <div id="perspectiveContainer">
             <canvas id="perspectiveCanvas"></canvas>
@@ -98,8 +98,8 @@
 
     <div class="controls">
         <select id="photoType" onchange="onPhotoTypeChange()">
-            <option value="passport" selected>Type: Passport (8 Photos)</option>
-            <option value="ration">Type: Ration Card (6 Photos Landscape)</option>
+            <option value="passport" selected>Type: Passport (Fixed Ratio Box)</option>
+            <option value="ration">Type: Ration Card (Free Perspective)</option>
         </select>
 
         <select id="bgMode" onchange="if(window.noBgImg) window.redrawCanvas()">
@@ -113,7 +113,6 @@
             <option value="#ef4444">BG: Red</option>
         </select>
 
-        <!-- 🔥 Face Clean Default Set to OFF to preserve 100% original sharpness -->
         <select id="faceClean" onchange="if(window.noBgImg) window.redrawCanvas()">
             <option value="no" selected>Face Clean: OFF (Sharp)</option>
             <option value="yes">Face Clean: Soft ✨</option>
@@ -150,7 +149,6 @@
             <input type="range" id="xSlider" min="-1000" max="1000" step="10" value="0" oninput="window.updateSliders()">
         </div>
 
-        <!-- 🔥 NAYE ADVANCED FEATURES: Brightness, Contrast, Saturation -->
         <hr style="border: 0.5px solid #bbdefb; margin: 15px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <label style="font-size: 14px; font-weight: bold; color: #1565c0; margin: 0;">🎨 Pro Color Tuning</label>
@@ -219,6 +217,9 @@
     };
 
     window.onPhotoTypeChange = function() {
+        if (document.getElementById('cropContainer').style.display === 'block' && pImg.src) {
+            initPerspective(pImg.src); // Reset crop box if type changes while cropping
+        }
         if (window.noBgImg && document.getElementById('finalCanvas').style.display === "block") {
             window.redrawCanvas();
         }
@@ -251,6 +252,7 @@
         reader.readAsDataURL(file);
     });
 
+    // 🔥 DYNAMIC INITIAL CROP BOX SETUP
     function initPerspective(imgSrc) {
         pImg = new Image();
         pImg.onload = () => {
@@ -264,15 +266,28 @@
 
             const w = pCanvas.width;
             const h = pCanvas.height;
+            const photoType = document.getElementById('photoType').value;
             
-            const padX = 0; 
-            const padY = 0; 
+            let padX = 0, padY = 0;
+            let boxW = w, boxH = h;
+
+            // Passport ke liye initially hi perfect ratio box banega
+            if (photoType === 'passport') {
+                const targetRatio = 413 / 531;
+                if (w / h > targetRatio) {
+                    boxH = h; boxW = h * targetRatio;
+                } else {
+                    boxW = w; boxH = w / targetRatio;
+                }
+                padX = (w - boxW) / 2;
+                padY = (h - boxH) / 2;
+            }
 
             cornerPts = [
                 {x: padX, y: padY},
-                {x: w - padX, y: padY},
-                {x: w - padX, y: h - padY},
-                {x: padX, y: h - padY}
+                {x: padX + boxW, y: padY},
+                {x: padX + boxW, y: padY + boxH},
+                {x: padX, y: padY + boxH}
             ];
             drawPerspective();
         };
@@ -312,18 +327,108 @@
         return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
+    // Check if mouse/touch is inside the polygon (For moving the box)
+    function isPointInPoly(pt, poly) {
+        let isInside = false;
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            let xi = poly[i].x, yi = poly[i].y;
+            let xj = poly[j].x, yj = poly[j].y;
+            let intersect = ((yi > pt.y) != (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi);
+            if (intersect) isInside = !isInside;
+        }
+        return isInside;
+    }
+
     function handleDown(e) {
         e.preventDefault();
         const pos = getPointerPos(e);
         dragPointIndex = cornerPts.findIndex(p => Math.hypot(p.x - pos.x, p.y - pos.y) < 25);
+        
+        // Agar corner select nahi hua aur passport mode hai, toh dekho kya user poora box move karna chahta hai
+        if (dragPointIndex === -1 && document.getElementById('photoType').value === 'passport') {
+            if (isPointInPoly(pos, cornerPts)) {
+                dragPointIndex = 99; // 99 indicates moving the whole box
+                window.dragStartPos = pos;
+                window.dragStartCorners = JSON.parse(JSON.stringify(cornerPts));
+            }
+        }
     }
 
+    // 🔥 DYNAMIC CROP LOGIC (Fixed vs Free)
     function handleMove(e) {
         if (dragPointIndex === -1) return;
         e.preventDefault();
         const pos = getPointerPos(e);
-        cornerPts[dragPointIndex].x = Math.max(0, Math.min(pCanvas.width, pos.x));
-        cornerPts[dragPointIndex].y = Math.max(0, Math.min(pCanvas.height, pos.y));
+        
+        // Panning the whole box (Only for Passport Mode)
+        if (dragPointIndex === 99) {
+            let dx = pos.x - window.dragStartPos.x;
+            let dy = pos.y - window.dragStartPos.y;
+            
+            let canMove = true;
+            for(let i=0; i<4; i++) {
+                let nx = window.dragStartCorners[i].x + dx;
+                let ny = window.dragStartCorners[i].y + dy;
+                if(nx < 0 || nx > pCanvas.width || ny < 0 || ny > pCanvas.height) {
+                    canMove = false; break;
+                }
+            }
+            
+            if(canMove) {
+                for(let i=0; i<4; i++) {
+                    cornerPts[i].x = window.dragStartCorners[i].x + dx;
+                    cornerPts[i].y = window.dragStartCorners[i].y + dy;
+                }
+                drawPerspective();
+            }
+            return;
+        }
+
+        const pType = document.getElementById('photoType').value;
+        const targetRatio = 413 / 531;
+
+        if (pType === 'passport') {
+            // FIXED RATIO LOGIC
+            let tl = cornerPts[0], tr = cornerPts[1], br = cornerPts[2], bl = cornerPts[3];
+            let newX = Math.max(0, Math.min(pCanvas.width, pos.x));
+            let newY = Math.max(0, Math.min(pCanvas.height, pos.y));
+            const MIN_SIZE = 50;
+
+            if (dragPointIndex === 0) { // TL
+                let w = br.x - newX, h = br.y - newY;
+                if (w < MIN_SIZE) { w = MIN_SIZE; newX = br.x - w; }
+                if (h < MIN_SIZE) { h = MIN_SIZE; newY = br.y - h; }
+                if (w / h > targetRatio) w = h * targetRatio; else h = w / targetRatio;
+                newX = br.x - w; newY = br.y - h;
+                if(newX >= 0 && newY >= 0) { tl.x=newX; tl.y=newY; tr.y=newY; bl.x=newX; }
+            } else if (dragPointIndex === 1) { // TR
+                let w = newX - bl.x, h = bl.y - newY;
+                if (w < MIN_SIZE) { w = MIN_SIZE; newX = bl.x + w; }
+                if (h < MIN_SIZE) { h = MIN_SIZE; newY = bl.y - h; }
+                if (w / h > targetRatio) w = h * targetRatio; else h = w / targetRatio;
+                newX = bl.x + w; newY = bl.y - h;
+                if(newX <= pCanvas.width && newY >= 0) { tr.x=newX; tr.y=newY; tl.y=newY; br.x=newX; }
+            } else if (dragPointIndex === 2) { // BR
+                let w = newX - tl.x, h = newY - tl.y;
+                if (w < MIN_SIZE) { w = MIN_SIZE; newX = tl.x + w; }
+                if (h < MIN_SIZE) { h = MIN_SIZE; newY = tl.y + h; }
+                if (w / h > targetRatio) w = h * targetRatio; else h = w / targetRatio;
+                newX = tl.x + w; newY = tl.y + h;
+                if(newX <= pCanvas.width && newY <= pCanvas.height) { br.x=newX; br.y=newY; tr.x=newX; bl.y=newY; }
+            } else if (dragPointIndex === 3) { // BL
+                let w = tr.x - newX, h = newY - tr.y;
+                if (w < MIN_SIZE) { w = MIN_SIZE; newX = tr.x - w; }
+                if (h < MIN_SIZE) { h = MIN_SIZE; newY = tr.y + h; }
+                if (w / h > targetRatio) w = h * targetRatio; else h = w / targetRatio;
+                newX = tr.x - w; newY = tr.y + h;
+                if(newX >= 0 && newY <= pCanvas.height) { bl.x=newX; bl.y=newY; tl.x=newX; br.y=newY; }
+            }
+        } else {
+            // FREE PERSPECTIVE LOGIC (Ration Card)
+            cornerPts[dragPointIndex].x = Math.max(0, Math.min(pCanvas.width, pos.x));
+            cornerPts[dragPointIndex].y = Math.max(0, Math.min(pCanvas.height, pos.y));
+        }
+        
         drawPerspective();
     }
 
@@ -442,7 +547,6 @@
         }
     }
 
-    // 🔥 Reset all values on new photo load
     window.autoAdjustFrame = function() {
         if(!window.noBgImg) return;
         document.getElementById('zoomSlider').value = "1.0";
@@ -456,7 +560,6 @@
         window.updateSliders();
     };
 
-    // 🔥 Update labels and trigger redraw
     window.updateSliders = function() {
         document.getElementById('zoomValTxt').innerText = parseFloat(document.getElementById('zoomSlider').value).toFixed(2) + "x";
         
@@ -486,7 +589,6 @@
             sCtx.imageSmoothingEnabled = true;
             sCtx.imageSmoothingQuality = 'high';
 
-            // 1. BG Color Fill karo (Filter ke bina)
             const bgMode = document.getElementById('bgMode').value;
             if (bgMode === 'remove') {
                 sCtx.fillStyle = document.getElementById('bgColor').value;
@@ -504,18 +606,14 @@
             const dx = (pWidth - drawW) / 2 + xOffset;
             const dy = (pHeight - drawH) / 2 + yOffset; 
 
-            // 2. 🔥 APPLY PRO COLOR FILTERS (Brightness, Contrast, Saturation)
             const bright = document.getElementById('brightness').value;
             const contrast = document.getElementById('contrast').value;
             const sat = document.getElementById('saturation').value;
             
             sCtx.filter = `brightness(${bright}%) contrast(${contrast}%) saturate(${sat}%)`;
             sCtx.drawImage(window.noBgImg, dx, dy, drawW, drawH);
-            
-            // 3. Reset filter (Taaki border aur face-clean par asar na pade)
             sCtx.filter = 'none';
 
-            // 4. OpenCV Face Clean (agar ON kiya ho)
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (window.cvReady && typeof cv !== 'undefined' && cv.Mat) {
@@ -531,12 +629,10 @@
                 }
             }
 
-            // 5. Border Draw
             sCtx.lineWidth = 2; 
             sCtx.strokeStyle = "black";
             sCtx.strokeRect(1, 1, pWidth - 2, pHeight - 2); 
 
-            // 6. Print Grid par paste karna (4x6 layout)
             const finalCvs = document.getElementById('finalCanvas');
             const fCtx = finalCvs.getContext('2d');
             
