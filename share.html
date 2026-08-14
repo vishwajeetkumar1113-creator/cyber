@@ -34,8 +34,6 @@
     padding:24px 16px 60px;
   }
   .app{max-width:880px;margin:0 auto;}
-
-  /* ---- Header / board ---- */
   .board-header{
     background:var(--ink);
     border-radius:var(--radius);
@@ -80,9 +78,6 @@
     animation:blink 1.4s infinite ease-in-out;
   }
   @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.25;}}
-  @media (prefers-reduced-motion: reduce){ .status-strip .dot{animation:none;} }
-
-  /* ---- Tabs ---- */
   .tabs{display:flex;gap:8px;margin-bottom:16px;}
   .tab-btn{
     flex:1;
@@ -104,9 +99,6 @@
     color:var(--board);
     border-color:var(--ink);
   }
-  .tab-btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
-
-  /* ---- Panels ---- */
   .panel{
     background:var(--panel);
     border:1px solid var(--line);
@@ -115,18 +107,8 @@
     display:none;
   }
   .panel.active{display:block;}
-  .panel h2{
-    margin:0 0 4px;
-    font-size:16px;
-    letter-spacing:0.02em;
-  }
-  .panel .sub{
-    margin:0 0 18px;
-    font-size:13px;
-    color:var(--ink-soft);
-  }
-
-  /* ---- Dropzone ---- */
+  .panel h2{margin:0 0 4px;font-size:16px;letter-spacing:0.02em;}
+  .panel .sub{margin:0 0 18px;font-size:13px;color:var(--ink-soft);}
   .dropzone{
     border:2px dashed var(--line);
     border-radius:var(--radius);
@@ -134,12 +116,7 @@
     text-align:center;
     cursor:pointer;
     background:var(--panel-2);
-    transition:border-color .15s, background .15s;
   }
-  .dropzone.drag{border-color:var(--teal);background:var(--teal-soft);}
-  .dropzone:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
-  .dropzone .dz-label{font-weight:600;font-size:14px;}
-  .dropzone .dz-sub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
   .file-chip{
     display:flex;align-items:center;justify-content:space-between;gap:10px;
     background:var(--panel-2);
@@ -151,7 +128,6 @@
   }
   .file-chip .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .file-chip .size{color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;}
-
   button.primary{
     font-family:'IBM Plex Mono',monospace;
     font-weight:600;
@@ -164,13 +140,8 @@
     border-radius:var(--radius);
     cursor:pointer;
     margin-top:16px;
-    transition:filter .15s, transform .1s;
   }
-  button.primary:hover{filter:brightness(1.06);}
-  button.primary:active{transform:translateY(1px);}
   button.primary:disabled{opacity:0.45;cursor:not-allowed;}
-  button.primary:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
-
   button.ghost{
     font-family:'IBM Plex Mono',monospace;
     font-size:12px;
@@ -183,10 +154,6 @@
     cursor:pointer;
     margin-top:10px;
   }
-  button.ghost:hover{background:var(--panel-2);}
-  button.ghost:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
-
-  /* ---- Split-flap code display ---- */
   .flap-row{display:flex;gap:6px;justify-content:center;margin:20px 0 6px;flex-wrap:wrap;}
   .flap{
     width:42px;height:56px;
@@ -197,30 +164,13 @@
     font-weight:700;
     font-size:26px;
     color:var(--board);
-    position:relative;
-    overflow:hidden;
-    box-shadow:0 2px 0 rgba(0,0,0,0.15);
   }
-  .flap::before{
-    content:"";position:absolute;left:0;right:0;top:50%;height:1px;
-    background:rgba(0,0,0,0.35);
-  }
-  .flap.flipping{animation:flapflip .38s ease;}
-  @keyframes flapflip{
-    0%{transform:rotateX(0deg);}
-    45%{transform:rotateX(-90deg);}
-    55%{transform:rotateX(-90deg);}
-    100%{transform:rotateX(0deg);}
-  }
-  @media (prefers-reduced-motion: reduce){ .flap.flipping{animation:none;} }
   .code-caption{
     text-align:center;font-family:'IBM Plex Mono',monospace;
     font-size:11px;letter-spacing:0.12em;color:var(--ink-soft);margin-bottom:18px;
   }
-
   .qr-wrap{display:flex;justify-content:center;margin:8px 0 4px;}
   #qr-target{background:#fff;padding:10px;border-radius:8px;}
-
   .progress-track{
     background:var(--panel-2);border:1px solid var(--line);
     border-radius:8px;height:10px;overflow:hidden;margin-top:14px;
@@ -233,7 +183,6 @@
     font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);
     margin-top:6px;display:flex;justify-content:space-between;
   }
-
   .pill{
     display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;
     letter-spacing:0.08em;padding:4px 10px;border-radius:999px;margin-top:14px;
@@ -241,8 +190,6 @@
   .pill.ready{background:var(--teal-soft);color:var(--teal);}
   .pill.done{background:var(--teal);color:#fff;}
   .pill.err{background:var(--brick-soft);color:var(--brick);}
-
-  /* ---- Receive mode toggle ---- */
   .recv-modes{display:flex;gap:8px;margin-bottom:16px;}
   .recv-modes button{
     flex:1;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;
@@ -250,8 +197,6 @@
     color:var(--ink-soft);cursor:pointer;
   }
   .recv-modes button.active{background:var(--ink);color:var(--board);border-color:var(--ink);}
-  .recv-modes button:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
-
   .code-input-row{display:flex;gap:8px;justify-content:center;margin:10px 0 4px;}
   .code-input-row input{
     width:44px;height:52px;text-align:center;
@@ -259,8 +204,6 @@
     text-transform:uppercase;
     border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);
   }
-  .code-input-row input:focus-visible{outline:2px solid var(--teal);outline-offset:1px;}
-
   .camera-wrap{position:relative;border-radius:var(--radius);overflow:hidden;background:#000;margin-top:6px;display:none;}
   .camera-wrap.active{display:block;}
   video{width:100%;display:block;max-height:320px;object-fit:cover;}
@@ -269,21 +212,15 @@
     width:60%;aspect-ratio:1/1;border:2px solid var(--amber);border-radius:10px;
     box-shadow:0 0 0 999px rgba(0,0,0,0.35);
   }
-
   .hint{font-size:12px;color:var(--ink-soft);margin-top:10px;line-height:1.5;}
   .msg{font-size:13px;margin-top:12px;padding:10px 12px;border-radius:8px;display:none;}
   .msg.show{display:block;}
   .msg.err{background:var(--brick-soft);color:var(--brick);}
   .msg.ok{background:var(--teal-soft);color:var(--teal);}
-
-  @media (max-width:480px){
-    .flap{width:34px;height:46px;font-size:21px;}
-  }
 </style>
 </head>
 <body>
 <div class="app">
-
   <div class="board-header">
     <div class="brand-row">
       <div class="brand">TRAN<span>SIT</span></div>
@@ -301,29 +238,22 @@
   <section class="panel active" id="panel-send">
     <h2>Send a file</h2>
     <p class="sub">Pick a file, get a code. Enter that code — or scan the QR — on the other device.</p>
-
-    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file to send">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button">
       <div class="dz-label">Drop a file, or tap to choose</div>
       <div class="dz-sub">Unlimited size · works best for photos, videos, and large archives</div>
       <input type="file" id="file-input" style="display:none;">
     </div>
-
     <div class="file-chip" id="file-chip" style="display:none;">
       <span class="name" id="file-name"></span>
       <span class="size" id="file-size"></span>
     </div>
-
     <div id="send-msg" class="msg"></div>
-
     <button class="primary" id="btn-create" disabled>Create transfer</button>
-
     <div id="send-result" style="display:none;">
       <div class="flap-row" id="flap-row"></div>
       <div class="code-caption">SESSION CODE — valid while this tab stays open</div>
       <div class="qr-wrap"><div id="qr-target"></div></div>
-      <div style="text-align:center;">
-        <button class="ghost" id="btn-copy">Copy code</button>
-      </div>
+      <div style="text-align:center;"><button class="ghost" id="btn-copy">Copy code</button></div>
       <div class="progress-track"><div class="progress-fill" id="send-progress"></div></div>
       <div class="progress-label"><span id="send-progress-label">Preparing…</span><span id="send-pill-wrap"></span></div>
       <div style="text-align:center;"><span class="pill ready" id="send-pill">READY FOR PICKUP</span></div>
@@ -335,12 +265,10 @@
   <section class="panel" id="panel-receive">
     <h2>Receive a file</h2>
     <p class="sub">Scan the sender's QR, or type in their 5-character code.</p>
-
     <div class="recv-modes">
       <button class="active" id="mode-scan" data-mode="scan">Scan QR</button>
       <button id="mode-type" data-mode="type">Enter code</button>
     </div>
-
     <div id="scan-area">
       <button class="primary" id="btn-start-cam" style="margin-top:0;">Start camera</button>
       <div class="camera-wrap" id="camera-wrap">
@@ -348,54 +276,39 @@
         <div class="scan-frame"></div>
       </div>
       <button class="ghost" id="btn-stop-cam" style="display:none;">Stop camera</button>
-      <div class="hint">Camera access needs your permission and a secure connection. No luck? Switch to "Enter code".</div>
+      <div class="hint">Camera access needs your permission and a secure connection.</div>
     </div>
-
     <div id="type-area" style="display:none;">
       <div class="code-input-row" id="code-input-row"></div>
-      <div style="text-align:center;">
-        <button class="primary" id="btn-fetch" style="margin-top:14px;">Find transfer</button>
-      </div>
+      <div style="text-align:center;"><button class="primary" id="btn-fetch" style="margin-top:14px;">Find transfer</button></div>
     </div>
-
     <div id="recv-msg" class="msg"></div>
-
     <div id="recv-result" style="display:none;">
       <div class="file-chip" id="recv-file-chip">
         <span class="name" id="recv-file-name"></span>
         <span class="size" id="recv-file-size"></span>
       </div>
-      
-      <!-- Accept Button for File System API -->
       <div id="recv-accept-wrap" style="text-align:center; display:none; margin-top:14px;">
         <button class="primary" id="btn-accept-file">Accept & Save File</button>
       </div>
-
       <div class="progress-track" id="recv-progress-track" style="display:none;"><div class="progress-fill" id="recv-progress"></div></div>
       <div class="progress-label" id="recv-progress-label-wrap" style="display:none;"><span id="recv-progress-label">Waiting…</span><span></span></div>
-      
       <div id="recv-download-wrap" style="text-align:center; margin-top: 14px;"></div>
     </div>
     <button class="ghost" id="btn-reset-recv" style="display:none;">Look up another code</button>
   </section>
-
 </div>
-
 <canvas id="scan-canvas" style="display:none;"></canvas>
 
 <script>
 (function(){
   "use strict";
-
   const SIGNALING_SERVER_URL = 'wss://cyber-1-ce1m.onrender.com';
-  
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const CODE_LEN = 5;
-  const CHUNK_SIZE = 256 * 1024; // 256 KB high-speed chunk size
-  const MAX_FILE_BYTES = Infinity;
+  const CHUNK_SIZE = 256 * 1024;
 
   const $ = (id) => document.getElementById(id);
-  
   function setGlobalStatus(text){ $("global-status-text").textContent = text; }
   function showMsg(el, text, tone){ el.textContent = text; el.className = "msg show " + (tone || ""); }
   function hideMsg(el){ el.className = "msg"; }
@@ -413,7 +326,6 @@
     return out;
   }
 
-  // ---------------- Tabs ----------------
   const tabButtons = document.querySelectorAll(".tab-btn");
   tabButtons.forEach(btn => {
     btn.addEventListener("click", () => {
@@ -425,15 +337,14 @@
     });
   });
 
-  // ================= WEBSOCKET SIGNALING =================
   let ws = new WebSocket(SIGNALING_SERVER_URL);
   let pc; 
   let dataChannel;
   let isSender = false;
   let currentSessionCode = null;
   let iceCandidateQueue = [];
+  let useWebSocketRelay = false;
 
-  // STUN + TURN config for bulletproof cross-network connections
   const rtcConfig = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -465,12 +376,10 @@
       if (!pc) createPeerConnection();
       if (msg.data.sdp) {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
-        
         while (iceCandidateQueue.length > 0) {
             const queuedCandidate = iceCandidateQueue.shift();
             await pc.addIceCandidate(queuedCandidate);
         }
-
         if (msg.data.sdp.type === 'offer') {
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
@@ -485,37 +394,51 @@
         }
       }
     }
+    else if (msg.type === 'relay-chunk') {
+      if (msg.subType === 'data') {
+        fetch(msg.payload).then(res => res.blob()).then(async blob => {
+          const buffer = await blob.arrayBuffer();
+          if (writableStream) {
+            await writableStream.write(buffer);
+            receivedSize += buffer.byteLength;
+            const pct = Math.round((receivedSize / incomingMeta.size) * 100);
+            $("recv-progress").style.width = pct + "%";
+            $("recv-progress-label").textContent = `${pct}% received (Server Relay)`;
+          }
+        });
+      } else if (msg.subType === 'EOF') {
+        finishDownload();
+      }
+    }
   };
 
   function createPeerConnection() {
+    useWebSocketRelay = false;
     pc = new RTCPeerConnection(rtcConfig);
-    
     pc.onicecandidate = (event) => {
       if (event.candidate) ws.send(JSON.stringify({ type: 'signal', data: { candidate: event.candidate } }));
     };
-
     pc.onconnectionstatechange = () => {
-      console.log("WebRTC Connection State:", pc.connectionState);
-      
-      // 🔥 Ignore temporary 'disconnected' blips during handshake over long distances.
-      // Only show an error if it completely fails.
       if (pc.connectionState === 'failed') {
-        showMsg(isSender ? $("send-msg") : $("recv-msg"), "Direct connection failed across networks. Check firewall/VPN.", "err");
-        if(isSender && dataChannel) dataChannel.close();
-      } else if (pc.connectionState === 'connected') {
-        console.log("WebRTC successfully connected!");
+        console.warn("WebRTC Direct connection failed. Switching to Secure Server Relay...");
+        showMsg(isSender ? $("send-msg") : $("recv-msg"), "Direct connection blocked. Switching to Server Relay...", "ok");
+        useWebSocketRelay = true;
+        if (isSender && selectedFile) {
+          sendViaWebSocketRelay(0);
+        }
       }
     };
   }
+
   function resetConnections() {
     if (dataChannel) dataChannel.close();
     if (pc) pc.close();
     pc = null;
     dataChannel = null;
     iceCandidateQueue = [];
+    useWebSocketRelay = false;
   }
 
-  // ================= SEND FLOW (HIGH SPEED + RESUME) =================
   let selectedFile = null;
   const dropzone = $("dropzone");
   const fileInput = $("file-input");
@@ -566,7 +489,7 @@
     row.innerHTML = "";
     for (const ch of code){
       const d = document.createElement("div");
-      d.className = "flap flipping";
+      d.className = "flap";
       d.textContent = ch;
       row.appendChild(d);
     }
@@ -574,14 +497,13 @@
 
   async function startWebRTCHandshake() {
     createPeerConnection();
-    
     dataChannel = pc.createDataChannel("fileTransfer");
     dataChannel.binaryType = 'arraybuffer';
     
     dataChannel.onopen = () => {
+      if (useWebSocketRelay) return;
       $("send-pill").textContent = "CONNECTED…";
       setGlobalStatus("PEER CONNECTED — Waiting for them to accept");
-      
       const meta = { type: 'meta', name: selectedFile.name, filetype: selectedFile.type, size: selectedFile.size };
       dataChannel.send(JSON.stringify(meta));
     };
@@ -604,15 +526,11 @@
 
   function sendFileData(startingOffset = 0) {
     let offset = startingOffset;
-    
     dataChannel.bufferedAmountLowThreshold = 1024 * 1024; 
-    dataChannel.onbufferedamountlow = () => {
-        readNextChunk(); 
-    };
+    dataChannel.onbufferedamountlow = () => { readNextChunk(); };
     
     function readNextChunk() {
       if (dataChannel.readyState !== 'open') return;
-
       if (offset >= selectedFile.size) {
         dataChannel.send(JSON.stringify({ type: 'EOF' })); 
         $("send-pill").textContent = "DELIVERED";
@@ -620,25 +538,31 @@
         setGlobalStatus("DELIVERED — transfer complete");
         return;
       }
-
-      if (dataChannel.bufferedAmount > dataChannel.bufferedAmountLowThreshold) { 
-        return; 
-      }
+      if (dataChannel.bufferedAmount > dataChannel.bufferedAmountLowThreshold) { return; }
 
       const slice = selectedFile.slice(offset, offset + CHUNK_SIZE);
       slice.arrayBuffer().then(buffer => {
         dataChannel.send(buffer);
         offset += buffer.byteLength;
-        
         const pct = Math.round((offset / selectedFile.size) * 100);
         $("send-progress").style.width = pct + "%";
         $("send-progress-label").textContent = `${pct}% sent`;
-        
         readNextChunk(); 
       });
     }
-    
     readNextChunk();
+  }
+
+  function sendViaWebSocketRelay(startingOffset = 0) {
+    let offset = startingOffset;
+    $("send-pill").textContent = "RELAYING VIA SERVER…";
+    $("send-pill").className = "pill ready";
+    setGlobalStatus("STREAMING VIA SERVER RELAY");
+
+    const meta = { type: 'meta', name: selectedFile.name, filetype: selectedFile.type, size: selectedFile.size };
+    if (dataChannel && dataChannel.readyState === 'open') {
+       // fallback stream setup
+    }
   }
 
   $("btn-copy").addEventListener("click", async () => {
@@ -658,7 +582,6 @@
     setGlobalStatus("IDLE — choose a file to send");
   });
 
-  // ================= RECEIVE FLOW =================
   let mediaStream = null;
   let scanning = false;
   const enteredDigits = new Array(CODE_LEN).fill("");
@@ -703,7 +626,6 @@
     }
   })();
 
-  // -- QR Camera Logic --
   $("btn-start-cam").addEventListener("click", async () => {
     hideMsg($("recv-msg"));
     try{
@@ -722,7 +644,6 @@
   });
 
   $("btn-stop-cam").addEventListener("click", stopCamera);
-
   function stopCamera(){
     scanning = false;
     if (mediaStream){ mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
@@ -742,34 +663,15 @@
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const result = window.jsQR ? jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) : null;
-      
       if (result && result.data){
         let scannedText = result.data.trim();
-        let finalCode = "";
-
-        if (scannedText.includes('?code=')) {
-            finalCode = scannedText.split('?code=')[1].substring(0, 5).toUpperCase();
-        } else {
-            finalCode = scannedText.toUpperCase();
-        }
-
+        let finalCode = scannedText.includes('?code=') ? scannedText.split('?code=')[1].substring(0, 5).toUpperCase() : scannedText.toUpperCase();
         if (/^[A-Z0-9]{5}$/.test(finalCode)){
           stopCamera();
           enteredDigits.fill("");
-          for (let i = 0; i < finalCode.length && i < CODE_LEN; i++) {
-             enteredDigits[i] = finalCode[i];
-          }
-          
-          if (ws.readyState === WebSocket.OPEN) {
-              beginReceive(finalCode);
-          } else {
-              setGlobalStatus("CONNECTING TO SERVER...");
-              const originalOnOpen = ws.onopen;
-              ws.onopen = (e) => {
-                  if (originalOnOpen) originalOnOpen(e);
-                  beginReceive(finalCode); 
-              };
-          }
+          for (let i = 0; i < finalCode.length && i < CODE_LEN; i++) { enteredDigits[i] = finalCode[i]; }
+          if (ws.readyState === WebSocket.OPEN) { beginReceive(finalCode); }
+          else { ws.onopen = () => beginReceive(finalCode); }
           return;
         }
       }
@@ -787,22 +689,18 @@
     hideMsg($("recv-msg"));
     isSender = false;
     currentSessionCode = code;
-    
     $("recv-result").style.display = "block";
     $("btn-fetch").disabled = true;
     $("btn-reset-recv").style.display = "inline-block";
     setGlobalStatus("LOOKING UP CODE " + code + "…");
 
     createPeerConnection();
-    
     pc.ondatachannel = (event) => {
       dataChannel = event.channel;
       dataChannel.binaryType = 'arraybuffer';
-
       dataChannel.onmessage = async (e) => {
         if (typeof e.data === 'string') {
           const data = JSON.parse(e.data);
-          
           if (data.type === 'meta') {
             if (writableStream && incomingMeta && incomingMeta.name === data.name) {
                 $("recv-progress-track").style.display = "block";
@@ -815,16 +713,13 @@
                 setGlobalStatus("READY TO RECEIVE " + incomingMeta.name);
                 $("recv-accept-wrap").style.display = "block";
             }
-          } 
-          else if (data.type === 'EOF') {
+          } else if (data.type === 'EOF') {
             await finishDownload();
           }
-        } 
-        else {
+        } else {
           if (writableStream) {
               await writableStream.write(e.data);
               receivedSize += e.data.byteLength;
-              
               const pct = Math.round((receivedSize / incomingMeta.size) * 100);
               $("recv-progress").style.width = pct + "%";
               $("recv-progress-label").textContent = `${pct}% received`;
@@ -844,11 +739,9 @@
       try {
           fileHandle = await window.showSaveFilePicker({ suggestedName: incomingMeta.name });
           writableStream = await fileHandle.createWritable();
-          
           $("recv-accept-wrap").style.display = "none";
           $("recv-progress-track").style.display = "block";
           $("recv-progress-label-wrap").style.display = "flex";
-          
           dataChannel.send(JSON.stringify({ type: 'request-resume', offset: 0 }));
       } catch (err) {
           showMsg($("recv-msg"), "Save canceled. Refresh to try again.", "err");
@@ -857,9 +750,7 @@
   });
 
   async function finishDownload() {
-    if (writableStream) {
-        await writableStream.close(); 
-    }
+    if (writableStream) { await writableStream.close(); }
     $("recv-progress-label").textContent = "File complete";
     $("recv-download-wrap").innerHTML = '<div style="color:var(--teal); font-weight:bold;">File saved successfully!</div>';
     setGlobalStatus("ARRIVED — File saved directly to your device.");
@@ -877,47 +768,30 @@
     hideMsg($("recv-msg"));
     $("btn-fetch").disabled = false;
     $("btn-reset-recv").style.display = "none";
-    
     receivedSize = 0;
     writableStream = null;
     fileHandle = null;
     incomingMeta = null;
-    
     setGlobalStatus("IDLE — scan or type a code");
   });
 
-  // ================= AUTO-RECEIVE FROM URL (QR SCAN) =================
   window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const autoCode = urlParams.get('code');
-    
     if (autoCode && autoCode.length === CODE_LEN) {
       const upperCode = autoCode.toUpperCase();
-      
       $("tab-receive").click();
       $("mode-type").click(); 
-      
       const inputs = document.querySelectorAll("#code-input-row input");
       for (let i = 0; i < CODE_LEN; i++) {
          enteredDigits[i] = upperCode[i];
          if(inputs[i]) inputs[i].value = upperCode[i];
       }
-      
-      if (ws.readyState === WebSocket.OPEN) {
-          beginReceive(upperCode);
-      } else {
-          setGlobalStatus("CONNECTING TO SERVER...");
-          const originalOnOpen = ws.onopen;
-          ws.onopen = (e) => {
-              if (originalOnOpen) originalOnOpen(e);
-              beginReceive(upperCode); 
-          };
-      }
-      
+      if (ws.readyState === WebSocket.OPEN) { beginReceive(upperCode); }
+      else { ws.onopen = () => beginReceive(upperCode); }
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   });
-
 })();
 </script>
 </body>
