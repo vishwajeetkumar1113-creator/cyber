@@ -394,7 +394,7 @@
   
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const CODE_LEN = 5;
-  const CHUNK_SIZE = 64 * 1024; // 64 KB chunk size for stable streaming
+  const CHUNK_SIZE = 256 * 1024; //
   const MAX_FILE_BYTES = Infinity; // Unlimited File Size Enabled
 
   const $ = (id) => document.getElementById(id);
@@ -582,11 +582,19 @@
     ws.send(JSON.stringify({ type: 'signal', data: { sdp: pc.localDescription } }));
   }
 
-  function sendFileData(startingOffset = 0) {
+ function sendFileData(startingOffset = 0) {
     let offset = startingOffset;
     
+    // WebRTC ko batao ki jab pipe mein 1MB jagah bache, tab turant bata de
+    dataChannel.bufferedAmountLowThreshold = 1024 * 1024; 
+    
+    // Jaise hi pipe khali hoga, ye instantly next chunk bhejega (bina 50ms wait kiye)
+    dataChannel.onbufferedamountlow = () => {
+        readNextChunk(); 
+    };
+    
     function readNextChunk() {
-      if (dataChannel.readyState !== 'open') return; // Stop if disconnected
+      if (dataChannel.readyState !== 'open') return;
 
       if (offset >= selectedFile.size) {
         dataChannel.send(JSON.stringify({ type: 'EOF' })); 
@@ -596,9 +604,10 @@
         return;
       }
 
-      if (dataChannel.bufferedAmount > 1024 * 1024 * 2) { 
-        setTimeout(readNextChunk, 50);
-        return;
+      // Agar buffer full hai, toh process yahi rok do.
+      // onbufferedamountlow isko automatically turant wapas start kar dega.
+      if (dataChannel.bufferedAmount > dataChannel.bufferedAmountLowThreshold) { 
+        return; 
       }
 
       const slice = selectedFile.slice(offset, offset + CHUNK_SIZE);
@@ -606,10 +615,12 @@
         dataChannel.send(buffer);
         offset += buffer.byteLength;
         
+        // Progress bar UI ko update karna
         const pct = Math.round((offset / selectedFile.size) * 100);
         $("send-progress").style.width = pct + "%";
         $("send-progress-label").textContent = `${pct}% sent`;
         
+        // Turant next chunk read karo
         readNextChunk(); 
       });
     }
