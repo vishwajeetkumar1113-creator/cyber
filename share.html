@@ -489,16 +489,24 @@
 
   function createPeerConnection() {
     pc = new RTCPeerConnection(rtcConfig);
+    
     pc.onicecandidate = (event) => {
       if (event.candidate) ws.send(JSON.stringify({ type: 'signal', data: { candidate: event.candidate } }));
     };
+
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        showMsg(isSender ? $("send-msg") : $("recv-msg"), "Direct connection lost. Reconnect to resume.", "err");
+      console.log("WebRTC Connection State:", pc.connectionState);
+      
+      // 🔥 Ignore temporary 'disconnected' blips during handshake over long distances.
+      // Only show an error if it completely fails.
+      if (pc.connectionState === 'failed') {
+        showMsg(isSender ? $("send-msg") : $("recv-msg"), "Direct connection failed across networks. Check firewall/VPN.", "err");
+        if(isSender && dataChannel) dataChannel.close();
+      } else if (pc.connectionState === 'connected') {
+        console.log("WebRTC successfully connected!");
       }
     };
   }
-
   function resetConnections() {
     if (dataChannel) dataChannel.close();
     if (pc) pc.close();
