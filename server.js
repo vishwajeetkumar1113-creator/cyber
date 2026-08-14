@@ -6,7 +6,6 @@ const wss = new WebSocket.Server({ port: PORT });
 console.log(`Signaling server running on port ${PORT}`);
 
 // Dictionary to hold our active transfers
-// Format: sessions[code] = { sender: WebSocket, receiver: WebSocket }
 const sessions = {};
 
 wss.on('connection', (ws) => {
@@ -18,7 +17,6 @@ wss.on('connection', (ws) => {
 
         switch (message.type) {
             case 'create':
-                // Sender generates a code and opens a room
                 currentCode = message.code;
                 role = 'sender';
                 sessions[currentCode] = { sender: ws, receiver: null };
@@ -26,7 +24,6 @@ wss.on('connection', (ws) => {
                 break;
 
             case 'join':
-                // Receiver types the code and joins the room
                 currentCode = message.code;
                 role = 'receiver';
                 
@@ -34,15 +31,14 @@ wss.on('connection', (ws) => {
                     sessions[currentCode].receiver = ws;
                     console.log(`Receiver joined room ${currentCode}.`);
                     
-                    // Tell the sender that the receiver has arrived so they can start the WebRTC handshake
+                    // Tell the sender that the receiver has arrived
                     sessions[currentCode].sender.send(JSON.stringify({ type: 'peer-joined' }));
                 } else {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Transfer code not found.' }));
+                    ws.send(JSON.stringify({ type: 'error', message: 'Transfer code not found or expired.' }));
                 }
                 break;
 
             case 'signal':
-                // Pass WebRTC connection data (SDP offers/answers and ICE candidates) to the other device
                 if (sessions[currentCode]) {
                     const target = role === 'sender' ? sessions[currentCode].receiver : sessions[currentCode].sender;
                     
@@ -57,19 +53,30 @@ wss.on('connection', (ws) => {
         }
     });
 
-    // Handle disconnections safely
+    // Handle disconnections safely (🔥 NAYA LOGIC YAHAN HAI 🔥)
     ws.on('close', () => {
         if (currentCode && sessions[currentCode]) {
             console.log(`${role.toUpperCase()} disconnected from room ${currentCode}.`);
             
-            // Notify the other peer so they can show an error or reset their UI
-            const target = role === 'sender' ? sessions[currentCode].receiver : sessions[currentCode].sender;
-            if (target && target.readyState === WebSocket.OPEN) {
-                target.send(JSON.stringify({ type: 'peer-disconnected' }));
+            if (role === 'sender') {
+                // Agar SENDER gaya, toh room delete kar do
+                const receiver = sessions[currentCode].receiver;
+                if (receiver && receiver.readyState === WebSocket.OPEN) {
+                    receiver.send(JSON.stringify({ type: 'peer-disconnected' }));
+                }
+                delete sessions[currentCode];
+                console.log(`Room ${currentCode} deleted because sender left.`);
+            } 
+            else if (role === 'receiver') {
+                // Agar RECEIVER gaya (jaise page refresh kiya), toh room bacha ke rakho!
+                const sender = sessions[currentCode].sender;
+                if (sender && sender.readyState === WebSocket.OPEN) {
+                    sender.send(JSON.stringify({ type: 'peer-disconnected' }));
+                }
+                // Room delete mat karo, bas receiver ki jagah khali kar do
+                sessions[currentCode].receiver = null;
+                console.log(`Room ${currentCode} kept alive. Waiting for receiver to return.`);
             }
-            
-            // Clean up the room to prevent memory leaks
-            delete sessions[currentCode];
         }
     });
 });
