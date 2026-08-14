@@ -396,7 +396,7 @@
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const CODE_LEN = 5;
   const CHUNK_SIZE = 64 * 1024; // 64 KB per chunk (Safe size for WebRTC Data Channels)
-  const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB Limit
+  const MAX_FILE_BYTES = Infinity; // 
 
   const $ = (id) => document.getElementById(id);
   
