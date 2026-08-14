@@ -394,8 +394,14 @@
         }
       }
     }
-    else if (msg.type === 'relay-chunk') {
-      if (msg.subType === 'data') {
+   else if (msg.type === 'relay-chunk') {
+      // 🔥 NAYA: Sender yahan sunega ki receiver ne file mangi hai ya nahi
+      if (msg.subType === 'request-resume') {
+        if (isSender && useWebSocketRelay) {
+          sendViaWebSocketRelay(msg.offset);
+        }
+      } 
+      else if (msg.subType === 'data') {
         fetch(msg.payload).then(res => res.blob()).then(async blob => {
           const buffer = await blob.arrayBuffer();
           if (writableStream) {
@@ -406,7 +412,8 @@
             $("recv-progress-label").textContent = `${pct}% received (Server Relay)`;
           }
         });
-      } else if (msg.subType === 'EOF') {
+      } 
+      else if (msg.subType === 'EOF') {
         finishDownload();
       }
     }
