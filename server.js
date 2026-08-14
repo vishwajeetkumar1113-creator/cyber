@@ -13,7 +13,12 @@ wss.on('connection', (ws) => {
     let role = null; // 'sender' or 'receiver'
 
     ws.on('message', (messageAsString) => {
-        const message = JSON.parse(messageAsString);
+        let message;
+        try {
+            message = JSON.parse(messageAsString);
+        } catch (e) {
+            return; // Ignore invalid JSON
+        }
 
         switch (message.type) {
             case 'create':
@@ -50,10 +55,20 @@ wss.on('connection', (ws) => {
                     }
                 }
                 break;
+
+            // 🔥 NAYA FALLBACK RELAY LOGIC: WebRTC fail hone par WebSocket ke through data pass karne ke liye
+            case 'relay-chunk':
+                if (sessions[currentCode]) {
+                    const target = role === 'sender' ? sessions[currentCode].receiver : sessions[currentCode].sender;
+                    if (target && target.readyState === WebSocket.OPEN) {
+                        target.send(messageAsString);
+                    }
+                }
+                break;
         }
     });
 
-    // Handle disconnections safely (🔥 NAYA LOGIC YAHAN HAI 🔥)
+    // Handle disconnections safely
     ws.on('close', () => {
         if (currentCode && sessions[currentCode]) {
             console.log(`${role.toUpperCase()} disconnected from room ${currentCode}.`);
