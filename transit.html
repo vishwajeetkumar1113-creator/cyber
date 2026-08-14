@@ -528,8 +528,10 @@
     renderFlaps(currentSessionCode);
     
     if (window.QRCode){
-      $("qr-target").innerHTML = "";
-      new QRCode($("qr-target"), { text: currentSessionCode, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M });
+      $("qr-target").innerHTML = "https://autoprints.shop/transit.html";
+      // Pura website URL banayega code ke sath
+      const directUrl = window.location.origin + window.location.pathname + "?code=" + currentSessionCode;
+      new QRCode($("qr-target"), { text: directUrl, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M });
     }
     
     $("send-pill").textContent = "WAITING FOR RECEIVER…";
@@ -849,7 +851,32 @@
     
     setGlobalStatus("IDLE — scan or type a code");
   });
-
+// ================= AUTO-RECEIVE FROM URL (QR SCAN) =================
+  window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoCode = urlParams.get('code');
+    
+    if (autoCode && autoCode.length === CODE_LEN) {
+      const upperCode = autoCode.toUpperCase();
+      
+      // 1. Receive Tab open karo
+      $("tab-receive").click();
+      $("mode-type").click(); // Input box wala mode on karo
+      
+      // 2. Input boxes mein code bhar do
+      const inputs = document.querySelectorAll("#code-input-row input");
+      for (let i = 0; i < CODE_LEN; i++) {
+         enteredDigits[i] = upperCode[i];
+         if(inputs[i]) inputs[i].value = upperCode[i];
+      }
+      
+      // 3. Automatically transfer start kar do
+      beginReceive(upperCode);
+      
+      // 4. URL bar se code hata do taaki refresh karne par error na aaye
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  });
 })();
 </script>
 </body>
