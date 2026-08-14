@@ -276,13 +276,6 @@
   .msg.err{background:var(--brick-soft);color:var(--brick);}
   .msg.ok{background:var(--teal-soft);color:var(--teal);}
 
-  a.download-btn{
-    display:inline-block;text-decoration:none;
-    font-family:'IBM Plex Mono',monospace;font-weight:600;letter-spacing:0.08em;
-    font-size:13px;padding:12px 18px;background:var(--teal);color:#fff;
-    border-radius:var(--radius);margin-top:16px;
-  }
-
   @media (max-width:480px){
     .flap{width:34px;height:46px;font-size:21px;}
   }
@@ -311,7 +304,7 @@
 
     <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file to send">
       <div class="dz-label">Drop a file, or tap to choose</div>
-      <div class="dz-sub">Up to 20 MB · works best for photos, PDFs, docs</div>
+      <div class="dz-sub">Unlimited size · works best for photos, videos, and large archives</div>
       <input type="file" id="file-input" style="display:none;">
     </div>
 
@@ -372,9 +365,16 @@
         <span class="name" id="recv-file-name"></span>
         <span class="size" id="recv-file-size"></span>
       </div>
-      <div class="progress-track"><div class="progress-fill" id="recv-progress"></div></div>
-      <div class="progress-label"><span id="recv-progress-label">Waiting…</span><span></span></div>
-      <div id="recv-download-wrap" style="text-align:center;"></div>
+      
+      <!-- New Accept Button for File System API -->
+      <div id="recv-accept-wrap" style="text-align:center; display:none; margin-top:14px;">
+        <button class="primary" id="btn-accept-file">Accept & Save File</button>
+      </div>
+
+      <div class="progress-track" id="recv-progress-track" style="display:none;"><div class="progress-fill" id="recv-progress"></div></div>
+      <div class="progress-label" id="recv-progress-label-wrap" style="display:none;"><span id="recv-progress-label">Waiting…</span><span></span></div>
+      
+      <div id="recv-download-wrap" style="text-align:center; margin-top: 14px;"></div>
     </div>
     <button class="ghost" id="btn-reset-recv" style="display:none;">Look up another code</button>
   </section>
@@ -388,15 +388,14 @@
   "use strict";
 
   // =========================================================================
-  // ⚠️ IMPORTANT: REPLACE THIS URL WITH YOUR RENDER OR GLITCH WEBSOCKET URL
-  // Example: 'wss://transit-signaling-app.onrender.com'
+  // AUTOMATICALLY CONNECTS TO YOUR DEPLOYED RENDER BACKEND
   // =========================================================================
   const SIGNALING_SERVER_URL = 'wss://cyber-1-ce1m.onrender.com';
   
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const CODE_LEN = 5;
-  const CHUNK_SIZE = 64 * 1024; // 64 KB per chunk (Safe size for WebRTC Data Channels)
-  const MAX_FILE_BYTES = Infinity; // 
+  const CHUNK_SIZE = 64 * 1024; // 64 KB chunk size for stable streaming
+  const MAX_FILE_BYTES = Infinity; // Unlimited File Size Enabled
 
   const $ = (id) => document.getElementById(id);
   
@@ -407,7 +406,8 @@
   function fmtSize(bytes){
     if (bytes < 1024) return bytes + " B";
     if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
-    return (bytes/(1024*1024)).toFixed(1) + " MB";
+    if (bytes < 1024*1024*1024) return (bytes/(1024*1024)).toFixed(1) + " MB";
+    return (bytes/(1024*1024*1024)).toFixed(2) + " GB";
   }
   function genCode(){
     let out = "";
@@ -431,23 +431,17 @@
 
   // ================= WEBSOCKET SIGNALING =================
   let ws = new WebSocket(SIGNALING_SERVER_URL);
-  let pc; // RTCPeerConnection
+  let pc; 
   let dataChannel;
   let isSender = false;
   let currentSessionCode = null;
 
-  // STUN Servers (Free from Google) to help devices find each other over WAN
   const rtcConfig = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // Auto local-network routing
   };
 
-  ws.onopen = () => {
-    console.log("Connected to signaling server");
-  };
-
-  ws.onclose = () => {
-    setGlobalStatus("OFFLINE — Signaling server disconnected.");
-  };
+  ws.onopen = () => console.log("Connected to signaling server");
+  ws.onclose = () => setGlobalStatus("OFFLINE — Signaling server disconnected.");
 
   ws.onmessage = async (event) => {
     const msg = JSON.parse(event.data);
@@ -456,26 +450,19 @@
       showMsg(isSender ? $("send-msg") : $("recv-msg"), msg.message, "err");
       setGlobalStatus("ERROR — " + msg.message);
     } 
-    
     else if (msg.type === 'peer-joined') {
-      // Receiver has joined, start WebRTC handshake
       setGlobalStatus("PEER FOUND — connecting directly...");
       startWebRTCHandshake();
     } 
-    
     else if (msg.type === 'peer-disconnected') {
-      showMsg(isSender ? $("send-msg") : $("recv-msg"), "The other device disconnected.", "err");
-      resetConnections();
+      showMsg(isSender ? $("send-msg") : $("recv-msg"), "Connection lost. Type the code again to resume.", "err");
+      if(isSender && dataChannel) dataChannel.close();
     } 
-    
     else if (msg.type === 'signal') {
-      // Handle WebRTC Offers, Answers, and ICE candidates
       if (!pc) createPeerConnection();
-
       if (msg.data.sdp) {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
         if (msg.data.sdp.type === 'offer') {
-          // Receiver answers the offer
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           ws.send(JSON.stringify({ type: 'signal', data: { sdp: pc.localDescription } }));
@@ -488,17 +475,12 @@
 
   function createPeerConnection() {
     pc = new RTCPeerConnection(rtcConfig);
-
-    // Send our ICE candidates to the other peer
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        ws.send(JSON.stringify({ type: 'signal', data: { candidate: event.candidate } }));
-      }
+      if (event.candidate) ws.send(JSON.stringify({ type: 'signal', data: { candidate: event.candidate } }));
     };
-
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        showMsg(isSender ? $("send-msg") : $("recv-msg"), "Direct connection lost.", "err");
+        showMsg(isSender ? $("send-msg") : $("recv-msg"), "Direct connection lost. Reconnect to resume.", "err");
       }
     };
   }
@@ -508,23 +490,14 @@
     if (pc) pc.close();
     pc = null;
     dataChannel = null;
-    currentSessionCode = null;
   }
 
-  // ================= SEND FLOW =================
+  // ================= SEND FLOW (WITH RESUME) =================
   let selectedFile = null;
   const dropzone = $("dropzone");
   const fileInput = $("file-input");
 
   dropzone.addEventListener("click", () => fileInput.click());
-  dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
-  ["dragenter","dragover"].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add("drag"); }));
-  ["dragleave","drop"].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove("drag"); }));
-  dropzone.addEventListener("drop", (e) => {
-    const f = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) handleFile(f);
-  });
-  
   fileInput.addEventListener("change", (e) => {
     const f = e.target.files && e.target.files[0];
     if (f) handleFile(f);
@@ -532,12 +505,6 @@
 
   function handleFile(f){
     hideMsg($("send-msg"));
-    if (f.size > MAX_FILE_BYTES){
-      showMsg($("send-msg"), "That file is " + fmtSize(f.size) + " — the demo cap is 20 MB.", "err");
-      $("btn-create").disabled = true;
-      $("file-chip").style.display = "none";
-      return;
-    }
     selectedFile = f;
     $("file-name").textContent = f.name;
     $("file-size").textContent = fmtSize(f.size);
@@ -551,7 +518,6 @@
     isSender = true;
     currentSessionCode = genCode();
     
-    // Notify Signaling Server
     if(ws.readyState !== WebSocket.OPEN) {
       showMsg($("send-msg"), "Not connected to signaling server.", "err");
       return;
@@ -585,14 +551,28 @@
   async function startWebRTCHandshake() {
     createPeerConnection();
     
-    // Sender creates the Data Channel BEFORE making the offer
     dataChannel = pc.createDataChannel("fileTransfer");
     dataChannel.binaryType = 'arraybuffer';
     
     dataChannel.onopen = () => {
-      $("send-pill").textContent = "IN TRANSIT…";
-      setGlobalStatus("STREAMING FILE DIRECTLY");
-      sendFileData();
+      $("send-pill").textContent = "CONNECTED…";
+      setGlobalStatus("PEER CONNECTED — Waiting for them to accept");
+      
+      // Immediately send metadata so receiver can show Accept button
+      const meta = { type: 'meta', name: selectedFile.name, filetype: selectedFile.type, size: selectedFile.size };
+      dataChannel.send(JSON.stringify(meta));
+    };
+
+    // Sender listens for messages from receiver (resume request)
+    dataChannel.onmessage = (e) => {
+        if (typeof e.data === 'string') {
+            const data = JSON.parse(e.data);
+            if (data.type === 'request-resume') {
+                $("send-pill").textContent = "IN TRANSIT…";
+                setGlobalStatus("STREAMING FILE DIRECTLY");
+                sendFileData(data.offset); 
+            }
+        }
     };
 
     const offer = await pc.createOffer();
@@ -600,29 +580,20 @@
     ws.send(JSON.stringify({ type: 'signal', data: { sdp: pc.localDescription } }));
   }
 
-  function sendFileData() {
-    // 1. Send Metadata first
-    const meta = { 
-      type: 'meta', 
-      name: selectedFile.name, 
-      filetype: selectedFile.type, 
-      size: selectedFile.size 
-    };
-    dataChannel.send(JSON.stringify(meta));
-
-    // 2. Stream the file in binary chunks
-    let offset = 0;
+  function sendFileData(startingOffset = 0) {
+    let offset = startingOffset;
     
     function readNextChunk() {
+      if (dataChannel.readyState !== 'open') return; // Stop if disconnected
+
       if (offset >= selectedFile.size) {
-        dataChannel.send(JSON.stringify({ type: 'EOF' })); // End of file
+        dataChannel.send(JSON.stringify({ type: 'EOF' })); 
         $("send-pill").textContent = "DELIVERED";
         $("send-pill").className = "pill done";
         setGlobalStatus("DELIVERED — transfer complete");
         return;
       }
 
-      // Buffer control to prevent WebRTC crashes
       if (dataChannel.bufferedAmount > 1024 * 1024 * 2) { 
         setTimeout(readNextChunk, 50);
         return;
@@ -633,7 +604,6 @@
         dataChannel.send(buffer);
         offset += buffer.byteLength;
         
-        // Update UI Progress
         const pct = Math.round((offset / selectedFile.size) * 100);
         $("send-progress").style.width = pct + "%";
         $("send-progress-label").textContent = `${pct}% sent`;
@@ -662,13 +632,14 @@
     setGlobalStatus("IDLE — choose a file to send");
   });
 
-  // ================= RECEIVE FLOW =================
+  // ================= RECEIVE FLOW (FILE SYSTEM API) =================
   let mediaStream = null;
   let scanning = false;
   const enteredDigits = new Array(CODE_LEN).fill("");
-  let receivedBuffers = [];
   let receivedSize = 0;
   let incomingMeta = null;
+  let fileHandle = null;
+  let writableStream = null;
 
   const modeButtons = document.querySelectorAll(".recv-modes button");
   modeButtons.forEach(btn => {
@@ -706,6 +677,7 @@
     }
   })();
 
+  // -- QR Camera Logic --
   $("btn-start-cam").addEventListener("click", async () => {
     hideMsg($("recv-msg"));
     try{
@@ -770,46 +742,53 @@
     hideMsg($("recv-msg"));
     isSender = false;
     currentSessionCode = code;
-    receivedBuffers = [];
-    receivedSize = 0;
     
     $("recv-result").style.display = "block";
-    $("recv-download-wrap").innerHTML = "";
-    $("recv-progress").style.width = "0%";
     $("btn-fetch").disabled = true;
     $("btn-reset-recv").style.display = "inline-block";
-    
     setGlobalStatus("LOOKING UP CODE " + code + "…");
 
-    // Initialize PeerConnection to receive Data Channel
     createPeerConnection();
     
     pc.ondatachannel = (event) => {
       dataChannel = event.channel;
       dataChannel.binaryType = 'arraybuffer';
-      
-      dataChannel.onmessage = (e) => {
+
+      dataChannel.onmessage = async (e) => {
         if (typeof e.data === 'string') {
           const data = JSON.parse(e.data);
+          
           if (data.type === 'meta') {
-            incomingMeta = data;
-            $("recv-file-name").textContent = incomingMeta.name;
-            $("recv-file-size").textContent = fmtSize(incomingMeta.size);
-            setGlobalStatus("RECEIVING " + incomingMeta.name);
+            // Reconnection / Resume check
+            if (writableStream && incomingMeta && incomingMeta.name === data.name) {
+                // Already have the file stream open! Resume automatically.
+                $("recv-progress-track").style.display = "block";
+                $("recv-progress-label-wrap").style.display = "flex";
+                dataChannel.send(JSON.stringify({ type: 'request-resume', offset: receivedSize }));
+            } else {
+                // First time receiving this file
+                incomingMeta = data;
+                $("recv-file-name").textContent = incomingMeta.name;
+                $("recv-file-size").textContent = fmtSize(incomingMeta.size);
+                setGlobalStatus("READY TO RECEIVE " + incomingMeta.name);
+                
+                // Show Accept button so user click triggers the File Picker
+                $("recv-accept-wrap").style.display = "block";
+            }
           } 
           else if (data.type === 'EOF') {
-            finishDownload();
+            await finishDownload();
           }
         } 
         else {
-          // Binary file chunk received
-          receivedBuffers.push(e.data);
-          receivedSize += e.data.byteLength;
-          
-          if (incomingMeta) {
-            const pct = Math.round((receivedSize / incomingMeta.size) * 100);
-            $("recv-progress").style.width = pct + "%";
-            $("recv-progress-label").textContent = `${pct}% received`;
+          // Write chunk directly to hard drive (Zero RAM cost!)
+          if (writableStream) {
+              await writableStream.write(e.data);
+              receivedSize += e.data.byteLength;
+              
+              const pct = Math.round((receivedSize / incomingMeta.size) * 100);
+              $("recv-progress").style.width = pct + "%";
+              $("recv-progress-label").textContent = `${pct}% received`;
           }
         }
       };
@@ -819,35 +798,55 @@
       showMsg($("recv-msg"), "Not connected to signaling server.", "err");
       return;
     }
-    // Tell server we want to join this code room
     ws.send(JSON.stringify({ type: 'join', code: code }));
   }
 
-  function finishDownload() {
-    const blob = new Blob(receivedBuffers, { type: incomingMeta.filetype });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    
-    a.href = url;
-    a.download = incomingMeta.name;
-    a.className = "download-btn";
-    a.textContent = "Save " + incomingMeta.name;
-    
-    $("recv-download-wrap").innerHTML = "";
-    $("recv-download-wrap").appendChild(a);
+  // Handle Accept Button Click (Required by browser security to open file picker)
+  $("btn-accept-file").addEventListener("click", async () => {
+      try {
+          fileHandle = await window.showSaveFilePicker({ suggestedName: incomingMeta.name });
+          writableStream = await fileHandle.createWritable();
+          
+          $("recv-accept-wrap").style.display = "none";
+          $("recv-progress-track").style.display = "block";
+          $("recv-progress-label-wrap").style.display = "flex";
+          
+          // Request file data from sender
+          dataChannel.send(JSON.stringify({ type: 'request-resume', offset: 0 }));
+      } catch (err) {
+          showMsg($("recv-msg"), "Save canceled. Refresh to try again.", "err");
+          resetConnections();
+      }
+  });
+
+  async function finishDownload() {
+    if (writableStream) {
+        await writableStream.close(); 
+    }
     $("recv-progress-label").textContent = "File complete";
-    setGlobalStatus("ARRIVED — tap Save to keep the file");
+    $("recv-download-wrap").innerHTML = '<div style="color:var(--teal); font-weight:bold;">File saved successfully!</div>';
+    setGlobalStatus("ARRIVED — File saved directly to your device.");
   }
 
   $("btn-reset-recv").addEventListener("click", () => {
     resetConnections();
     $("recv-result").style.display = "none";
+    $("recv-accept-wrap").style.display = "none";
+    $("recv-progress-track").style.display = "none";
+    $("recv-progress-label-wrap").style.display = "none";
     $("recv-download-wrap").innerHTML = "";
     enteredDigits.fill("");
     document.querySelectorAll("#code-input-row input").forEach(i => i.value = "");
     hideMsg($("recv-msg"));
     $("btn-fetch").disabled = false;
     $("btn-reset-recv").style.display = "none";
+    
+    // Reset file streams
+    receivedSize = 0;
+    writableStream = null;
+    fileHandle = null;
+    incomingMeta = null;
+    
     setGlobalStatus("IDLE — scan or type a code");
   });
 
