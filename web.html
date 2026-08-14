@@ -58,26 +58,35 @@
                 </div>
             </div>
             <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-xl space-y-6">
-                <h3 class="text-2xl font-bold text-amber-400">Quick Service Request</h3>
-                <form class="space-y-4" onsubmit="event.preventDefault(); alert('Thank you! We will call you shortly at 9654639053.');">
+                <h3 class="text-2xl font-bold text-amber-400">Quick Service Request (via WhatsApp)</h3>
+                <form class="space-y-4" onsubmit="
+                    event.preventDefault();
+                    const name = document.getElementById('quickName').value;
+                    const phone = document.getElementById('quickPhone').value;
+                    const service = document.getElementById('quickService').value;
+                    const text = encodeURIComponent(`Hello Sunil Electricals,%0A%0AI want to book a service.%0AName: ${name}%0APhone: ${phone}%0AService: ${service}`);
+                    window.open(`https://wa.me/919654639053?text=${text}`, '_blank');
+                ">
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-1">Your Name</label>
-                        <input type="text" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="John Doe">
+                        <input type="text" id="quickName" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="John Doe">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-1">Phone Number</label>
-                        <input type="tel" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="9876543210">
+                        <input type="tel" id="quickPhone" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="9876543210">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-1">Service Needed</label>
-                        <select class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500">
+                        <select id="quickService" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500">
                             <option>Wiring & Rewiring</option>
                             <option>Repair & Maintenance</option>
                             <option>Appliance Installation</option>
                             <option>Emergency Service</option>
                         </select>
                     </div>
-                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 rounded-lg transition">Submit Request</button>
+                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 rounded-lg transition flex items-center justify-center">
+                        <i class="fa-brands fa-whatsapp mr-2 text-lg"></i> Send via WhatsApp
+                    </button>
                 </form>
             </div>
         </div>
@@ -169,7 +178,7 @@
         <div class="bg-slate-900 rounded-2xl text-white p-8 md:p-16 grid grid-cols-1 md:grid-cols-2 gap-12">
             <div class="space-y-6">
                 <h2 class="text-3xl font-bold">Get In Touch</h2>
-                <p class="text-slate-300">Have a question or want to book an appointment? Reach out to us via call or fill out the form.</p>
+                <p class="text-slate-300">Have a question or want to book an appointment? Reach out to us via call or send us a WhatsApp message.</p>
                 <div class="space-y-4 pt-4">
                     <div class="flex items-center space-x-4">
                         <div class="bg-amber-500 text-slate-900 p-3 rounded-lg">
@@ -192,20 +201,29 @@
                 </div>
             </div>
             <div>
-                <form class="space-y-4" onsubmit="event.preventDefault(); alert('Message sent successfully! We will get back to you soon.');">
+                <form class="space-y-4" onsubmit="
+                    event.preventDefault();
+                    const name = document.getElementById('contactName').value;
+                    const phone = document.getElementById('contactPhone').value;
+                    const message = document.getElementById('contactMessage').value;
+                    const text = encodeURIComponent(`Hello Sunil Electricals,%0A%0ANew Inquiry from Website:%0AName: ${name}%0APhone: ${phone}%0AMessage: ${message}`);
+                    window.open(`https://wa.me/919654639053?text=${text}`, '_blank');
+                ">
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-1">Your Name</label>
-                        <input type="text" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="Name">
+                        <input type="text" id="contactName" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="Name">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-1">Phone Number</label>
-                        <input type="tel" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="9654639053">
+                        <input type="tel" id="contactPhone" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="9654639053">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-1">Message</label>
-                        <textarea rows="4" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="Describe your requirement..."></textarea>
+                        <textarea rows="4" id="contactMessage" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="Describe your requirement..."></textarea>
                     </div>
-                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 rounded-lg transition">Send Message</button>
+                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 rounded-lg transition flex items-center justify-center">
+                        <i class="fa-brands fa-whatsapp mr-2 text-lg"></i> Send WhatsApp Message
+                    </button>
                 </form>
             </div>
         </div>
