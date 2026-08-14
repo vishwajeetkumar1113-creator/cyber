@@ -436,8 +436,28 @@
   let isSender = false;
   let currentSessionCode = null;
 
+  // STUN for direct LAN routing, TURN as a bulletproof fallback for strict firewalls
   const rtcConfig = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // Auto local-network routing
+    iceServers: [
+      { 
+        urls: 'stun:stun.l.google.com:19302' 
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ]
   };
 
   ws.onopen = () => console.log("Connected to signaling server");
