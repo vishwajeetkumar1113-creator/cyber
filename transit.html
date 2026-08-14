@@ -718,15 +718,39 @@
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const result = window.jsQR ? jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) : null;
+      
       if (result && result.data){
-        const code = result.data.trim().toUpperCase();
-        if (/^[A-Z0-9]{5}$/.test(code)){
+        let scannedText = result.data.trim();
+        let finalCode = "";
+
+        // Naya Logic: Check karega ki QR mein Link hai ya sirf Code
+        if (scannedText.includes('?code=')) {
+            // Agar Link hai, toh '?code=' ke aage wale 5 letters nikal lo
+            finalCode = scannedText.split('?code=')[1].substring(0, 5).toUpperCase();
+        } else {
+            // Agar sirf code hai, toh directly use karo
+            finalCode = scannedText.toUpperCase();
+        }
+
+        // Check karega ki final code exactly 5 letters/numbers ka hai ya nahi
+        if (/^[A-Z0-9]{5}$/.test(finalCode)){
           stopCamera();
           enteredDigits.fill("");
-          for (let i = 0; i < code.length && i < CODE_LEN; i++) {
-             enteredDigits[i] = code[i];
+          for (let i = 0; i < finalCode.length && i < CODE_LEN; i++) {
+             enteredDigits[i] = finalCode[i];
           }
-          beginReceive(code);
+          
+          // Agar server connected hai toh turant start karo, warna connect hone ka wait karo
+          if (ws.readyState === WebSocket.OPEN) {
+              beginReceive(finalCode);
+          } else {
+              setGlobalStatus("CONNECTING TO SERVER...");
+              const originalOnOpen = ws.onopen;
+              ws.onopen = (e) => {
+                  if (originalOnOpen) originalOnOpen(e);
+                  beginReceive(finalCode); 
+              };
+          }
           return;
         }
       }
