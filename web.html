@@ -1,3 +1,6 @@
+
+
+Sunil electricals · HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,6 +8,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sunil Electricals | Licensed Electrician — Wiring, Repairs & 24/7 Emergency Service</title>
 <meta name="description" content="Sunil Electricals — safe, fast electrical repairs, wiring and emergency service. Call or WhatsApp for a free estimate.">
+<meta name="theme-color" content="#17140F">
+<meta property="og:type" content="business.business">
+<meta property="og:title" content="Sunil Electricals | Licensed Electrician — Wiring, Repairs & 24/7 Emergency Service">
+<meta property="og:description" content="Safe, fast electrical repairs, wiring and 24/7 emergency service. Call or WhatsApp for a free estimate.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Sunil Electricals | Licensed Electrician">
+<meta name="twitter:description" content="Safe, fast electrical repairs, wiring and 24/7 emergency service. Call or WhatsApp for a free estimate.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Electrician",
+  "name": "Sunil Electricals",
+  "telephone": "+919654639053",
+  "priceRange": "₹400–₹9000",
+  "openingHoursSpecification": {
+    "@type": "OpeningHoursSpecification",
+    "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+    "opens": "00:00",
+    "closes": "23:59"
+  },
+  "areaServed": ["Central Town","Riverside Colony","Green Park","Industrial Area","New Colony","Sector 12","Model Town","Civil Lines"],
+  "sameAs": ["https://wa.me/919654639053"]
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -32,16 +59,16 @@
   .mono{font-family:'JetBrains Mono',monospace;}
   a{color:inherit;}
   :focus-visible{outline:3px solid var(--copper-light); outline-offset:2px; border-radius:4px;}
-
+ 
   .wrap{max-width:1180px; margin:0 auto; padding:0 24px;}
   .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.14em; font-size:.72rem; font-weight:700;}
-
+ 
   /* ---- Utility bar ---- */
   .utilitybar{background:var(--charcoal); color:var(--paper-soft); font-size:.82rem; border-bottom:1px solid var(--line);}
   .utilitybar .wrap{display:flex; align-items:center; justify-content:space-between; padding-top:9px; padding-bottom:9px; gap:12px;}
   .pulse-dot{width:8px; height:8px; border-radius:50%; background:var(--circuit-light); display:inline-block; box-shadow:0 0 0 0 rgba(95,174,123,.6); animation:pulse 2s infinite;}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(95,174,123,.55);}70%{box-shadow:0 0 0 8px rgba(95,174,123,0);}100%{box-shadow:0 0 0 0 rgba(95,174,123,0);}}
-
+ 
   /* ---- Nav ---- */
   nav.mainnav{background:var(--charcoal); position:sticky; top:0; z-index:50; border-bottom:1px solid var(--line);}
   nav.mainnav .wrap{display:flex; align-items:center; justify-content:space-between; padding:14px 24px;}
@@ -60,12 +87,12 @@
   .mobilemenu{display:none; flex-direction:column; background:var(--charcoal-2); border-top:1px solid var(--line);}
   .mobilemenu.open{display:flex;}
   .mobilemenu a{padding:14px 24px; color:var(--paper-soft); border-bottom:1px solid var(--line); font-weight:500;}
-
+ 
   /* ---- Wire divider signature element ---- */
   .wire-divider{width:100%; height:34px; display:block;}
   .wire-divider path{fill:none; stroke:var(--copper); stroke-width:2; opacity:.55;}
   .wire-divider circle{fill:var(--caution);}
-
+ 
   /* ---- Hero ---- */
   header.hero{background:radial-gradient(ellipse at 20% -10%, #2a2318 0%, var(--charcoal) 55%); color:var(--paper); padding:64px 0 40px; position:relative; overflow:hidden;}
   .hero-grid{display:grid; grid-template-columns:1fr; gap:40px; align-items:center;}
@@ -80,12 +107,12 @@
   .btn-outline:hover{background:rgba(239,227,199,.08);}
   .btn-primary-lg{background:var(--copper); color:#fff; padding:13px 22px; border-radius:8px; font-weight:700; display:inline-flex; align-items:center; gap:8px; box-shadow:0 10px 24px rgba(181,101,29,.35);}
   .btn-primary-lg:hover{background:var(--copper-light);}
-
+ 
   .statbar{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:44px; border-top:1px solid var(--line); padding-top:26px;}
   @media(min-width:640px){.statbar{grid-template-columns:repeat(4,1fr);}}
   .stat-num{font-family:'JetBrains Mono',monospace; font-size:1.9rem; font-weight:700; color:var(--copper-light);}
   .stat-label{font-size:.76rem; color:#B9AC8B; text-transform:uppercase; letter-spacing:.06em; margin-top:2px;}
-
+ 
   /* ---- Quick form card ---- */
   .quickcard{background:var(--charcoal-2); border:1px solid var(--line); border-radius:18px; padding:28px; box-shadow:0 30px 60px rgba(0,0,0,.35);}
   .quickcard h3{color:var(--copper-light); font-size:1.3rem; margin:0 0 4px;}
@@ -94,16 +121,18 @@
   .field input, .field select{width:100%; background:var(--charcoal); border:1px solid var(--line); color:var(--paper); border-radius:8px; padding:10px 12px; font-size:.94rem;}
   .field input:focus, .field select:focus{border-color:var(--copper-light);}
   .field{margin-bottom:14px;}
+  .field-error{color:#F29D8C; font-size:.78rem; margin-top:6px; display:none;}
+  .field-error.show{display:block;}
   .btn-whatsapp{width:100%; background:#25D366; color:#0b3b23; font-weight:700; padding:12px; border-radius:8px; border:none; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; font-size:.98rem; transition:filter .15s ease;}
   .btn-whatsapp:hover{filter:brightness(1.06);}
-
+ 
   /* ---- Section shell ---- */
   section{padding:78px 0;}
   .section-head{max-width:640px; margin:0 auto 48px; text-align:center;}
   .section-head .eyebrow{color:var(--copper);}
   .section-head h2{font-size:2rem; margin:10px 0 12px;}
   .section-head p{color:#5A4E38;}
-
+ 
   /* ---- Services ---- */
   .svc-grid{display:grid; grid-template-columns:1fr; gap:20px;}
   @media(min-width:700px){.svc-grid{grid-template-columns:repeat(2,1fr);}}
@@ -114,7 +143,7 @@
   .svc-card h3{font-size:1.12rem; margin:0 0 8px;}
   .svc-card p{color:#5A4E38; font-size:.92rem; margin:0 0 14px;}
   .svc-price{font-family:'JetBrains Mono',monospace; font-size:.82rem; font-weight:700; color:var(--copper); background:rgba(181,101,29,.1); display:inline-block; padding:4px 10px; border-radius:6px;}
-
+ 
   /* ---- Estimate calculator ---- */
   .calc-panel{background:var(--charcoal); color:var(--paper); border-radius:20px; padding:34px; display:grid; grid-template-columns:1fr; gap:28px;}
   @media(min-width:900px){.calc-panel{grid-template-columns:1fr 1fr;}}
@@ -122,12 +151,12 @@
   .calc-result{background:var(--charcoal-2); border:1px dashed rgba(222,155,92,.4); border-radius:14px; padding:22px; text-align:center;}
   .calc-result .amount{font-family:'JetBrains Mono',monospace; font-size:2rem; font-weight:700; color:var(--caution);}
   .calc-result .note{font-size:.78rem; color:#B9AC8B; margin-top:6px;}
-
+ 
   /* ---- Why us ---- */
   .why-list{display:flex; flex-direction:column; gap:18px;}
   .why-item{display:flex; gap:16px; align-items:flex-start; background:var(--paper-soft); border-radius:14px; padding:18px 20px; border:1px solid rgba(27,22,15,.07);}
   .why-num{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--copper); font-size:1rem; background:rgba(181,101,29,.12); border-radius:8px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
-
+ 
   /* ---- Process ---- */
   .process{display:grid; grid-template-columns:1fr; gap:0; counter-reset:step;}
   @media(min-width:800px){.process{grid-template-columns:repeat(5,1fr);}}
@@ -137,7 +166,7 @@
   .step p{font-size:.82rem; color:#5A4E38; margin:0;}
   .step-connector{position:absolute; top:16px; right:-8px; width:16px; height:2px; background:var(--copper); opacity:.4; display:none;}
   @media(min-width:800px){.step-connector{display:block;}}
-
+ 
   /* ---- Work cards (UPDATED FOR PHOTOS) ---- */
   .work-grid{display:grid; grid-template-columns:1fr; gap:20px;}
   @media(min-width:700px){.work-grid{grid-template-columns:repeat(3,1fr);}}
@@ -150,7 +179,7 @@
   .work-body h4{margin:0 0 6px; font-size:1rem;}
   .work-body p{margin:0; font-size:.84rem; color:#B9AC8B;}
   .work-tag{font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--copper-light); text-transform:uppercase; letter-spacing:.06em;}
-
+ 
   /* ---- Testimonials ---- */
   .testi-wrap{position:relative; max-width:760px; margin:0 auto;}
   .testi-card{background:var(--paper-soft); border:1px solid rgba(27,22,15,.08); border-radius:18px; padding:36px; text-align:center; display:none;}
@@ -162,7 +191,7 @@
   .testi-dots{display:flex; justify-content:center; gap:8px; margin-top:22px;}
   .dot{width:8px; height:8px; border-radius:50%; background:rgba(27,22,15,.2); border:none; cursor:pointer;}
   .dot.active{background:var(--copper);}
-
+ 
   /* ---- FAQ ---- */
   .faq-item{border-bottom:1px solid rgba(27,22,15,.12);}
   .faq-q{width:100%; text-align:left; background:none; border:none; padding:20px 4px; display:flex; justify-content:space-between; align-items:center; font-weight:600; font-size:1rem; cursor:pointer; color:var(--ink);}
@@ -170,35 +199,38 @@
   .faq-item.open .faq-q i{transform:rotate(45deg);}
   .faq-a{max-height:0; overflow:hidden; transition:max-height .25s ease;}
   .faq-a p{padding:0 4px 20px; color:#5A4E38; margin:0; font-size:.94rem; line-height:1.6;}
-
+ 
   /* ---- Service area ---- */
   .area-chips{display:flex; flex-wrap:wrap; gap:10px; justify-content:center;}
   .chip{background:var(--paper-soft); border:1px solid rgba(181,101,29,.3); color:var(--ink); padding:8px 16px; border-radius:999px; font-size:.86rem; font-weight:600;}
   .chip i{color:var(--copper); margin-right:6px;}
-
+ 
   /* ---- Contact ---- */
   .contact-panel{background:var(--charcoal); color:var(--paper); border-radius:22px; padding:40px; display:grid; grid-template-columns:1fr; gap:36px;}
   @media(min-width:900px){.contact-panel{grid-template-columns:1fr 1fr; padding:56px;}}
   .contact-row{display:flex; gap:16px; align-items:center; margin-top:16px;}
   .contact-ico{background:var(--copper); color:#fff; width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
   .contact-panel input, .contact-panel textarea{width:100%; background:var(--charcoal-2); border:1px solid var(--line); color:var(--paper); border-radius:8px; padding:11px 13px; font-size:.94rem; margin-bottom:14px;}
-
+ 
   footer{background:var(--charcoal); color:#B9AC8B; padding:32px 0; text-align:center; font-size:.86rem;}
   footer .brand-name{color:var(--paper);}
-
+ 
   /* ---- Sticky mobile bar ---- */
-  .stickybar{position:fixed; bottom:0; left:0; right:0; z-index:60; display:flex; background:var(--charcoal); border-top:1px solid var(--line); box-shadow:0 -6px 20px rgba(0,0,0,.3);}
+  .stickybar{position:fixed; bottom:0; left:0; right:0; z-index:60; display:flex; background:var(--charcoal); border-top:1px solid var(--line); box-shadow:0 -6px 20px rgba(0,0,0,.3); padding-bottom:env(safe-area-inset-bottom, 0);}
   @media(min-width:900px){.stickybar{display:none;}}
   .stickybar a{flex:1; text-align:center; padding:13px 0; font-weight:700; font-size:.9rem; display:flex; align-items:center; justify-content:center; gap:8px;}
   .stickybar a.call{color:#fff; background:var(--copper);}
   .stickybar a.wa{color:#0b3b23; background:#25D366;}
-  @media(min-width:900px){body{padding-bottom:0;}}
   body{padding-bottom:58px;}
   @media(min-width:900px){body{padding-bottom:0;}}
+  .skip-link{position:absolute; left:-9999px; top:0; background:var(--copper); color:#fff; padding:10px 16px; border-radius:0 0 8px 0; z-index:100; font-weight:700;}
+  .skip-link:focus{left:0;}
 </style>
 </head>
 <body>
-
+ 
+<a href="#home" class="skip-link">Skip to content</a>
+ 
 <!-- Utility bar -->
 <div class="utilitybar">
   <div class="wrap">
@@ -206,7 +238,7 @@
     <a href="tel:9654639053" class="mono" style="font-weight:700;"><i class="fa-solid fa-phone mr-1"></i> 9654639053</a>
   </div>
 </div>
-
+ 
 <!-- Nav -->
 <nav class="mainnav">
   <div class="wrap">
@@ -237,7 +269,7 @@
   </div>
 </nav>
 <script>document.getElementById('navCallBtn').style.display='inline-flex';</script>
-
+ 
 <!-- Hero -->
 <header class="hero" id="home">
   <div class="wrap hero-grid">
@@ -249,7 +281,7 @@
         <a href="tel:9654639053" class="btn-primary-lg"><i class="fa-solid fa-phone"></i> Call 9654639053</a>
         <a href="#estimate" class="btn-outline"><i class="fa-solid fa-calculator"></i> Get a Free Estimate</a>
       </div>
-
+ 
       <div class="statbar">
         <div><div class="stat-num" data-count="12">0</div><div class="stat-label">Years Active</div></div>
         <div><div class="stat-num" data-count="3400" data-suffix="+">0</div><div class="stat-label">Jobs Completed</div></div>
@@ -257,18 +289,19 @@
         <div><div class="stat-num" data-count="4.9" data-decimal="1" data-suffix="/5">0</div><div class="stat-label">Customer Rating</div></div>
       </div>
     </div>
-
+ 
     <div class="quickcard">
       <h3>Book a Visit</h3>
       <p class="sub">Fill this in — it opens straight in WhatsApp, no account needed.</p>
-      <form id="quickForm">
+      <form id="quickForm" novalidate>
         <div class="field">
           <label for="quickName">Your Name</label>
           <input type="text" id="quickName" required placeholder="e.g. Rohit Sharma">
         </div>
         <div class="field">
           <label for="quickPhone">Phone Number</label>
-          <input type="tel" id="quickPhone" required placeholder="9876543210" pattern="[0-9]{10}">
+          <input type="tel" id="quickPhone" required placeholder="9876543210" pattern="[0-9]{10}" inputmode="numeric">
+          <div class="field-error" id="quickPhoneError">Enter a valid 10-digit phone number.</div>
         </div>
         <div class="field">
           <label for="quickService">Service Needed</label>
@@ -285,9 +318,9 @@
     </div>
   </div>
 </header>
-
+ 
 <svg class="wire-divider" viewBox="0 0 1180 34" preserveAspectRatio="none"><path d="M0,17 C 300,40 500,-6 700,17 S 1000,40 1180,17"/><circle id="spark1" r="3.5" cx="0" cy="17"/></svg>
-
+ 
 <!-- Services -->
 <section id="services">
   <div class="wrap">
@@ -336,7 +369,7 @@
     </div>
   </div>
 </section>
-
+ 
 <!-- Estimate calculator -->
 <section id="estimate" style="background:var(--paper-soft); padding-top:0; padding-bottom:0;">
   <div class="wrap" style="padding-top:70px; padding-bottom:70px;">
@@ -381,7 +414,7 @@
     </div>
   </div>
 </section>
-
+ 
 <!-- Why us -->
 <section>
   <div class="wrap" style="display:grid; grid-template-columns:1fr; gap:44px;">
@@ -405,7 +438,7 @@
     </div>
   </div>
 </section>
-
+ 
 <!-- Process -->
 <section style="background:var(--paper-soft);">
   <div class="wrap">
@@ -422,7 +455,7 @@
     </div>
   </div>
 </section>
-
+ 
 <!-- Recent work (UPDATED WITH PHOTOS) -->
 <section id="work">
   <div class="wrap">
@@ -434,28 +467,28 @@
       <div class="work-card">
         <!-- Photo 1 -->
         <div class="work-visual">
-          <img src="work1.jpg" alt="Tripping MCB Repair" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+1'">
+          <img src="work1.jpg" alt="Tripping MCB Repair" loading="lazy" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+1'">
         </div>
         <div class="work-body"><span class="work-tag">Emergency</span><h4>Tripping MCB, 3BHK Apartment</h4><p>Traced to a damaged kitchen circuit; rewired and load-balanced same evening.</p></div>
       </div>
       <div class="work-card">
         <!-- Photo 2 -->
         <div class="work-visual">
-          <img src="work2.jpg" alt="Panel Upgrade" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+2'">
+          <img src="work2.jpg" alt="Panel Upgrade" loading="lazy" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+2'">
         </div>
         <div class="work-body"><span class="work-tag">Upgrade</span><h4>Panel Upgrade, Retail Office</h4><p>Replaced an old fuse box with a modern MCB distribution board.</p></div>
       </div>
       <div class="work-card">
         <!-- Photo 3 -->
         <div class="work-visual">
-          <img src="work3.jpg" alt="Lighting Fit-out" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+3'">
+          <img src="work3.jpg" alt="Lighting Fit-out" loading="lazy" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+3'">
         </div>
         <div class="work-body"><span class="work-tag">Install</span><h4>Full Lighting Fit-out, New Home</h4><p>Ceiling fans, false-ceiling lights and switch points across 4 rooms.</p></div>
       </div>
     </div>
   </div>
 </section>
-
+ 
 <!-- Testimonials -->
 <section id="reviews" style="background:var(--paper-soft);">
   <div class="wrap">
@@ -463,7 +496,7 @@
       <div class="eyebrow">Customer reviews</div>
       <h2>What people say after we visit</h2>
     </div>
-    <div class="testi-wrap">
+    <div class="testi-wrap" id="testiWrap">
       <div class="testi-card active">
         <div class="stars">★★★★★</div>
         <p class="testi-quote">Called about a tripping breaker in the evening and someone was at the door within the hour. Fixed properly, not just patched up.</p>
@@ -487,7 +520,7 @@
     </div>
   </div>
 </section>
-
+ 
 <!-- FAQ -->
 <section id="faq">
   <div class="wrap" style="max-width:760px;">
@@ -498,7 +531,7 @@
     <div id="faqList">
       <div class="faq-item open">
         <button class="faq-q">How fast can someone reach me? <i class="fa-solid fa-plus"></i></button>
-        <div class="faq-a" style="max-height:120px;"><p>For emergencies, typically within 15–30 minutes in the local service area. Non-urgent jobs are usually scheduled the same or next day.</p></div>
+        <div class="faq-a"><p>For emergencies, typically within 15–30 minutes in the local service area. Non-urgent jobs are usually scheduled the same or next day.</p></div>
       </div>
       <div class="faq-item">
         <button class="faq-q">Do you charge for the estimate visit? <i class="fa-solid fa-plus"></i></button>
@@ -519,7 +552,7 @@
     </div>
   </div>
 </section>
-
+ 
 <!-- Service area -->
 <section style="background:var(--paper-soft);">
   <div class="wrap">
@@ -539,7 +572,7 @@
     </div>
   </div>
 </section>
-
+ 
 <!-- Contact -->
 <section id="contact">
   <div class="wrap">
@@ -557,15 +590,15 @@
         </div>
         <div class="contact-row">
           <div class="contact-ico"><i class="fa-brands fa-whatsapp"></i></div>
-          <div><div style="font-size:.8rem; color:#B9AC8B;">WhatsApp</div><a href="https://wa.me/919654639053" target="_blank" style="font-weight:700;">Message us directly</a></div>
+          <div><div style="font-size:.8rem; color:#B9AC8B;">WhatsApp</div><a href="https://wa.me/919654639053" target="_blank" rel="noopener noreferrer">Message us directly</a></div>
         </div>
       </div>
       <div>
-        <form id="contactForm">
+        <form id="contactForm" novalidate>
           <label style="font-size:.82rem; color:#D8CCB0; font-weight:600;">Your Name</label>
           <input type="text" id="contactName" required placeholder="Name">
           <label style="font-size:.82rem; color:#D8CCB0; font-weight:600;">Phone Number</label>
-          <input type="tel" id="contactPhone" required placeholder="9654639053">
+          <input type="tel" id="contactPhone" required placeholder="9654639053" pattern="[0-9]{10}" inputmode="numeric">
           <label style="font-size:.82rem; color:#D8CCB0; font-weight:600;">Message</label>
           <textarea rows="4" id="contactMessage" required placeholder="Describe your requirement..."></textarea>
           <button type="submit" class="btn-whatsapp"><i class="fa-brands fa-whatsapp" style="font-size:1.2rem;"></i> Send WhatsApp Message</button>
@@ -574,19 +607,19 @@
     </div>
   </div>
 </section>
-
+ 
 <footer>
   <div class="wrap" style="display:flex; flex-direction:column; gap:6px; align-items:center;">
     <span class="brand-name" style="font-weight:700;">Sunil Electricals</span>
     <p>&copy; 2026 Sunil Electricals. All rights reserved. · Contact: <a href="tel:9654639053" style="color:var(--copper-light); font-weight:600;">9654639053</a></p>
   </div>
 </footer>
-
+ 
 <div class="stickybar">
   <a href="tel:9654639053" class="call"><i class="fa-solid fa-phone"></i> Call Now</a>
-  <a href="https://wa.me/919654639053" target="_blank" class="wa"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+  <a href="https://wa.me/919654639053" target="_blank" rel="noopener noreferrer" class="wa"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
 </div>
-
+ 
 <script>
 /* Mobile menu */
 const hb = document.getElementById('hamburgerBtn');
@@ -597,7 +630,7 @@ hb.addEventListener('click', () => {
   hb.innerHTML = open ? '<i class="fa-solid fa-xmark"></i>' : '<i class="fa-solid fa-bars"></i>';
 });
 mm.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { mm.classList.remove('open'); hb.innerHTML='<i class="fa-solid fa-bars"></i>'; hb.setAttribute('aria-expanded','false'); }));
-
+ 
 /* Live clock + status */
 function updateClock(){
   const now = new Date();
@@ -608,7 +641,7 @@ function updateClock(){
 }
 updateClock();
 setInterval(updateClock, 30000);
-
+ 
 /* Animated stat counters */
 const counters = document.querySelectorAll('.stat-num');
 const counterObserver = new IntersectionObserver((entries) => {
@@ -632,7 +665,7 @@ const counterObserver = new IntersectionObserver((entries) => {
   });
 }, {threshold:0.4});
 counters.forEach(c => counterObserver.observe(c));
-
+ 
 /* Wire divider traveling spark */
 const spark = document.getElementById('spark1');
 const wirePath = document.querySelector('.wire-divider path');
@@ -648,17 +681,28 @@ if(spark && wirePath && wirePath.getTotalLength){
   }
   if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){ animateSpark(); }
 }
-
+ 
 /* Quick booking form -> WhatsApp */
 document.getElementById('quickForm').addEventListener('submit', function(e){
   e.preventDefault();
+  const phoneInput = document.getElementById('quickPhone');
+  const phoneError = document.getElementById('quickPhoneError');
+  if(!phoneInput.checkValidity()){
+    phoneError.classList.add('show');
+    phoneInput.focus();
+    return;
+  }
+  phoneError.classList.remove('show');
   const name = document.getElementById('quickName').value;
-  const phone = document.getElementById('quickPhone').value;
+  const phone = phoneInput.value;
   const service = document.getElementById('quickService').value;
   const text = encodeURIComponent(`Hello Sunil Electricals,\n\nI want to book a service.\nName: ${name}\nPhone: ${phone}\nService: ${service}`);
-  window.open(`https://wa.me/919654639053?text=${text}`, '_blank');
+  window.open(`https://wa.me/919654639053?text=${text}`, '_blank', 'noopener,noreferrer');
 });
-
+document.getElementById('quickPhone').addEventListener('input', function(){
+  document.getElementById('quickPhoneError').classList.remove('show');
+});
+ 
 /* Contact form -> WhatsApp */
 document.getElementById('contactForm').addEventListener('submit', function(e){
   e.preventDefault();
@@ -666,9 +710,9 @@ document.getElementById('contactForm').addEventListener('submit', function(e){
   const phone = document.getElementById('contactPhone').value;
   const message = document.getElementById('contactMessage').value;
   const text = encodeURIComponent(`Hello Sunil Electricals,\n\nNew Inquiry from Website:\nName: ${name}\nPhone: ${phone}\nMessage: ${message}`);
-  window.open(`https://wa.me/919654639053?text=${text}`, '_blank');
+  window.open(`https://wa.me/919654639053?text=${text}`, '_blank', 'noopener,noreferrer');
 });
-
+ 
 /* Estimate calculator */
 const priceTable = {
   wiring:   {home:[2000,6000], office:[3000,9000]},
@@ -696,24 +740,29 @@ document.getElementById('calcWaBtn').addEventListener('click', function(){
   const urgency = document.getElementById('calcUrgency').value === 'urgent' ? 'Urgent / Today' : 'Can schedule';
   const amount = document.getElementById('calcAmount').textContent;
   const text = encodeURIComponent(`Hello Sunil Electricals,\n\nI'd like an exact quote for:\nService: ${svcLabel}\nProperty: ${prop}\nUrgency: ${urgency}\nEstimated range shown: ${amount}`);
-  window.open(`https://wa.me/919654639053?text=${text}`, '_blank');
+  window.open(`https://wa.me/919654639053?text=${text}`, '_blank', 'noopener,noreferrer');
 });
-
+ 
 /* FAQ accordion */
 document.querySelectorAll('.faq-item').forEach(item => {
   const btn = item.querySelector('.faq-q');
   const ans = item.querySelector('.faq-a');
+  if(item.classList.contains('open')){ ans.style.maxHeight = ans.scrollHeight + 'px'; }
   btn.addEventListener('click', () => {
     const isOpen = item.classList.contains('open');
     document.querySelectorAll('.faq-item').forEach(i => { i.classList.remove('open'); i.querySelector('.faq-a').style.maxHeight = null; });
     if(!isOpen){ item.classList.add('open'); ans.style.maxHeight = ans.scrollHeight + 'px'; }
   });
 });
-
-/* Testimonial carousel */
+ 
+/* Testimonial carousel — pauses on hover/focus and respects reduced motion */
 const testiCards = document.querySelectorAll('.testi-card');
 const dots = document.querySelectorAll('.dot');
+const testiWrap = document.getElementById('testiWrap');
 let testiIndex = 0;
+let testiTimer = null;
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ 
 function showTesti(i){
   testiCards.forEach(c => c.classList.remove('active'));
   dots.forEach(d => d.classList.remove('active'));
@@ -721,8 +770,25 @@ function showTesti(i){
   dots[i].classList.add('active');
   testiIndex = i;
 }
-dots.forEach(d => d.addEventListener('click', () => showTesti(parseInt(d.dataset.i))));
-setInterval(() => { showTesti((testiIndex + 1) % testiCards.length); }, 6000);
+function startTestiTimer(){
+  if(reduceMotion) return;
+  stopTestiTimer();
+  testiTimer = setInterval(() => { showTesti((testiIndex + 1) % testiCards.length); }, 6000);
+}
+function stopTestiTimer(){
+  if(testiTimer){ clearInterval(testiTimer); testiTimer = null; }
+}
+dots.forEach(d => d.addEventListener('click', () => { showTesti(parseInt(d.dataset.i)); startTestiTimer(); }));
+testiWrap.addEventListener('mouseenter', stopTestiTimer);
+testiWrap.addEventListener('mouseleave', startTestiTimer);
+testiWrap.addEventListener('focusin', stopTestiTimer);
+testiWrap.addEventListener('focusout', startTestiTimer);
+startTestiTimer();
 </script>
 </body>
 </html>
+ 
+
+
+
+
