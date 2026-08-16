@@ -276,6 +276,7 @@
         <div class="scan-frame"></div>
       </div>
       <button class="ghost" id="btn-stop-cam" style="display:none;">Stop camera</button>
+      <div class="hint" id="scan-status" style="display:none;"></div>
       <div class="hint">Camera access needs your permission and a secure connection.</div>
     </div>
     <div id="type-area" style="display:none;">
@@ -643,6 +644,7 @@
 
   let mediaStream = null;
   let scanning = false;
+  let scanFrameCount = 0;
   const enteredDigits = new Array(CODE_LEN).fill("");
   let receivedSize = 0;
   let incomingMeta = null;
@@ -688,17 +690,26 @@
   $("btn-start-cam").addEventListener("click", async () => {
     hideMsg($("recv-msg"));
     try{
-      mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showMsg($("recv-msg"), "Camera access needs HTTPS (or localhost). Use 'Enter code' instead.", "err");
+        return;
+      }
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
       const video = $("video");
       video.srcObject = mediaStream;
       await video.play();
       $("camera-wrap").classList.add("active");
       $("btn-start-cam").style.display = "none";
       $("btn-stop-cam").style.display = "inline-block";
+      $("scan-status").style.display = "block";
+      scanFrameCount = 0;
       scanning = true;
       requestAnimationFrame(scanFrame);
     } catch(err){
-      showMsg($("recv-msg"), "Couldn't access camera. Use 'Enter code'.", "err");
+      console.error("Camera error:", err);
+      showMsg($("recv-msg"), "Couldn't access camera (" + (err.name || err.message) + "). Use 'Enter code'.", "err");
     }
   });
 
@@ -709,19 +720,22 @@
     $("camera-wrap").classList.remove("active");
     $("btn-start-cam").style.display = "inline-block";
     $("btn-stop-cam").style.display = "none";
+    $("scan-status").style.display = "none";
   }
 
   function scanFrame(){
     if (!scanning) return;
     const video = $("video");
     const canvas = $("scan-canvas");
-    if (video.readyState === video.HAVE_ENOUGH_DATA){
+    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0){
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const result = window.jsQR ? jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) : null;
+      const result = window.jsQR ? jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" }) : null;
+      scanFrameCount++;
+      if ($("scan-status")) $("scan-status").textContent = "Scanning… (" + canvas.width + "×" + canvas.height + ", frame " + scanFrameCount + ")";
       if (result && result.data){
         let scannedText = result.data.trim();
         let finalCode = scannedText.includes('?code=') ? scannedText.split('?code=')[1].substring(0, 5).toUpperCase() : scannedText.toUpperCase();
@@ -732,8 +746,12 @@
           if (ws.readyState === WebSocket.OPEN) { beginReceive(finalCode); }
           else { ws.onopen = () => beginReceive(finalCode); }
           return;
+        } else {
+          if ($("scan-status")) $("scan-status").textContent = "Saw a QR code but couldn't read a valid transfer code from it.";
         }
       }
+    } else {
+      if ($("scan-status")) $("scan-status").textContent = "Waiting for camera feed…";
     }
     requestAnimationFrame(scanFrame);
   }
