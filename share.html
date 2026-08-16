@@ -307,8 +307,8 @@
   const SIGNALING_SERVER_URL = 'wss://cyber-1-ce1m.onrender.com';
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const CODE_LEN = 5;
-  const CHUNK_SIZE = 512 * 1024;
-  const RELAY_CHUNK_SIZE = 128 * 1024; // base64 inflates ~33% on the wire, still a healthy WS message size
+  const CHUNK_SIZE = 256 * 1024;
+  const RELAY_CHUNK_SIZE = 48 * 1024; // smaller for the WS relay path — base64 inflates size ~33%
 
   const $ = (id) => document.getElementById(id);
   function setGlobalStatus(text){ $("global-status-text").textContent = text; }
@@ -339,57 +339,8 @@
     });
   });
 
-  let ws;
-  let wsReconnectDelay = 1000;
-  let wsReconnectTimer = null;
-  let intentionalClose = false;
-
-  function connectSignaling(){
-    ws = new WebSocket(SIGNALING_SERVER_URL);
-
-    ws.onopen = () => {
-      console.log("Connected to signaling server");
-      wsReconnectDelay = 1000;
-      if (waitWatchdog) { clearTimeout(waitWatchdog); waitWatchdog = null; }
-      // If we're the sender and were still waiting for a receiver when the
-      // connection dropped (e.g. the free-tier server cold-restarted), the
-      // in-memory room is gone — re-announce the same code so it still works.
-      if (isSender && currentSessionCode && !dataChannel) {
-        ws.send(JSON.stringify({ type: 'create', code: currentSessionCode }));
-        setGlobalStatus("RECONNECTED — code still active, waiting for receiver");
-      }
-    };
-
-    ws.onclose = () => {
-      if (intentionalClose) return;
-      setGlobalStatus("RECONNECTING to signaling server…");
-      wsReconnectTimer = setTimeout(connectSignaling, wsReconnectDelay);
-      wsReconnectDelay = Math.min(wsReconnectDelay * 2, 15000);
-    };
-
-    ws.onmessage = handleSignalingMessage;
-  }
-
-  // A watchdog that surfaces a message if we've been "waiting" for too long
-  // with no progress — instead of the UI just sitting there silently forever.
-  let waitWatchdog = null;
-  function armWaitWatchdog(msgEl, text){
-    if (waitWatchdog) clearTimeout(waitWatchdog);
-    waitWatchdog = setTimeout(() => {
-      showMsg(msgEl, text, "err");
-    }, 25000);
-  }
-  function disarmWaitWatchdog(){
-    if (waitWatchdog) { clearTimeout(waitWatchdog); waitWatchdog = null; }
-  }
-  function waitForSignalingThen(fn){
-    const check = () => {
-      if (ws.readyState === WebSocket.OPEN) fn();
-      else setTimeout(check, 250);
-    };
-    check();
-  }
-
+  let ws = new WebSocket(SIGNALING_SERVER_URL);
+  let pc;
   let dataChannel;
   let isSender = false;
   let currentSessionCode = null;
@@ -405,16 +356,17 @@
     ]
   };
 
-  async function handleSignalingMessage(event) {
+  ws.onopen = () => console.log("Connected to signaling server");
+  ws.onclose = () => setGlobalStatus("OFFLINE — Signaling server disconnected.");
+
+  ws.onmessage = async (event) => {
     const msg = JSON.parse(event.data);
 
     if (msg.type === 'error') {
-      disarmWaitWatchdog();
       showMsg(isSender ? $("send-msg") : $("recv-msg"), msg.message, "err");
       setGlobalStatus("ERROR — " + msg.message);
     }
     else if (msg.type === 'peer-joined') {
-      disarmWaitWatchdog();
       setGlobalStatus("PEER FOUND — connecting directly...");
       startWebRTCHandshake();
     }
@@ -479,9 +431,7 @@
         }
       }
     }
-  }
-
-  connectSignaling();
+  };
 
   function createPeerConnection() {
     useWebSocketRelay = false;
@@ -567,7 +517,6 @@
     $("send-pill").textContent = "WAITING FOR RECEIVER…";
     $("send-pill").className = "pill ready";
     setGlobalStatus("READY — share code or QR");
-    armWaitWatchdog($("send-msg"), "Still no receiver after a while — the code may have expired if the server restarted. Try 'Start a new transfer' if this continues.");
   });
 
   function renderFlaps(code){
@@ -612,7 +561,7 @@
 
   function sendFileData(startingOffset = 0) {
     let offset = startingOffset;
-    dataChannel.bufferedAmountLowThreshold = 4 * 1024 * 1024;
+    dataChannel.bufferedAmountLowThreshold = 1024 * 1024;
     dataChannel.onbufferedamountlow = () => { readNextChunk(); };
 
     function readNextChunk() {
@@ -647,12 +596,6 @@
     $("send-pill").className = "pill ready";
     setGlobalStatus("STREAMING VIA SERVER RELAY");
 
-    // Backpressure thresholds, mirroring the direct-WebRTC path: send as fast
-    // as the socket will take it, only pausing once the outgoing buffer backs
-    // up, and resuming as soon as it drains — no arbitrary fixed delay.
-    const WS_BUFFER_HIGH = 4 * 1024 * 1024;
-    const WS_BUFFER_LOW = 512 * 1024;
-
     function sendNext() {
       if (ws.readyState !== WebSocket.OPEN) {
         showMsg($("send-msg"), "Signaling connection lost — can't relay.", "err");
@@ -665,10 +608,6 @@
         setGlobalStatus("DELIVERED — transfer complete (server relay)");
         return;
       }
-      if (ws.bufferedAmount > WS_BUFFER_HIGH) {
-        setTimeout(waitForDrain, 15);
-        return;
-      }
       const slice = selectedFile.slice(offset, offset + RELAY_CHUNK_SIZE);
       const reader = new FileReader();
       reader.onload = () => {
@@ -677,17 +616,11 @@
         const pct = Math.round((offset / selectedFile.size) * 100);
         $("send-progress").style.width = pct + "%";
         $("send-progress-label").textContent = `${pct}% sent (server relay)`;
-        sendNext();
+        // small pacing delay so we don't flood the signaling socket faster than it can send
+        setTimeout(sendNext, 15);
       };
       reader.onerror = () => showMsg($("send-msg"), "Error reading file during relay.", "err");
       reader.readAsDataURL(slice);
-    }
-    function waitForDrain() {
-      if (ws.bufferedAmount > WS_BUFFER_LOW) {
-        setTimeout(waitForDrain, 15);
-      } else {
-        sendNext();
-      }
     }
     sendNext();
   }
@@ -698,7 +631,6 @@
   });
 
   $("btn-reset-send").addEventListener("click", () => {
-    disarmWaitWatchdog();
     resetConnections();
     selectedFile = null;
     $("send-result").style.display = "none";
@@ -796,14 +728,9 @@
     const video = $("video");
     const canvas = $("scan-canvas");
     if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0){
-      // Downscale before decoding — jsQR cost scales with pixel count, and QR
-      // detection doesn't need full camera resolution. This lets us run far
-      // more scan attempts per second.
-      const MAX_SCAN_DIM = 480;
-      const scale = Math.min(1, MAX_SCAN_DIM / Math.max(video.videoWidth, video.videoHeight));
-      canvas.width = Math.round(video.videoWidth * scale);
-      canvas.height = Math.round(video.videoHeight * scale);
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const result = window.jsQR ? jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" }) : null;
@@ -817,7 +744,7 @@
           enteredDigits.fill("");
           for (let i = 0; i < finalCode.length && i < CODE_LEN; i++) { enteredDigits[i] = finalCode[i]; }
           if (ws.readyState === WebSocket.OPEN) { beginReceive(finalCode); }
-          else { waitForSignalingThen(() => beginReceive(finalCode)); }
+          else { ws.onopen = () => beginReceive(finalCode); }
           return;
         } else {
           if ($("scan-status")) $("scan-status").textContent = "Saw a QR code but couldn't read a valid transfer code from it.";
@@ -843,7 +770,6 @@
     $("btn-fetch").disabled = true;
     $("btn-reset-recv").style.display = "inline-block";
     setGlobalStatus("LOOKING UP CODE " + code + "…");
-    armWaitWatchdog($("recv-msg"), "Still not found — the code may have expired or the server restarted. Ask the sender to check their screen, or start over.");
 
     createPeerConnection();
     pc.ondatachannel = (event) => {
@@ -912,7 +838,6 @@
   }
 
   $("btn-reset-recv").addEventListener("click", () => {
-    disarmWaitWatchdog();
     resetConnections();
     $("recv-result").style.display = "none";
     $("recv-accept-wrap").style.display = "none";
@@ -944,7 +869,7 @@
          if(inputs[i]) inputs[i].value = upperCode[i];
       }
       if (ws.readyState === WebSocket.OPEN) { beginReceive(upperCode); }
-      else { waitForSignalingThen(() => beginReceive(upperCode)); }
+      else { ws.onopen = () => beginReceive(upperCode); }
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   });
