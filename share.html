@@ -307,6 +307,7 @@
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const CODE_LEN = 5;
   const CHUNK_SIZE = 256 * 1024;
+  const RELAY_CHUNK_SIZE = 48 * 1024; // smaller for the WS relay path — base64 inflates size ~33%
 
   const $ = (id) => document.getElementById(id);
   function setGlobalStatus(text){ $("global-status-text").textContent = text; }
@@ -338,7 +339,7 @@
   });
 
   let ws = new WebSocket(SIGNALING_SERVER_URL);
-  let pc; 
+  let pc;
   let dataChannel;
   let isSender = false;
   let currentSessionCode = null;
@@ -363,15 +364,15 @@
     if (msg.type === 'error') {
       showMsg(isSender ? $("send-msg") : $("recv-msg"), msg.message, "err");
       setGlobalStatus("ERROR — " + msg.message);
-    } 
+    }
     else if (msg.type === 'peer-joined') {
       setGlobalStatus("PEER FOUND — connecting directly...");
       startWebRTCHandshake();
-    } 
+    }
     else if (msg.type === 'peer-disconnected') {
       showMsg(isSender ? $("send-msg") : $("recv-msg"), "Connection lost. Reconnect to resume.", "err");
       if(isSender && dataChannel) dataChannel.close();
-    } 
+    }
     else if (msg.type === 'signal') {
       if (!pc) createPeerConnection();
       if (msg.data.sdp) {
@@ -394,25 +395,36 @@
         }
       }
     }
-   else if (msg.type === 'relay-chunk') {
-      // 🔥 NAYA: Sender yahan sunega ki receiver ne file mangi hai ya nahi
+    // ---- Server-relay path (used when direct WebRTC fails) ----
+    else if (msg.type === 'relay-meta') {
+      // Receiver learns about the file when the sender couldn't establish a direct P2P link.
+      isSender = false;
+      useWebSocketRelay = true;
+      incomingMeta = { name: msg.name, filetype: msg.filetype, size: msg.size };
+      $("recv-file-name").textContent = incomingMeta.name;
+      $("recv-file-size").textContent = fmtSize(incomingMeta.size);
+      setGlobalStatus("READY TO RECEIVE " + incomingMeta.name + " (server relay)");
+      $("recv-accept-wrap").style.display = "block";
+    }
+    else if (msg.type === 'relay-chunk') {
       if (msg.subType === 'request-resume') {
         if (isSender && useWebSocketRelay) {
-          sendViaWebSocketRelay(msg.offset);
+          sendViaWebSocketRelay(msg.offset || 0);
         }
-      } 
+      }
       else if (msg.subType === 'data') {
-        fetch(msg.payload).then(res => res.blob()).then(async blob => {
-          const buffer = await blob.arrayBuffer();
-          if (writableStream) {
-            await writableStream.write(buffer);
-            receivedSize += buffer.byteLength;
-            const pct = Math.round((receivedSize / incomingMeta.size) * 100);
-            $("recv-progress").style.width = pct + "%";
-            $("recv-progress-label").textContent = `${pct}% received (Server Relay)`;
-          }
-        });
-      } 
+        const base64 = msg.payload.split(',')[1] || msg.payload;
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        if (writableStream) {
+          await writableStream.write(bytes);
+          receivedSize += bytes.byteLength;
+          const pct = Math.round((receivedSize / incomingMeta.size) * 100);
+          $("recv-progress").style.width = pct + "%";
+          $("recv-progress-label").textContent = `${pct}% received (server relay)`;
+        }
+      }
       else if (msg.subType === 'EOF') {
         finishDownload();
       }
@@ -431,7 +443,16 @@
         showMsg(isSender ? $("send-msg") : $("recv-msg"), "Direct connection blocked. Switching to Server Relay...", "ok");
         useWebSocketRelay = true;
         if (isSender && selectedFile) {
-          sendViaWebSocketRelay(0);
+          // Tell the receiver about the file over the signaling socket; wait for
+          // them to accept before streaming any data.
+          ws.send(JSON.stringify({
+            type: 'relay-meta',
+            name: selectedFile.name,
+            filetype: selectedFile.type,
+            size: selectedFile.size
+          }));
+          $("send-pill").textContent = "WAITING FOR RECEIVER (RELAY)…";
+          setGlobalStatus("RELAY READY — waiting for receiver to accept");
         }
       }
     };
@@ -470,7 +491,7 @@
     $("btn-create").disabled = true;
     isSender = true;
     currentSessionCode = genCode();
-    
+
     if(ws.readyState !== WebSocket.OPEN) {
       showMsg($("send-msg"), "Not connected to signaling server.", "err");
       return;
@@ -479,13 +500,13 @@
 
     $("send-result").style.display = "block";
     renderFlaps(currentSessionCode);
-    
+
     if (window.QRCode){
       $("qr-target").innerHTML = "";
       const directUrl = window.location.origin + window.location.pathname + "?code=" + currentSessionCode;
       new QRCode($("qr-target"), { text: directUrl, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M });
     }
-    
+
     $("send-pill").textContent = "WAITING FOR RECEIVER…";
     $("send-pill").className = "pill ready";
     setGlobalStatus("READY — share code or QR");
@@ -506,7 +527,7 @@
     createPeerConnection();
     dataChannel = pc.createDataChannel("fileTransfer");
     dataChannel.binaryType = 'arraybuffer';
-    
+
     dataChannel.onopen = () => {
       if (useWebSocketRelay) return;
       $("send-pill").textContent = "CONNECTED…";
@@ -521,7 +542,7 @@
             if (data.type === 'request-resume') {
                 $("send-pill").textContent = "IN TRANSIT…";
                 setGlobalStatus("STREAMING FILE AT MAX SPEED");
-                sendFileData(data.offset); 
+                sendFileData(data.offset);
             }
         }
     };
@@ -533,13 +554,13 @@
 
   function sendFileData(startingOffset = 0) {
     let offset = startingOffset;
-    dataChannel.bufferedAmountLowThreshold = 1024 * 1024; 
+    dataChannel.bufferedAmountLowThreshold = 1024 * 1024;
     dataChannel.onbufferedamountlow = () => { readNextChunk(); };
-    
+
     function readNextChunk() {
       if (dataChannel.readyState !== 'open') return;
       if (offset >= selectedFile.size) {
-        dataChannel.send(JSON.stringify({ type: 'EOF' })); 
+        dataChannel.send(JSON.stringify({ type: 'EOF' }));
         $("send-pill").textContent = "DELIVERED";
         $("send-pill").className = "pill done";
         setGlobalStatus("DELIVERED — transfer complete");
@@ -554,26 +575,51 @@
         const pct = Math.round((offset / selectedFile.size) * 100);
         $("send-progress").style.width = pct + "%";
         $("send-progress-label").textContent = `${pct}% sent`;
-        readNextChunk(); 
+        readNextChunk();
       });
     }
     readNextChunk();
   }
 
+  // Real implementation of the WebSocket relay fallback: streams the file as
+  // base64 chunks through the signaling socket when a direct P2P link isn't possible.
   function sendViaWebSocketRelay(startingOffset = 0) {
     let offset = startingOffset;
     $("send-pill").textContent = "RELAYING VIA SERVER…";
     $("send-pill").className = "pill ready";
     setGlobalStatus("STREAMING VIA SERVER RELAY");
 
-    const meta = { type: 'meta', name: selectedFile.name, filetype: selectedFile.type, size: selectedFile.size };
-    if (dataChannel && dataChannel.readyState === 'open') {
-       // fallback stream setup
+    function sendNext() {
+      if (ws.readyState !== WebSocket.OPEN) {
+        showMsg($("send-msg"), "Signaling connection lost — can't relay.", "err");
+        return;
+      }
+      if (offset >= selectedFile.size) {
+        ws.send(JSON.stringify({ type: 'relay-chunk', subType: 'EOF' }));
+        $("send-pill").textContent = "DELIVERED";
+        $("send-pill").className = "pill done";
+        setGlobalStatus("DELIVERED — transfer complete (server relay)");
+        return;
+      }
+      const slice = selectedFile.slice(offset, offset + RELAY_CHUNK_SIZE);
+      const reader = new FileReader();
+      reader.onload = () => {
+        ws.send(JSON.stringify({ type: 'relay-chunk', subType: 'data', payload: reader.result }));
+        offset += slice.size;
+        const pct = Math.round((offset / selectedFile.size) * 100);
+        $("send-progress").style.width = pct + "%";
+        $("send-progress-label").textContent = `${pct}% sent (server relay)`;
+        // small pacing delay so we don't flood the signaling socket faster than it can send
+        setTimeout(sendNext, 15);
+      };
+      reader.onerror = () => showMsg($("send-msg"), "Error reading file during relay.", "err");
+      reader.readAsDataURL(slice);
     }
+    sendNext();
   }
 
   $("btn-copy").addEventListener("click", async () => {
-    try{ await navigator.clipboard.writeText(currentSessionCode); showMsg($("send-msg"), "Code copied.", "ok"); } 
+    try{ await navigator.clipboard.writeText(currentSessionCode); showMsg($("send-msg"), "Code copied.", "ok"); }
     catch(e){ showMsg($("send-msg"), "Couldn't copy automatically.", "err"); }
   });
 
@@ -749,7 +795,11 @@
           $("recv-accept-wrap").style.display = "none";
           $("recv-progress-track").style.display = "block";
           $("recv-progress-label-wrap").style.display = "flex";
-          dataChannel.send(JSON.stringify({ type: 'request-resume', offset: 0 }));
+          if (useWebSocketRelay) {
+            ws.send(JSON.stringify({ type: 'relay-chunk', subType: 'request-resume', offset: 0 }));
+          } else {
+            dataChannel.send(JSON.stringify({ type: 'request-resume', offset: 0 }));
+          }
       } catch (err) {
           showMsg($("recv-msg"), "Save canceled. Refresh to try again.", "err");
           resetConnections();
@@ -788,7 +838,7 @@
     if (autoCode && autoCode.length === CODE_LEN) {
       const upperCode = autoCode.toUpperCase();
       $("tab-receive").click();
-      $("mode-type").click(); 
+      $("mode-type").click();
       const inputs = document.querySelectorAll("#code-input-row input");
       for (let i = 0; i < CODE_LEN; i++) {
          enteredDigits[i] = upperCode[i];
