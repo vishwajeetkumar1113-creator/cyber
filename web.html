@@ -223,15 +223,6 @@
   .skip-link{position:absolute; left:-9999px; top:0; background:var(--copper); color:#fff; padding:10px 16px; border-radius:0 0 8px 0; z-index:100; font-weight:700;}
   .skip-link:focus{left:0;}
   
-  /* Editable text highlights */
-  [contenteditable="true"] { outline: none; border-bottom: 1px dashed rgba(222,155,92,.5); transition: background 0.2s; }
-  [contenteditable="true"]:hover { background: rgba(222,155,92,.1); }
-
-  /* Loader for uploading state */
-  .loader { display: none; width: 16px; height: 16px; border: 2px solid #FFF; border-bottom-color: transparent; border-radius: 50%; display: inline-block; box-sizing: border-box; animation: rotation 1s linear infinite; margin-left: 10px; }
-  @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  .uploading .loader { display: inline-block; }
-  .uploading i { display: none; }
 </style>
 </head>
 <body>
@@ -463,24 +454,18 @@
   </div>
 </section>
 
-<!-- Recent work (UPDATED WITH BACKEND PHOTO UPLOAD) -->
+<!-- Recent work -->
 <section id="work">
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">Recent work</div>
       <h2>A sample of what we've fixed lately</h2>
-      
-      <!-- Upload Feature -->
-      <label for="workImageUpload" class="btn-outline" id="uploadLabelBtn" style="margin-top: 20px; cursor: pointer; display: inline-flex; align-items:center;">
-        <i class="fa-solid fa-upload"></i> <span class="loader"></span> &nbsp; Upload Work Photos
-      </label>
-      <input type="file" id="workImageUpload" accept="image/*" multiple style="display: none;">
-      <p style="font-size: 0.8rem; color: #5A4E38; margin-top: 8px;">(Files will be sent to the backend server URL.)</p>
-      
     </div>
+    
     <div class="work-grid" id="workGrid">
       <div class="work-card">
         <div class="work-visual">
+          <!-- Loads image directly from your repository -->
           <img src="work1.jpg" alt="Tripping MCB Repair" loading="lazy" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+1'">
         </div>
         <div class="work-body">
@@ -796,81 +781,6 @@ testiWrap.addEventListener('focusin', stopTestiTimer);
 testiWrap.addEventListener('focusout', startTestiTimer);
 startTestiTimer();
 
-/* --- BACKEND PHOTO UPLOAD FEATURE --- */
-const workImageUpload = document.getElementById('workImageUpload');
-const uploadLabelBtn = document.getElementById('uploadLabelBtn');
-const workGrid = document.getElementById('workGrid');
-
-workImageUpload.addEventListener('change', async function(e) {
-  const files = e.target.files;
-  if(files.length === 0) return;
-
-  // Add "uploading" visual state
-  uploadLabelBtn.classList.add('uploading');
-
-  for(let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if(!file.type.startsWith('image/')) continue;
-
-    // 1. Prepare data to send to the backend
-    const formData = new FormData();
-    formData.append('workPhoto', file); 
-    formData.append('title', 'New Project Name');
-    formData.append('description', 'Project description here');
-    formData.append('category', 'Category');
-
-    try {
-      // =========================================================
-      // IMPORTANT: Replace the URL inside fetch() with your actual 
-      // backend API endpoint (e.g., 'https://yourwebsite.com/upload.php')
-      // =========================================================
-      /*
-      const response = await fetch('/api/upload-work-photo', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if(!response.ok) throw new Error('Upload failed');
-      const result = await response.json();
-      
-      // Use the permanent URL returned from your backend:
-      // const permanentImageUrl = result.imageUrl; 
-      */
-
-      // --- Temporary Preview (Delete this once backend is connected) ---
-      const temporaryImageUrl = URL.createObjectURL(file); 
-      console.log('Sending file to backend server:', file.name);
-      // -----------------------------------------------------------------
-
-      // 2. Add the new image card to the grid
-      const card = document.createElement('div');
-      card.className = 'work-card';
-      
-      card.innerHTML = `
-        <div class="work-visual">
-          <!-- Replace temporaryImageUrl with permanentImageUrl when backend is active -->
-          <img src="${temporaryImageUrl}" alt="New Uploaded Work" loading="lazy">
-        </div>
-        <div class="work-body">
-          <span class="work-tag" contenteditable="true">Category</span>
-          <h4 contenteditable="true" title="Click to edit">Project Title Here</h4>
-          <p contenteditable="true" title="Click to edit">Click here to edit the project description.</p>
-        </div>
-      `;
-      
-      // Place the new card at the very beginning of the work section
-      workGrid.prepend(card);
-      
-    } catch (error) {
-      console.error('Error uploading to backend:', error);
-      alert('Failed to upload image. Make sure your backend server is running.');
-    }
-  }
-
-  // Reset the state
-  uploadLabelBtn.classList.remove('uploading');
-  workImageUpload.value = '';
-});
 </script>
 </body>
 </html>
