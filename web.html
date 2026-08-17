@@ -307,6 +307,7 @@
             <option>Repair &amp; Maintenance</option>
             <option>Appliance Installation</option>
             <option>Switchboard / Panel Upgrade</option>
+            <option>Solar Installation</option>
             <option>Emergency Fault Fix</option>
           </select>
         </div>
@@ -363,6 +364,12 @@
         <p>Ceiling fans, false-ceiling lights and decorative fittings, neatly wired.</p>
         <span class="svc-price">From ₹xxxx</span>
       </div>
+      <div class="svc-card">
+        <div class="svc-icon"><i class="fa-solid fa-solar-panel"></i></div>
+        <h3>Solar Installation</h3>
+        <p>On-grid and off-grid solar power systems, including inverter and battery setup.</p>
+        <span class="svc-price">From ₹xxxx</span>
+      </div>
     </div>
   </div>
 </section>
@@ -381,6 +388,7 @@
             <option value="repair">Repair &amp; Maintenance</option>
             <option value="appliance">Appliance Installation</option>
             <option value="panel">Panel / MCB Upgrade</option>
+            <option value="solar">Solar Installation</option>
             <option value="emergency">Emergency Fault Fix</option>
             <option value="lighting">Lighting &amp; Fan Fitting</option>
           </select>
@@ -453,7 +461,7 @@
   </div>
 </section>
 
-<!-- Recent work (UPDATED WITH 12 PHOTOS INCLUDING SOLAR) -->
+<!-- Recent work (UPDATED FOR ALL 12 PHOTOS INCLUDING SOLAR) -->
 <section id="work">
   <div class="wrap">
     <div class="section-head">
@@ -579,7 +587,7 @@
         <div class="work-body">
           <span class="work-tag">Solar</span>
           <h4>Rooftop Solar Installation</h4>
-          <p>Complete 5kW on-grid solar panel setup for a residential home.</p>
+          <p>Complete on-grid solar panel setup designed to reduce energy costs.</p>
         </div>
       </div>
 
@@ -591,7 +599,7 @@
         <div class="work-body">
           <span class="work-tag">Solar</span>
           <h4>Solar Inverter & Battery</h4>
-          <p>Hybrid solar inverter integration with battery backup for continuous power.</p>
+          <p>Hybrid solar inverter integration with reliable battery backup systems.</p>
         </div>
       </div>
 
@@ -603,7 +611,7 @@
         <div class="work-body">
           <span class="work-tag">Solar</span>
           <h4>Commercial Solar System</h4>
-          <p>10kW solar power system installation for a local retail business.</p>
+          <p>Large-scale solar power system installation for a local business.</p>
         </div>
       </div>
       
@@ -839,6 +847,15 @@ document.getElementById('contactForm').addEventListener('submit', function(e){
 function recalcEstimate(){
   document.getElementById('calcAmount').textContent = '₹xxxx – ₹xxxx';
 }
+const priceTable = {
+  wiring:   {home:[2000,6000], office:[3000,9000]},
+  repair:   {home:[500,1500],  office:[800,2200]},
+  appliance:{home:[800,2000],  office:[1000,2800]},
+  panel:    {home:[1500,4000], office:[2500,6500]},
+  solar:    {home:[50000,200000], office:[100000,500000]},
+  emergency:{home:[700,2500],  office:[1000,3200]},
+  lighting: {home:[400,1200],  office:[600,1800]}
+};
 ['calcService','calcProperty','calcUrgency'].forEach(id => document.getElementById(id).addEventListener('change', recalcEstimate));
 recalcEstimate();
 
