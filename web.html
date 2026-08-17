@@ -100,7 +100,7 @@
   .headline em{font-style:normal; color:var(--copper-light);}
   .hero-sub{color:#D8CCB0; font-size:1.08rem; max-width:52ch;}
   .hero-ctas{display:flex; flex-wrap:wrap; gap:14px; margin-top:26px;}
-  .btn-outline{border:1px solid rgba(239,227,199,.35); padding:12px 20px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:8px; transition:background .15s ease;}
+  .btn-outline{border:1px solid rgba(239,227,199,.35); padding:12px 20px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:8px; transition:background .15s ease; cursor:pointer;}
   .btn-outline:hover{background:rgba(239,227,199,.08);}
   .btn-primary-lg{background:var(--copper); color:#fff; padding:13px 22px; border-radius:8px; font-weight:700; display:inline-flex; align-items:center; gap:8px; box-shadow:0 10px 24px rgba(181,101,29,.35);}
   .btn-primary-lg:hover{background:var(--copper-light);}
@@ -164,7 +164,7 @@
   .step-connector{position:absolute; top:16px; right:-8px; width:16px; height:2px; background:var(--copper); opacity:.4; display:none;}
   @media(min-width:800px){.step-connector{display:block;}}
 
-  /* ---- Work cards (UPDATED FOR PHOTOS) ---- */
+  /* ---- Work cards ---- */
   .work-grid{display:grid; grid-template-columns:1fr; gap:20px;}
   @media(min-width:700px){.work-grid{grid-template-columns:repeat(3,1fr);}}
   .work-card{border-radius:16px; overflow:hidden; background:var(--charcoal); color:var(--paper); border:1px solid var(--line); cursor:pointer; transition:transform .18s ease;}
@@ -222,6 +222,10 @@
   @media(min-width:900px){body{padding-bottom:0;}}
   .skip-link{position:absolute; left:-9999px; top:0; background:var(--copper); color:#fff; padding:10px 16px; border-radius:0 0 8px 0; z-index:100; font-weight:700;}
   .skip-link:focus{left:0;}
+  
+  /* Editable text highlights */
+  [contenteditable="true"] { outline: none; border-bottom: 1px dashed rgba(222,155,92,.5); transition: background 0.2s; }
+  [contenteditable="true"]:hover { background: rgba(222,155,92,.1); }
 </style>
 </head>
 <body>
@@ -453,34 +457,54 @@
   </div>
 </section>
 
-<!-- Recent work (UPDATED WITH PHOTOS) -->
+<!-- Recent work (UPDATED WITH PHOTO UPLOAD FEATURE) -->
 <section id="work">
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">Recent work</div>
       <h2>A sample of what we've fixed lately</h2>
+      
+      <!-- New Upload Feature -->
+      <label for="workImageUpload" class="btn-outline" style="margin-top: 20px; cursor: pointer; display: inline-flex;">
+        <i class="fa-solid fa-upload"></i>&nbsp; Add Work Photos
+      </label>
+      <input type="file" id="workImageUpload" accept="image/*" multiple style="display: none;">
+      <p style="font-size: 0.8rem; color: #5A4E38; margin-top: 8px;">(Upload images to preview them on your site. You can click the titles below the image to edit them!)</p>
+      
     </div>
-    <div class="work-grid">
+    <div class="work-grid" id="workGrid">
+      <!-- Default Photo 1 -->
       <div class="work-card">
-        <!-- Photo 1 -->
         <div class="work-visual">
           <img src="work1.jpg" alt="Tripping MCB Repair" loading="lazy" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+1'">
         </div>
-        <div class="work-body"><span class="work-tag">Emergency</span><h4>Tripping MCB, 3BHK Apartment</h4><p>Traced to a damaged kitchen circuit; rewired and load-balanced same evening.</p></div>
+        <div class="work-body">
+          <span class="work-tag">Emergency</span>
+          <h4>Tripping MCB, 3BHK Apartment</h4>
+          <p>Traced to a damaged kitchen circuit; rewired and load-balanced same evening.</p>
+        </div>
       </div>
+      <!-- Default Photo 2 -->
       <div class="work-card">
-        <!-- Photo 2 -->
         <div class="work-visual">
           <img src="work2.jpg" alt="Panel Upgrade" loading="lazy" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+2'">
         </div>
-        <div class="work-body"><span class="work-tag">Upgrade</span><h4>Panel Upgrade, Retail Office</h4><p>Replaced an old fuse box with a modern MCB distribution board.</p></div>
+        <div class="work-body">
+          <span class="work-tag">Upgrade</span>
+          <h4>Panel Upgrade, Retail Office</h4>
+          <p>Replaced an old fuse box with a modern MCB distribution board.</p>
+        </div>
       </div>
+      <!-- Default Photo 3 -->
       <div class="work-card">
-        <!-- Photo 3 -->
         <div class="work-visual">
           <img src="work3.jpg" alt="Lighting Fit-out" loading="lazy" onerror="this.src='https://placehold.co/600x400/211C15/DE9B5C?text=Photo+3'">
         </div>
-        <div class="work-body"><span class="work-tag">Install</span><h4>Full Lighting Fit-out, New Home</h4><p>Ceiling fans, false-ceiling lights and switch points across 4 rooms.</p></div>
+        <div class="work-body">
+          <span class="work-tag">Install</span>
+          <h4>Full Lighting Fit-out, New Home</h4>
+          <p>Ceiling fans, false-ceiling lights and switch points across 4 rooms.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -768,6 +792,37 @@ testiWrap.addEventListener('mouseleave', startTestiTimer);
 testiWrap.addEventListener('focusin', stopTestiTimer);
 testiWrap.addEventListener('focusout', startTestiTimer);
 startTestiTimer();
+
+/* --- NEW FEATURE: Upload Work Photos --- */
+const workImageUpload = document.getElementById('workImageUpload');
+const workGrid = document.getElementById('workGrid');
+
+workImageUpload.addEventListener('change', function(e) {
+  const files = e.target.files;
+  for(let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if(file.type.startsWith('image/')) {
+      const imgUrl = URL.createObjectURL(file);
+      const card = document.createElement('div');
+      card.className = 'work-card';
+      
+      card.innerHTML = `
+        <div class="work-visual">
+          <img src="${imgUrl}" alt="New Uploaded Work" loading="lazy">
+        </div>
+        <div class="work-body">
+          <span class="work-tag" contenteditable="true">Category</span>
+          <h4 contenteditable="true" title="Click to edit">Project Title Here</h4>
+          <p contenteditable="true" title="Click to edit">Click here to edit the project description.</p>
+        </div>
+      `;
+      // Prepend puts the new uploaded card at the very front of the grid
+      workGrid.prepend(card);
+    }
+  }
+  // Clear the input so you can upload the same image again if needed
+  workImageUpload.value = '';
+});
 </script>
 </body>
 </html>
