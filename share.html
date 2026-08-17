@@ -117,13 +117,20 @@
     cursor:pointer;
     background:var(--panel-2);
   }
+  .file-list{
+    max-height:160px;
+    overflow-y:auto;
+    margin-top:14px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
   .file-chip{
     display:flex;align-items:center;justify-content:space-between;gap:10px;
     background:var(--panel-2);
     border:1px solid var(--line);
     border-radius:var(--radius);
-    padding:12px 14px;
-    margin-top:14px;
+    padding:10px 14px;
     font-size:13px;
   }
   .file-chip .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -236,17 +243,14 @@
 
   <!-- SEND PANEL -->
   <section class="panel active" id="panel-send">
-    <h2>Send a file</h2>
-    <p class="sub">Pick a file, get a code. Enter that code — or scan the QR — on the other device.</p>
+    <h2>Send files</h2>
+    <p class="sub">Pick multiple files, get a code. Enter that code — or scan the QR — on the other device.</p>
     <div class="dropzone" id="dropzone" tabindex="0" role="button">
-      <div class="dz-label">Drop a file, or tap to choose</div>
-      <div class="dz-sub">Unlimited size · works best for photos, videos, and large archives</div>
-      <input type="file" id="file-input" style="display:none;">
+      <div class="dz-label">Drop files, or tap to choose</div>
+      <div class="dz-sub">Multiple files supported · unlimited size</div>
+      <input type="file" id="file-input" multiple style="display:none;">
     </div>
-    <div class="file-chip" id="file-chip" style="display:none;">
-      <span class="name" id="file-name"></span>
-      <span class="size" id="file-size"></span>
-    </div>
+    <div class="file-list" id="file-list-container" style="display:none;"></div>
     <div id="send-msg" class="msg"></div>
     <button class="primary" id="btn-create" disabled>Create transfer</button>
     <div id="send-result" style="display:none;">
@@ -263,7 +267,7 @@
 
   <!-- RECEIVE PANEL -->
   <section class="panel" id="panel-receive">
-    <h2>Receive a file</h2>
+    <h2>Receive files</h2>
     <p class="sub">Scan the sender's QR, or type in their 5-character code.</p>
     <div class="recv-modes">
       <button class="active" id="mode-scan" data-mode="scan">Scan QR</button>
@@ -285,12 +289,9 @@
     </div>
     <div id="recv-msg" class="msg"></div>
     <div id="recv-result" style="display:none;">
-      <div class="file-chip" id="recv-file-chip">
-        <span class="name" id="recv-file-name"></span>
-        <span class="size" id="recv-file-size"></span>
-      </div>
+      <div class="file-list" id="recv-file-list" style="display:none; margin-bottom:14px;"></div>
       <div id="recv-accept-wrap" style="text-align:center; display:none; margin-top:14px;">
-        <button class="primary" id="btn-accept-file">Accept & Save File</button>
+        <button class="primary" id="btn-accept-file">Accept & Save Files</button>
       </div>
       <div class="progress-track" id="recv-progress-track" style="display:none;"><div class="progress-fill" id="recv-progress"></div></div>
       <div class="progress-label" id="recv-progress-label-wrap" style="display:none;"><span id="recv-progress-label">Waiting…</span><span></span></div>
@@ -308,7 +309,7 @@
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const CODE_LEN = 5;
   const CHUNK_SIZE = 256 * 1024;
-  const RELAY_CHUNK_SIZE = 48 * 1024; // smaller for the WS relay path — base64 inflates size ~33%
+  const RELAY_CHUNK_SIZE = 48 * 1024;
 
   const $ = (id) => document.getElementById(id);
   function setGlobalStatus(text){ $("global-status-text").textContent = text; }
@@ -335,7 +336,7 @@
       btn.classList.add("active");
       document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
       $("panel-" + btn.dataset.tab).classList.add("active");
-      setGlobalStatus(btn.dataset.tab === "send" ? "IDLE — choose a file to send" : "IDLE — scan or type a code");
+      setGlobalStatus(btn.dataset.tab === "send" ? "IDLE — choose files to send" : "IDLE — scan or type a code");
     });
   });
 
@@ -346,6 +347,17 @@
   let currentSessionCode = null;
   let iceCandidateQueue = [];
   let useWebSocketRelay = false;
+
+  let selectedFiles = [];
+  let currentFileIndex = 0;
+  let totalTransferBytes = 0;
+  let sentTotalBytes = 0;
+
+  let receivedSize = 0;
+  let incomingFilesMeta = [];
+  let currentRecvFileIndex = 0;
+  let fileHandle = null;
+  let writableStream = null;
 
   const rtcConfig = {
     iceServers: [
@@ -375,15 +387,12 @@
       if(isSender && dataChannel) dataChannel.close();
     }
     else if (msg.type === 'signal') {
-      // Relay payloads are nested inside the 'signal' envelope, because that's the
-      // one message type we know the signaling server actually forwards peer-to-peer.
-      if (msg.data.relayMeta) {
+      if (msg.data.relayMetaQueue) {
         isSender = false;
         useWebSocketRelay = true;
-        incomingMeta = msg.data.relayMeta;
-        $("recv-file-name").textContent = incomingMeta.name;
-        $("recv-file-size").textContent = fmtSize(incomingMeta.size);
-        setGlobalStatus("READY TO RECEIVE " + incomingMeta.name + " (server relay)");
+        incomingFilesMeta = msg.data.relayMetaQueue;
+        renderReceiveFileList();
+        setGlobalStatus("READY TO RECEIVE " + incomingFilesMeta.length + " FILE(S) (server relay)");
         $("recv-accept-wrap").style.display = "block";
         return;
       }
@@ -391,7 +400,7 @@
         const rc = msg.data.relayChunk;
         if (rc.subType === 'request-resume') {
           if (isSender && useWebSocketRelay) {
-            sendViaWebSocketRelay(rc.offset || 0);
+            sendViaWebSocketRelay(rc.fileIndex || 0, rc.offset || 0);
           }
         } else if (rc.subType === 'data') {
           const base64 = rc.payload.split(',')[1] || rc.payload;
@@ -401,12 +410,22 @@
           if (writableStream) {
             await writableStream.write(bytes);
             receivedSize += bytes.byteLength;
-            const pct = Math.round((receivedSize / incomingMeta.size) * 100);
+            const currentMeta = incomingFilesMeta[currentRecvFileIndex];
+            const pct = Math.round((receivedSize / currentMeta.size) * 100);
             $("recv-progress").style.width = pct + "%";
-            $("recv-progress-label").textContent = `${pct}% received (server relay)`;
+            $("recv-progress-label").textContent = `File ${currentRecvFileIndex + 1}/${incomingFilesMeta.length}: ${pct}% received`;
           }
         } else if (rc.subType === 'EOF') {
-          finishDownload();
+          if (writableStream) { await writableStream.close(); writableStream = null; }
+          currentRecvFileIndex++;
+          if (currentRecvFileIndex < incomingFilesMeta.length) {
+            receivedSize = 0;
+            // Next file will prompt or auto-create if handle allowed, or prompt user for next file handle
+            $("recv-accept-wrap").style.display = "block";
+            setGlobalStatus(`File complete. Click to save next file (${currentRecvFileIndex + 1}/${incomingFilesMeta.length}).`);
+          } else {
+            finishDownload();
+          }
         }
         return;
       }
@@ -444,19 +463,11 @@
         console.warn("WebRTC Direct connection failed. Switching to Secure Server Relay...");
         showMsg(isSender ? $("send-msg") : $("recv-msg"), "Direct connection blocked. Switching to Server Relay...", "ok");
         useWebSocketRelay = true;
-        if (isSender && selectedFile) {
-          // Tell the receiver about the file over the signaling socket; wait for
-          // them to accept before streaming any data. Wrapped in a 'signal'
-          // envelope since that's the message type the server reliably forwards.
+        if (isSender && selectedFiles.length > 0) {
+          const queueMeta = selectedFiles.map(f => ({ name: f.name, filetype: f.type, size: f.size }));
           ws.send(JSON.stringify({
             type: 'signal',
-            data: {
-              relayMeta: {
-                name: selectedFile.name,
-                filetype: selectedFile.type,
-                size: selectedFile.size
-              }
-            }
+            data: { relayMetaQueue: queueMeta }
           }));
           $("send-pill").textContent = "WAITING FOR RECEIVER (RELAY)…";
           setGlobalStatus("RELAY READY — waiting for receiver to accept");
@@ -472,29 +483,41 @@
     dataChannel = null;
     iceCandidateQueue = [];
     useWebSocketRelay = false;
+    currentFileIndex = 0;
+    currentRecvFileIndex = 0;
+    sentTotalBytes = 0;
+    receivedSize = 0;
   }
 
-  let selectedFile = null;
   const dropzone = $("dropzone");
   const fileInput = $("file-input");
 
   dropzone.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (f) handleFile(f);
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(Array.from(e.target.files));
+    }
   });
 
-  function handleFile(f){
+  function handleFiles(files){
     hideMsg($("send-msg"));
-    selectedFile = f;
-    $("file-name").textContent = f.name;
-    $("file-size").textContent = fmtSize(f.size);
-    $("file-chip").style.display = "flex";
+    selectedFiles = files;
+    totalTransferBytes = selectedFiles.reduce((acc, f) => acc + f.size, 0);
+
+    const listContainer = $("file-list-container");
+    listContainer.innerHTML = "";
+    selectedFiles.forEach((f, idx) => {
+      const chip = document.createElement("div");
+      chip.className = "file-chip";
+      chip.innerHTML = `<span class="name">${idx + 1}. ${f.name}</span><span class="size">${fmtSize(f.size)}</span>`;
+      listContainer.appendChild(chip);
+    });
+    listContainer.style.display = "flex";
     $("btn-create").disabled = false;
   }
 
   $("btn-create").addEventListener("click", () => {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
     $("btn-create").disabled = true;
     isSender = true;
     currentSessionCode = genCode();
@@ -539,19 +562,19 @@
       if (useWebSocketRelay) return;
       $("send-pill").textContent = "CONNECTED…";
       setGlobalStatus("PEER CONNECTED — Waiting for them to accept");
-      const meta = { type: 'meta', name: selectedFile.name, filetype: selectedFile.type, size: selectedFile.size };
-      dataChannel.send(JSON.stringify(meta));
+      const queueMeta = selectedFiles.map(f => ({ name: f.name, filetype: f.type, size: f.size }));
+      dataChannel.send(JSON.stringify({ type: 'queue-meta', queue: queueMeta }));
     };
 
     dataChannel.onmessage = (e) => {
-        if (typeof e.data === 'string') {
-            const data = JSON.parse(e.data);
-            if (data.type === 'request-resume') {
-                $("send-pill").textContent = "IN TRANSIT…";
-                setGlobalStatus("STREAMING FILE AT MAX SPEED");
-                sendFileData(data.offset);
-            }
+      if (typeof e.data === 'string') {
+        const data = JSON.parse(e.data);
+        if (data.type === 'request-resume') {
+          $("send-pill").textContent = "IN TRANSIT…";
+          setGlobalStatus("STREAMING FILES AT MAX SPEED");
+          sendFileData(data.fileIndex || 0, data.offset || 0);
         }
+      }
     };
 
     const offer = await pc.createOffer();
@@ -559,39 +582,51 @@
     ws.send(JSON.stringify({ type: 'signal', data: { sdp: pc.localDescription } }));
   }
 
-  function sendFileData(startingOffset = 0) {
+  function sendFileData(fileIdx = 0, startingOffset = 0) {
+    currentFileIndex = fileIdx;
+    if (currentFileIndex >= selectedFiles.length) return;
+    const file = selectedFiles[currentFileIndex];
     let offset = startingOffset;
+
     dataChannel.bufferedAmountLowThreshold = 1024 * 1024;
     dataChannel.onbufferedamountlow = () => { readNextChunk(); };
 
     function readNextChunk() {
       if (dataChannel.readyState !== 'open') return;
-      if (offset >= selectedFile.size) {
-        dataChannel.send(JSON.stringify({ type: 'EOF' }));
-        $("send-pill").textContent = "DELIVERED";
-        $("send-pill").className = "pill done";
-        setGlobalStatus("DELIVERED — transfer complete");
+      if (offset >= file.size) {
+        dataChannel.send(JSON.stringify({ type: 'file-EOF', fileIndex: currentFileIndex }));
+        currentFileIndex++;
+        if (currentFileIndex < selectedFiles.length) {
+          sendFileData(currentFileIndex, 0);
+        } else {
+          $("send-pill").textContent = "DELIVERED";
+          $("send-pill").className = "pill done";
+          setGlobalStatus("DELIVERED — all files transfer complete");
+        }
         return;
       }
       if (dataChannel.bufferedAmount > dataChannel.bufferedAmountLowThreshold) { return; }
 
-      const slice = selectedFile.slice(offset, offset + CHUNK_SIZE);
+      const slice = file.slice(offset, offset + CHUNK_SIZE);
       slice.arrayBuffer().then(buffer => {
         dataChannel.send(buffer);
         offset += buffer.byteLength;
-        const pct = Math.round((offset / selectedFile.size) * 100);
-        $("send-progress").style.width = pct + "%";
-        $("send-progress-label").textContent = `${pct}% sent`;
+        sentTotalBytes += buffer.byteLength;
+        const pct = Math.round((sentTotalBytes / totalTransferBytes) * 100);
+        $("send-progress").style.width = Math.min(pct, 100) + "%";
+        $("send-progress-label").textContent = `File ${currentFileIndex + 1}/${selectedFiles.length}: ${Math.round((offset/file.size)*100)}%`;
         readNextChunk();
       });
     }
     readNextChunk();
   }
 
-  // Real implementation of the WebSocket relay fallback: streams the file as
-  // base64 chunks through the signaling socket when a direct P2P link isn't possible.
-  function sendViaWebSocketRelay(startingOffset = 0) {
+  function sendViaWebSocketRelay(fileIdx = 0, startingOffset = 0) {
+    currentFileIndex = fileIdx;
+    if (currentFileIndex >= selectedFiles.length) return;
+    const file = selectedFiles[currentFileIndex];
     let offset = startingOffset;
+
     $("send-pill").textContent = "RELAYING VIA SERVER…";
     $("send-pill").className = "pill ready";
     setGlobalStatus("STREAMING VIA SERVER RELAY");
@@ -601,22 +636,27 @@
         showMsg($("send-msg"), "Signaling connection lost — can't relay.", "err");
         return;
       }
-      if (offset >= selectedFile.size) {
-        ws.send(JSON.stringify({ type: 'signal', data: { relayChunk: { subType: 'EOF' } } }));
-        $("send-pill").textContent = "DELIVERED";
-        $("send-pill").className = "pill done";
-        setGlobalStatus("DELIVERED — transfer complete (server relay)");
+      if (offset >= file.size) {
+        ws.send(JSON.stringify({ type: 'signal', data: { relayChunk: { subType: 'EOF', fileIndex: currentFileIndex } } }));
+        currentFileIndex++;
+        if (currentFileIndex < selectedFiles.length) {
+          sendViaWebSocketRelay(currentFileIndex, 0);
+        } else {
+          $("send-pill").textContent = "DELIVERED";
+          $("send-pill").className = "pill done";
+          setGlobalStatus("DELIVERED — all files transfer complete (server relay)");
+        }
         return;
       }
-      const slice = selectedFile.slice(offset, offset + RELAY_CHUNK_SIZE);
+      const slice = file.slice(offset, offset + RELAY_CHUNK_SIZE);
       const reader = new FileReader();
       reader.onload = () => {
-        ws.send(JSON.stringify({ type: 'signal', data: { relayChunk: { subType: 'data', payload: reader.result } } }));
+        ws.send(JSON.stringify({ type: 'signal', data: { relayChunk: { subType: 'data', payload: reader.result, fileIndex: currentFileIndex } } }));
         offset += slice.size;
-        const pct = Math.round((offset / selectedFile.size) * 100);
-        $("send-progress").style.width = pct + "%";
-        $("send-progress-label").textContent = `${pct}% sent (server relay)`;
-        // small pacing delay so we don't flood the signaling socket faster than it can send
+        sentTotalBytes += slice.size;
+        const pct = Math.round((sentTotalBytes / totalTransferBytes) * 100);
+        $("send-progress").style.width = Math.min(pct, 100) + "%";
+        $("send-progress-label").textContent = `File ${currentFileIndex + 1}/${selectedFiles.length}: ${Math.round((offset/file.size)*100)}% (relay)`;
         setTimeout(sendNext, 15);
       };
       reader.onerror = () => showMsg($("send-msg"), "Error reading file during relay.", "err");
@@ -632,24 +672,21 @@
 
   $("btn-reset-send").addEventListener("click", () => {
     resetConnections();
-    selectedFile = null;
+    selectedFiles = [];
     $("send-result").style.display = "none";
-    $("file-chip").style.display = "none";
+    $("file-list-container").style.display = "none";
+    $("file-list-container").innerHTML = "";
     $("btn-create").disabled = true;
     $("send-progress").style.width = "0%";
     fileInput.value = "";
     hideMsg($("send-msg"));
-    setGlobalStatus("IDLE — choose a file to send");
+    setGlobalStatus("IDLE — choose files to send");
   });
 
   let mediaStream = null;
   let scanning = false;
   let scanFrameCount = 0;
   const enteredDigits = new Array(CODE_LEN).fill("");
-  let receivedSize = 0;
-  let incomingMeta = null;
-  let fileHandle = null;
-  let writableStream = null;
 
   const modeButtons = document.querySelectorAll(".recv-modes button");
   modeButtons.forEach(btn => {
@@ -708,8 +745,7 @@
       scanning = true;
       requestAnimationFrame(scanFrame);
     } catch(err){
-      console.error("Camera error:", err);
-      showMsg($("recv-msg"), "Couldn't access camera (" + (err.name || err.message) + "). Use 'Enter code'.", "err");
+      showMsg($("recv-msg"), "Couldn't access camera. Use 'Enter code'.", "err");
     }
   });
 
@@ -735,7 +771,6 @@
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const result = window.jsQR ? jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" }) : null;
       scanFrameCount++;
-      if ($("scan-status")) $("scan-status").textContent = "Scanning… (" + canvas.width + "×" + canvas.height + ", frame " + scanFrameCount + ")";
       if (result && result.data){
         let scannedText = result.data.trim();
         let finalCode = scannedText.includes('?code=') ? scannedText.split('?code=')[1].substring(0, 5).toUpperCase() : scannedText.toUpperCase();
@@ -746,12 +781,8 @@
           if (ws.readyState === WebSocket.OPEN) { beginReceive(finalCode); }
           else { ws.onopen = () => beginReceive(finalCode); }
           return;
-        } else {
-          if ($("scan-status")) $("scan-status").textContent = "Saw a QR code but couldn't read a valid transfer code from it.";
         }
       }
-    } else {
-      if ($("scan-status")) $("scan-status").textContent = "Waiting for camera feed…";
     }
     requestAnimationFrame(scanFrame);
   }
@@ -778,28 +809,30 @@
       dataChannel.onmessage = async (e) => {
         if (typeof e.data === 'string') {
           const data = JSON.parse(e.data);
-          if (data.type === 'meta') {
-            if (writableStream && incomingMeta && incomingMeta.name === data.name) {
-                $("recv-progress-track").style.display = "block";
-                $("recv-progress-label-wrap").style.display = "flex";
-                dataChannel.send(JSON.stringify({ type: 'request-resume', offset: receivedSize }));
+          if (data.type === 'queue-meta') {
+            incomingFilesMeta = data.queue;
+            renderReceiveFileList();
+            setGlobalStatus("READY TO RECEIVE " + incomingFilesMeta.length + " FILE(S)");
+            $("recv-accept-wrap").style.display = "block";
+          } else if (data.type === 'file-EOF') {
+            if (writableStream) { await writableStream.close(); writableStream = null; }
+            currentRecvFileIndex++;
+            if (currentRecvFileIndex < incomingFilesMeta.length) {
+              receivedSize = 0;
+              $("recv-accept-wrap").style.display = "block";
+              setGlobalStatus(`File saved. Click to save next file (${currentRecvFileIndex + 1}/${incomingFilesMeta.length}).`);
             } else {
-                incomingMeta = data;
-                $("recv-file-name").textContent = incomingMeta.name;
-                $("recv-file-size").textContent = fmtSize(incomingMeta.size);
-                setGlobalStatus("READY TO RECEIVE " + incomingMeta.name);
-                $("recv-accept-wrap").style.display = "block";
+              finishDownload();
             }
-          } else if (data.type === 'EOF') {
-            await finishDownload();
           }
         } else {
           if (writableStream) {
-              await writableStream.write(e.data);
-              receivedSize += e.data.byteLength;
-              const pct = Math.round((receivedSize / incomingMeta.size) * 100);
-              $("recv-progress").style.width = pct + "%";
-              $("recv-progress-label").textContent = `${pct}% received`;
+            await writableStream.write(e.data);
+            receivedSize += e.data.byteLength;
+            const currentMeta = incomingFilesMeta[currentRecvFileIndex];
+            const pct = Math.round((receivedSize / currentMeta.size) * 100);
+            $("recv-progress").style.width = pct + "%";
+            $("recv-progress-label").textContent = `File ${currentRecvFileIndex + 1}/${incomingFilesMeta.length}: ${pct}% received`;
           }
         }
       };
@@ -812,29 +845,42 @@
     ws.send(JSON.stringify({ type: 'join', code: code }));
   }
 
+  function renderReceiveFileList(){
+    const listContainer = $("recv-file-list");
+    listContainer.innerHTML = "";
+    incomingFilesMeta.forEach((f, idx) => {
+      const chip = document.createElement("div");
+      chip.className = "file-chip";
+      chip.innerHTML = `<span class="name">${idx + 1}. ${f.name}</span><span class="size">${fmtSize(f.size)}</span>`;
+      listContainer.appendChild(chip);
+    });
+    listContainer.style.display = "flex";
+  }
+
   $("btn-accept-file").addEventListener("click", async () => {
-      try {
-          fileHandle = await window.showSaveFilePicker({ suggestedName: incomingMeta.name });
-          writableStream = await fileHandle.createWritable();
-          $("recv-accept-wrap").style.display = "none";
-          $("recv-progress-track").style.display = "block";
-          $("recv-progress-label-wrap").style.display = "flex";
-          if (useWebSocketRelay) {
-            ws.send(JSON.stringify({ type: 'signal', data: { relayChunk: { subType: 'request-resume', offset: 0 } } }));
-          } else {
-            dataChannel.send(JSON.stringify({ type: 'request-resume', offset: 0 }));
-          }
-      } catch (err) {
-          showMsg($("recv-msg"), "Save canceled. Refresh to try again.", "err");
-          resetConnections();
+    try {
+      const currentMeta = incomingFilesMeta[currentRecvFileIndex];
+      fileHandle = await window.showSaveFilePicker({ suggestedName: currentMeta.name });
+      writableStream = await fileHandle.createWritable();
+      $("recv-accept-wrap").style.display = "none";
+      $("recv-progress-track").style.display = "block";
+      $("recv-progress-label-wrap").style.display = "flex";
+
+      if (useWebSocketRelay) {
+        ws.send(JSON.stringify({ type: 'signal', data: { relayChunk: { subType: 'request-resume', fileIndex: currentRecvFileIndex, offset: 0 } } }));
+      } else {
+        dataChannel.send(JSON.stringify({ type: 'request-resume', fileIndex: currentRecvFileIndex, offset: 0 }));
       }
+    } catch (err) {
+      showMsg($("recv-msg"), "Save canceled. Try again.", "err");
+    }
   });
 
   async function finishDownload() {
     if (writableStream) { await writableStream.close(); }
-    $("recv-progress-label").textContent = "File complete";
-    $("recv-download-wrap").innerHTML = '<div style="color:var(--teal); font-weight:bold;">File saved successfully!</div>';
-    setGlobalStatus("ARRIVED — File saved directly to your device.");
+    $("recv-progress-label").textContent = "All files complete";
+    $("recv-download-wrap").innerHTML = '<div style="color:var(--teal); font-weight:bold;">All files saved successfully!</div>';
+    setGlobalStatus("ARRIVED — All files saved directly to your device.");
   }
 
   $("btn-reset-recv").addEventListener("click", () => {
@@ -844,15 +890,14 @@
     $("recv-progress-track").style.display = "none";
     $("recv-progress-label-wrap").style.display = "none";
     $("recv-download-wrap").innerHTML = "";
+    $("recv-file-list").style.display = "none";
+    $("recv-file-list").innerHTML = "";
     enteredDigits.fill("");
     document.querySelectorAll("#code-input-row input").forEach(i => i.value = "");
     hideMsg($("recv-msg"));
     $("btn-fetch").disabled = false;
     $("btn-reset-recv").style.display = "none";
-    receivedSize = 0;
-    writableStream = null;
-    fileHandle = null;
-    incomingMeta = null;
+    incomingFilesMeta = [];
     setGlobalStatus("IDLE — scan or type a code");
   });
 
