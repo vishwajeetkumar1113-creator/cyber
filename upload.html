@@ -66,8 +66,9 @@
             <input type="range" id="a4HSlider" min="5" max="100" value="35" oninput="updateA4Adj()">
         </div>
 
-        <div style="margin-top:12px; width:100%;">
-            <button id="confirmA4Btn" onclick="confirmA4Adjust()" style="width:100%; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 15px; cursor: pointer;">✅ Save to A4</button>
+        <div style="margin-top:15px; width:100%; display: flex; gap: 10px;">
+            <button type="button" onclick="rotateA4Image()" style="flex:1; padding:12px; background:#17a2b8; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 15px; cursor: pointer;">↻ Rotate</button>
+            <button id="confirmA4Btn" onclick="confirmA4Adjust()" style="flex:1.5; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 15px; cursor: pointer;">✅ Save to A4</button>
         </div>
     </div>
 </div>
@@ -692,18 +693,13 @@ function openA4AdjustModal(sourceCanvas) {
         
         a4AdjImg = drawCanvas;
 
-        // 🔥 FIX: Calculate Exact Aspect Ratio from Cropped Image
         let cropRatio = a4AdjImg.height / a4AdjImg.width;
-
-        // Set default width to 45% of A4 Sheet
         let startWPercent = 45;
         let startWPixels = a4CanvasW * (startWPercent / 100);
 
-        // Calculate height to match EXACT crop proportion
         let startHPixels = startWPixels * cropRatio;
         let startHPercent = (startHPixels / a4CanvasH) * 100;
 
-        // Failsafe: if height exceeds 85% of page, scale down based on height
         if (startHPercent > 85) {
             startHPercent = 85;
             startHPixels = a4CanvasH * (startHPercent / 100);
@@ -714,12 +710,64 @@ function openA4AdjustModal(sourceCanvas) {
         document.getElementById('a4WSlider').value = Math.round(startWPercent);
         document.getElementById('a4HSlider').value = Math.round(startHPercent);
 
-        // Place exactly in Top-Center of A4
         a4AdjState.x = (a4CanvasW - startWPixels) / 2;
         a4AdjState.y = a4CanvasH * 0.10;
 
         updateA4Adj();
     });
+}
+
+// 🔥 NEW: Rotate Image Inside A4 Popup
+function rotateA4Image() {
+    if (!a4AdjImg) return;
+    
+    // Rotate canvas in memory
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = a4AdjImg.height;
+    tempCanvas.height = a4AdjImg.width;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+    ctx.rotate(90 * Math.PI / 180);
+    ctx.drawImage(a4AdjImg, -a4AdjImg.width / 2, -a4AdjImg.height / 2);
+    
+    a4AdjImg = tempCanvas;
+
+    // Keep the physical pixel size intact (Swap Width and Height)
+    let oldW = a4AdjState.w;
+    let oldH = a4AdjState.h;
+
+    // Calculate center point of the document so it rotates in-place
+    let cx = a4AdjState.x + oldW / 2;
+    let cy = a4AdjState.y + oldH / 2;
+
+    // Calculate new percentages for the sliders
+    let newWPercent = (oldH / a4CanvasW) * 100;
+    let newHPercent = (oldW / a4CanvasH) * 100;
+
+    // Bound the sliders between 5 and 100
+    newWPercent = Math.max(5, Math.min(100, newWPercent));
+    newHPercent = Math.max(5, Math.min(100, newHPercent));
+
+    document.getElementById('a4WSlider').value = Math.round(newWPercent);
+    document.getElementById('a4HSlider').value = Math.round(newHPercent);
+
+    // Apply new physical dimensions
+    a4AdjState.w = oldH;
+    a4AdjState.h = oldW;
+
+    // Keep it centered at its old spot
+    a4AdjState.x = cx - a4AdjState.w / 2;
+    a4AdjState.y = cy - a4AdjState.h / 2;
+
+    // Prevent going out of screen boundaries
+    a4AdjState.x = Math.max(0, Math.min(a4AdjState.x, a4CanvasW - a4AdjState.w));
+    a4AdjState.y = Math.max(0, Math.min(a4AdjState.y, a4CanvasH - a4AdjState.h));
+
+    // Manually update text and redraw since we overrode standard update logic slightly
+    document.getElementById('a4Wtxt').innerText = Math.round(newWPercent) + '%';
+    document.getElementById('a4Htxt').innerText = Math.round(newHPercent) + '%';
+    
+    drawA4Adj();
 }
 
 function updateA4Adj() {
@@ -918,7 +966,6 @@ async function saveCropAndNext() {
                 dest = new cv.Mat();
                 cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
-                // 🔥 NEW & SAFE AUTO-CLEAN FILTER LOGIC (SOFT UNSHARP MASK)
                 let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
 
                 if (printType == "5") {
@@ -928,10 +975,9 @@ async function saveCropAndNext() {
                         let bg = null;
                         try {
                             bg = new cv.Mat();
-                            // 🪄 Smart Unsharp Mask: Text dark karega aur whiteness ko natural rakhega
                             cv.GaussianBlur(dest, bg, new cv.Size(25, 25), 0, 0, cv.BORDER_DEFAULT);
                             cv.addWeighted(dest, 1.5, bg, -0.5, 0, dest); 
-                            dest.convertTo(dest, -1, 1.15, 5); // Halki si chamak aur contrast
+                            dest.convertTo(dest, -1, 1.15, 5); 
                         } catch (filterErr) {
                             console.warn("Clean Filter Failed", filterErr);
                         } finally {
