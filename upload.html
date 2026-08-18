@@ -43,11 +43,13 @@
 
 <body>
 
+<!-- 🔥 A4 CUSTOM ADJUST MODAL (POPUP) -->
 <div id="a4AdjustModal" class="modal-overlay">
     <div class="modal-container">
         <h3 style="color:#1976d2; margin-top:0; margin-bottom:4px;">📄 Adjust on A4 Sheet</h3>
         <p style="font-size:12px; color:#555; margin-bottom: 10px;">Document ko ungli se move karein aur LxB sliders se size set karein.</p>
 
+        <!-- A4 Aspect Ratio Canvas Box -->
         <div style="position:relative; display:inline-block; border: 2px solid #333; background: #ffffff; border-radius: 4px; overflow: hidden; box-shadow: 0 3px 8px rgba(0,0,0,0.2);">
             <canvas id="a4AdjustCanvas" width="248" height="350" style="touch-action: none; background: #ffffff; cursor: move; display: block;"></canvas>
         </div>
@@ -90,6 +92,7 @@
         <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
     </div>
 
+    <!-- 🔥 Default Mode: Full Page (Stretch), Option 2: Ration Card / ID Popup -->
     <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #bbdefb;">
         <label style="color: #1565c0;">Image Print Mode:</label>
         <select id="docType" style="font-weight: bold; color: #111;">
@@ -895,7 +898,7 @@ async function saveCropAndNext() {
                 dest = new cv.Mat();
                 cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
-                // 🔥 NEW & SAFE AUTO-CLEAN FILTER LOGIC (SOFT)
+                // 🔥 NEW & SAFE AUTO-CLEAN FILTER LOGIC (SOFT UNSHARP MASK)
                 let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
 
                 if (printType == "5") {
@@ -905,14 +908,12 @@ async function saveCropAndNext() {
                         let bg = null;
                         try {
                             bg = new cv.Mat();
-                            // Background Estimation via Blurring (Soft Kernel)
-                            cv.GaussianBlur(dest, bg, new cv.Size(31, 31), 0, 0, cv.BORDER_DEFAULT);
-                            // Normalize illumination (Makes background white)
-                            cv.divide(dest, bg, dest, 255.0);
-                            // Soft Contrast & Darken Text adjustment (alpha=1.15, beta=-10)
-                            dest.convertTo(dest, -1, 1.15, -10);
+                            // 🪄 Smart Unsharp Mask: Text dark karega aur whiteness ko natural rakhega
+                            cv.GaussianBlur(dest, bg, new cv.Size(25, 25), 0, 0, cv.BORDER_DEFAULT);
+                            cv.addWeighted(dest, 1.5, bg, -0.5, 0, dest); 
+                            dest.convertTo(dest, -1, 1.15, 5); // Halki si chamak aur contrast
                         } catch (filterErr) {
-                            console.warn("Clean Filter Failed, proceeding with normal B&W", filterErr);
+                            console.warn("Clean Filter Failed", filterErr);
                         } finally {
                             if (bg) bg.delete();
                         }
