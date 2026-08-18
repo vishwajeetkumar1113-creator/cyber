@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart Document Upload</title>
+    <title>Smart Document Upload Pro</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -31,10 +31,47 @@
         .force-grayscale { filter: grayscale(100%) brightness(105%) contrast(105%) !important; }
         #submitBtn { background: #1976d2; color: white; width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s ease; }
         #submitBtn:disabled, #saveCropBtn:disabled { cursor: not-allowed; }
+
+        /* 🔥 Added Styles for A4 Adjust Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        .modal-container { background: #fff; padding: 20px; border-radius: 8px; text-align: center; width: 95%; max-width: 400px; max-height: 95vh; display: flex; flex-direction: column; align-items: center; overflow-y: auto; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; margin: 8px 0; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #1976d2; cursor: pointer; margin-top: -6px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #bbdefb; border-radius: 3px; }
     </style>
 </head>
 
 <body>
+
+<!-- 🔥 A4 CUSTOM ADJUST MODAL (POPUP) -->
+<div id="a4AdjustModal" class="modal-overlay">
+    <div class="modal-container">
+        <h3 style="color:#1976d2; margin-top:0; margin-bottom:5px;">📄 Adjust Document on A4</h3>
+        <p style="font-size:12px; color:#555; margin-bottom: 15px;">A4 Sheet par document ko ungli se move karein aur LxB sliders se size set karein.</p>
+
+        <!-- A4 Aspect Ratio Canvas (1:1.414) -->
+        <div style="position:relative; display:inline-block; border: 2px solid #ccc; background: white; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+            <canvas id="a4AdjustCanvas" width="248" height="350" style="touch-action: none; background: white; cursor: move;"></canvas>
+        </div>
+
+        <div style="width: 100%; margin-top: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333;">
+                <span>Width (B)</span><span id="a4Wtxt">35%</span>
+            </div>
+            <input type="range" id="a4WSlider" min="10" max="100" value="35" oninput="updateA4Adj()">
+
+            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333; margin-top: 5px;">
+                <span>Height (L)</span><span id="a4Htxt">25%</span>
+            </div>
+            <input type="range" id="a4HSlider" min="10" max="100" value="25" oninput="updateA4Adj()">
+        </div>
+
+        <div style="margin-top:15px; width:100%;">
+            <button id="confirmA4Btn" onclick="confirmA4Adjust()" style="width:100%; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 15px;">✅ Save to A4</button>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <h2>Upload Document</h2>
     <p id="cvStatus" style="text-align:center; font-size:12px; color:#e65100; margin:-5px 0 10px 0;">⏳ Loading image enhancer...</p>
@@ -55,12 +92,11 @@
         <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
     </div>
 
-    <!-- 🔥 Added fit and stretch options -->
     <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px;">
         <label style="color: #1565c0;">Image Print Size:</label>
-        <select id="docType" style="font-weight: bold;">
-            <option value="fit" selected>A4 Perfect Fit (Ration Card / ID)</option>
-            <option value="full">A4 Stretch (Marksheet / Full Poster)</option>
+        <select id="docType" style="font-weight: bold; color: #111;">
+            <option value="full" selected>A4 Full Page (Stretch / Marksheet)</option>
+            <option value="fit">A4 Custom Adjust (Ration / ID Popup)</option>
         </select>
     </div>
 
@@ -132,7 +168,6 @@
 
 <script>
     document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
-    
     document.onkeydown = function(e) {
         if (e.keyCode === 123) return false;
         if (e.ctrlKey && e.shiftKey && e.keyCode === 73) return false;
@@ -327,7 +362,7 @@ async function handleFileSelectionChange(){
     const files = document.getElementById("file").files;
     if (!files || files.length === 0) return;
 
-    let maxSizeInBytes = 20 * 1024 * 1024; // 20 MB per file max
+    let maxSizeInBytes = 20 * 1024 * 1024;
     for (let i = 0; i < files.length; i++) {
         if (files[i].size > maxSizeInBytes) {
             alert(`⚠️ Error: "${files[i].name}" bahut badi file hai! Kripya 20MB se choti file upload karein.`);
@@ -371,7 +406,7 @@ async function handleFileSelectionChange(){
     if (uploadedImagesList.length > 0) {
         document.getElementById("pdfUI").style.display = "none";
         document.getElementById("imageUI").style.display = "block";
-        document.getElementById("docTypeGroup").style.display = "block"; // Make dropdown visible
+        document.getElementById("docTypeGroup").style.display = "block"; 
         document.getElementById("cropPreviewContainer").style.display = "none";
         document.getElementById("cropAreaWrapper").style.display = "block";
         
@@ -593,7 +628,6 @@ async function previewDocument() {
     applyPreviewFilter();
 }
 
-// 🔥 NEW: Full Page Selection Function
 function selectFullPage() {
     if (!cropEngine.img) return;
     const w = cropEngine.canvas.width;
@@ -648,7 +682,6 @@ function rotateImage() {
                     console.warn("Auto-Detect fail hua (rotate).", err);
                 }
             }
-
             drawCrop();
         };
         rotatedImg.src = internalCanvas.toDataURL("image/jpeg");
@@ -670,50 +703,176 @@ function drawCrop() {
     s.corners.forEach(c => { s.ctx.fillStyle = '#28a745'; s.ctx.beginPath(); s.ctx.arc(c.x, c.y, 14, 0, Math.PI * 2); s.ctx.fill(); s.ctx.strokeStyle = '#fff'; s.ctx.lineWidth = 3; s.ctx.stroke(); });
 }
 
-async function compressImage(dataUrl, maxSizeKB = 500) {
-    return new Promise((resolve) => {
-        if (dataUrl.length < maxSizeKB * 1024 * 1.33) {
-            return resolve(dataUrl);
+// 🔥 EVENT LISTENERS FOR CROP DRAGGING
+function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
+cropEngine.canvas.addEventListener('touchstart', e=>{ const s=cropEngine; if(e.touches.length===2){ s.activeCorner=-1; s.isPanning=false; s.lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); s.lastTouchX=(e.touches[0].clientX+e.touches[1].clientX)/2; s.lastTouchY=(e.touches[0].clientY+e.touches[1].clientY)/2; } else if(e.touches.length===1){ const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY;} } }, {passive:false});
+cropEngine.canvas.addEventListener('touchmove', e=>{ const s=cropEngine; e.preventDefault(); if(e.touches.length===2){ const cDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2; let nz=s.zoom*(cDist/s.lastTouchDist); nz=Math.max(1,Math.min(8,nz)); const r=s.canvas.getBoundingClientRect(); const rx=(cx-r.left)*(s.canvas.width/r.width), ry=(cy-r.top)*(s.canvas.height/r.height); s.offsetX=rx-(rx-s.offsetX)*(nz/s.zoom); s.offsetY=ry-(ry-s.offsetY)*(nz/s.zoom); s.zoom=nz; s.offsetX+=(cx-s.lastTouchX); s.offsetY+=(cy-s.lastTouchY); s.lastTouchDist=cDist; s.lastTouchX=cx; s.lastTouchY=cy; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); } else if(e.touches.length===1){ if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.touches[0].clientX-s.lastTouchX); s.offsetY+=(e.touches[0].clientY-s.lastTouchY); s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY; drawCrop(); } } }, {passive:false});
+window.addEventListener('touchend', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
+cropEngine.canvas.addEventListener('mousedown', e=>{ const s=cropEngine; const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.clientX; s.lastTouchY=e.clientY;} });
+cropEngine.canvas.addEventListener('mousemove', e=>{ const s=cropEngine; if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.clientX-s.lastTouchX); s.offsetY+=(e.clientY-s.lastTouchY); s.lastTouchX=e.clientX; s.lastTouchY=e.clientY; drawCrop(); } });
+window.addEventListener('mouseup', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
+cropEngine.canvas.addEventListener('wheel', e=>{ e.preventDefault(); const s=cropEngine; const m=getPos(e); let nz=e.deltaY<0?s.zoom*1.1:s.zoom/1.1; nz=Math.max(1,Math.min(8,nz)); s.offsetX=m.x-(m.x-s.offsetX)*(nz/s.zoom); s.offsetY=m.y-(m.y-s.offsetY)*(nz/s.zoom); s.zoom=nz; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); }, {passive:false});
+
+
+// 🔥 A4 CUSTOM ADJUSTMENT MODAL VARIABLES & FUNCTIONS
+let a4AdjImg = null;
+const a4CanvasW = 2480;
+const a4CanvasH = 3508;
+let a4AdjState = { x: 0, y: 0, w: 0, h: 0 };
+let a4Resolver = null;
+let isA4Dragging = false;
+let a4DragStartX = 0, a4DragStartY = 0;
+let a4OrigX = 0, a4OrigY = 0;
+
+function openA4AdjustModal(sourceCanvas) {
+    return new Promise(resolve => {
+        a4Resolver = resolve;
+        document.getElementById('a4AdjustModal').style.display = 'flex';
+        
+        let drawCanvas = sourceCanvas;
+        if (sourceCanvas.width > sourceCanvas.height) {
+            drawCanvas = document.createElement('canvas');
+            drawCanvas.width = sourceCanvas.height;
+            drawCanvas.height = sourceCanvas.width;
+            const rotCtx = drawCanvas.getContext('2d');
+            rotCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
+            rotCtx.rotate(Math.PI / 2);
+            rotCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
         }
+        
+        a4AdjImg = drawCanvas;
 
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
+        document.getElementById('a4WSlider').value = 35;
+        document.getElementById('a4HSlider').value = 25;
 
-            const MAX_DIMENSION = 2000;
-            if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-                if (width > height) {
-                    height = Math.round((height * MAX_DIMENSION) / width);
-                    width = MAX_DIMENSION;
-                } else {
-                    width = Math.round((width * MAX_DIMENSION) / height);
-                    height = MAX_DIMENSION;
-                }
-            }
+        a4AdjState.x = a4CanvasW * 0.32;
+        a4AdjState.y = a4CanvasH * 0.1;
 
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, width, height);
-            ctx.drawImage(img, 0, 0, width, height);
-
-            let quality = 0.90;
-            let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-
-            while (compressedDataUrl.length > maxSizeKB * 1024 * 1.33 && quality > 0.4) {
-                quality -= 0.1;
-                compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-            }
-
-            resolve(compressedDataUrl);
-        };
-        img.src = dataUrl;
+        updateA4Adj();
     });
 }
 
+function updateA4Adj() {
+    let wp = document.getElementById('a4WSlider').value;
+    let hp = document.getElementById('a4HSlider').value;
+    document.getElementById('a4Wtxt').innerText = wp + '%';
+    document.getElementById('a4Htxt').innerText = hp + '%';
+
+    a4AdjState.w = a4CanvasW * (wp / 100);
+    a4AdjState.h = a4CanvasH * (hp / 100);
+
+    drawA4Adj();
+}
+
+function drawA4Adj() {
+    const cvs = document.getElementById('a4AdjustCanvas');
+    const ctx = cvs.getContext('2d');
+    ctx.clearRect(0,0, cvs.width, cvs.height);
+
+    const scaleX = cvs.width / a4CanvasW;
+    const scaleY = cvs.height / a4CanvasH;
+
+    ctx.strokeStyle = '#eee';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0,0, cvs.width, cvs.height);
+
+    let drawX = a4AdjState.x * scaleX;
+    let drawY = a4AdjState.y * scaleY;
+    let drawW = a4AdjState.w * scaleX;
+    let drawH = a4AdjState.h * scaleY;
+
+    const isBw = document.getElementById("type").value == 5;
+    if (isBw && typeof cv === 'undefined') ctx.filter = 'grayscale(100%)';
+    ctx.drawImage(a4AdjImg, drawX, drawY, drawW, drawH);
+    ctx.filter = 'none';
+
+    ctx.strokeStyle = '#1976d2';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(drawX, drawY, drawW, drawH);
+    ctx.setLineDash([]);
+}
+
+const a4c = document.getElementById('a4AdjustCanvas');
+function getA4Mouse(e) {
+    const rect = a4c.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: (clientX - rect.left) * (a4CanvasW / rect.width),
+        y: (clientY - rect.top) * (a4CanvasH / rect.height)
+    };
+}
+
+a4c.addEventListener('mousedown', startA4Drag);
+a4c.addEventListener('touchstart', startA4Drag, {passive: false});
+
+function startA4Drag(e) {
+    e.preventDefault();
+    const pos = getA4Mouse(e);
+    if (pos.x >= a4AdjState.x && pos.x <= a4AdjState.x + a4AdjState.w &&
+        pos.y >= a4AdjState.y && pos.y <= a4AdjState.y + a4AdjState.h) {
+        isA4Dragging = true;
+        a4DragStartX = pos.x;
+        a4DragStartY = pos.y;
+        a4OrigX = a4AdjState.x;
+        a4OrigY = a4AdjState.y;
+    }
+}
+
+a4c.addEventListener('mousemove', moveA4Drag);
+a4c.addEventListener('touchmove', moveA4Drag, {passive: false});
+
+function moveA4Drag(e) {
+    if (!isA4Dragging) return;
+    e.preventDefault();
+    const pos = getA4Mouse(e);
+    let dx = pos.x - a4DragStartX;
+    let dy = pos.y - a4DragStartY;
+
+    let nx = a4OrigX + dx;
+    let ny = a4OrigY + dy;
+    nx = Math.max(0, Math.min(nx, a4CanvasW - a4AdjState.w));
+    ny = Math.max(0, Math.min(ny, a4CanvasH - a4AdjState.h));
+
+    a4AdjState.x = nx;
+    a4AdjState.y = ny;
+    drawA4Adj();
+}
+
+window.addEventListener('mouseup', stopA4Drag);
+window.addEventListener('touchend', stopA4Drag);
+function stopA4Drag() { isA4Dragging = false; }
+
+async function confirmA4Adjust() {
+    const btn = document.getElementById('confirmA4Btn');
+    btn.innerText = "⏳ Generating...";
+    btn.disabled = true;
+
+    await new Promise(r => setTimeout(r, 50)); 
+
+    const finalA4 = document.createElement('canvas');
+    finalA4.width = a4CanvasW;
+    finalA4.height = a4CanvasH;
+    const ctx = finalA4.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0,0, a4CanvasW, a4CanvasH);
+
+    const isBw = document.getElementById("type").value == 5;
+    if (isBw && typeof cv === 'undefined') ctx.filter = 'grayscale(100%)';
+    ctx.drawImage(a4AdjImg, a4AdjState.x, a4AdjState.y, a4AdjState.w, a4AdjState.h);
+    ctx.filter = 'none';
+
+    const dataUrl = finalA4.toDataURL('image/jpeg', 0.95);
+
+    document.getElementById('a4AdjustModal').style.display = 'none';
+    btn.innerText = "✅ Save to A4";
+    btn.disabled = false;
+
+    if (a4Resolver) a4Resolver(dataUrl);
+}
+
+// 🔥 PROCESS CROP, OPEN MODAL OR CONVERT IMMEDIATELY
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -842,9 +1001,16 @@ async function saveCropAndNext() {
         hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
     }
 
-    let a4DataUrl = await convertToA4(hCvs);
-    a4DataUrl = await compressImage(a4DataUrl, 500);
+    let docType = document.getElementById("docType") ? document.getElementById("docType").value : "full";
+    let a4DataUrl;
+    
+    if (docType === "fit") {
+        a4DataUrl = await openA4AdjustModal(hCvs);
+    } else {
+        a4DataUrl = await convertToA4(hCvs);
+    }
 
+    a4DataUrl = await compressImage(a4DataUrl, 500);
     processedA4Images.push(a4DataUrl);
     
     currentImageIndex++;
@@ -876,36 +1042,12 @@ async function convertToA4(sourceCanvas) {
             ctx.filter = 'grayscale(100%)';
         }
 
-        // 🔥 Added Document Type Logic (Fit vs Stretch)
-        const docType = document.getElementById("docType") ? document.getElementById("docType").value : "fit";
-
-        if (docType === "fit") {
-            // Scale to fit within A4 while keeping aspect ratio (with 5% safe margin)
-            const margin = 0.95; // 95% of A4
-            const scale = Math.min((a4.width * margin) / drawCanvas.width, (a4.height * margin) / drawCanvas.height);
-            const drawW = drawCanvas.width * scale;
-            const drawH = drawCanvas.height * scale;
-            const offsetX = (a4.width - drawW) / 2;
-            const offsetY = (a4.height - drawH) / 2;
-            ctx.drawImage(drawCanvas, offsetX, offsetY, drawW, drawH);
-        } else {
-            // Stretch to fill completely (Old behavior)
-            ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height);
-        }
-
+        ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height); 
         ctx.filter = 'none';
+
         resolve(a4.toDataURL("image/jpeg", 0.95));
     });
 }
-
-function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
-cropEngine.canvas.addEventListener('touchstart', e=>{ const s=cropEngine; if(e.touches.length===2){ s.activeCorner=-1; s.isPanning=false; s.lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); s.lastTouchX=(e.touches[0].clientX+e.touches[1].clientX)/2; s.lastTouchY=(e.touches[0].clientY+e.touches[1].clientY)/2; } else if(e.touches.length===1){ const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY;} } }, {passive:false});
-cropEngine.canvas.addEventListener('touchmove', e=>{ const s=cropEngine; e.preventDefault(); if(e.touches.length===2){ const cDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2; let nz=s.zoom*(cDist/s.lastTouchDist); nz=Math.max(1,Math.min(8,nz)); const r=s.canvas.getBoundingClientRect(); const rx=(cx-r.left)*(s.canvas.width/r.width), ry=(cy-r.top)*(s.canvas.height/r.height); s.offsetX=rx-(rx-s.offsetX)*(nz/s.zoom); s.offsetY=ry-(ry-s.offsetY)*(nz/s.zoom); s.zoom=nz; s.offsetX+=(cx-s.lastTouchX); s.offsetY+=(cy-s.lastTouchY); s.lastTouchDist=cDist; s.lastTouchX=cx; s.lastTouchY=cy; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); } else if(e.touches.length===1){ if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.touches[0].clientX-s.lastTouchX); s.offsetY+=(e.touches[0].clientY-s.lastTouchY); s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY; drawCrop(); } } }, {passive:false});
-window.addEventListener('touchend', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
-cropEngine.canvas.addEventListener('mousedown', e=>{ const s=cropEngine; const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.clientX; s.lastTouchY=e.clientY;} });
-cropEngine.canvas.addEventListener('mousemove', e=>{ const s=cropEngine; if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.clientX-s.lastTouchX); s.offsetY+=(e.clientY-s.lastTouchY); s.lastTouchX=e.clientX; s.lastTouchY=e.clientY; drawCrop(); } });
-window.addEventListener('mouseup', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
-cropEngine.canvas.addEventListener('wheel', e=>{ e.preventDefault(); const s=cropEngine; const m=getPos(e); let nz=e.deltaY<0?s.zoom*1.1:s.zoom/1.1; nz=Math.max(1,Math.min(8,nz)); s.offsetX=m.x-(m.x-s.offsetX)*(nz/s.zoom); s.offsetY=m.y-(m.y-s.offsetY)*(nz/s.zoom); s.zoom=nz; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); }, {passive:false});
 
 function applyPreviewFilter() {
     const isBw = document.getElementById("type").value == 5;
