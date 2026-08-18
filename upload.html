@@ -56,14 +56,14 @@
 
         <div style="width: 100%; margin-top: 12px; text-align: left;">
             <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333;">
-                <span>Width (B) ↔️</span><span id="a4Wtxt" style="color:#1976d2;">50%</span>
+                <span>Width (B) ↔️</span><span id="a4Wtxt" style="color:#1976d2;">45%</span>
             </div>
-            <input type="range" id="a4WSlider" min="15" max="100" value="50" oninput="updateA4Adj()">
+            <input type="range" id="a4WSlider" min="5" max="100" value="45" oninput="updateA4Adj()">
 
             <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333; margin-top: 6px;">
                 <span>Length (L) ↕️</span><span id="a4Htxt" style="color:#1976d2;">35%</span>
             </div>
-            <input type="range" id="a4HSlider" min="15" max="100" value="35" oninput="updateA4Adj()">
+            <input type="range" id="a4HSlider" min="5" max="100" value="35" oninput="updateA4Adj()">
         </div>
 
         <div style="margin-top:12px; width:100%;">
@@ -692,11 +692,31 @@ function openA4AdjustModal(sourceCanvas) {
         
         a4AdjImg = drawCanvas;
 
-        document.getElementById('a4WSlider').value = 55;
-        document.getElementById('a4HSlider').value = 38;
+        // 🔥 FIX: Calculate Exact Aspect Ratio from Cropped Image
+        let cropRatio = a4AdjImg.height / a4AdjImg.width;
 
-        a4AdjState.x = a4CanvasW * 0.225;
-        a4AdjState.y = a4CanvasH * 0.15;
+        // Set default width to 45% of A4 Sheet
+        let startWPercent = 45;
+        let startWPixels = a4CanvasW * (startWPercent / 100);
+
+        // Calculate height to match EXACT crop proportion
+        let startHPixels = startWPixels * cropRatio;
+        let startHPercent = (startHPixels / a4CanvasH) * 100;
+
+        // Failsafe: if height exceeds 85% of page, scale down based on height
+        if (startHPercent > 85) {
+            startHPercent = 85;
+            startHPixels = a4CanvasH * (startHPercent / 100);
+            startWPixels = startHPixels / cropRatio;
+            startWPercent = (startWPixels / a4CanvasW) * 100;
+        }
+
+        document.getElementById('a4WSlider').value = Math.round(startWPercent);
+        document.getElementById('a4HSlider').value = Math.round(startHPercent);
+
+        // Place exactly in Top-Center of A4
+        a4AdjState.x = (a4CanvasW - startWPixels) / 2;
+        a4AdjState.y = a4CanvasH * 0.10;
 
         updateA4Adj();
     });
@@ -898,77 +918,27 @@ async function saveCropAndNext() {
                 dest = new cv.Mat();
                 cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
-                // 🔥 DOCUMENT SCAN CLEAN FILTER — whitens the page background and
-                // darkens text strokes. Only ever touches the B&W (printType 5)
-                // pipeline; the color branch below is left completely untouched
-                // so colour documents are never recoloured/filtered.
+                // 🔥 NEW & SAFE AUTO-CLEAN FILTER LOGIC (SOFT UNSHARP MASK)
                 let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
 
                 if (printType == "5") {
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
-
+                    
                     if (autoCleanEnabled) {
-                        let bg = null, gray32 = null, bg32 = null, normed = null, original8U = null, leveled = null;
+                        let bg = null;
                         try {
-                            // Keep an untouched copy of the scan before any
-                            // filtering, so we can blend back into it later —
-                            // that's what keeps the result close to the
-                            // original document instead of over-processing it.
-                            original8U = dest.clone();
-
-                            // Step 1: estimate the uneven page background with a
-                            // heavy blur, then divide it out. The blur radius is
-                            // scaled to the image size so it stays much wider
-                            // than any text stroke — otherwise the text itself
-                            // leaks into the background estimate and its
-                            // contrast gets cancelled out instead of enhanced.
-                            const side = Math.max(dest.cols, dest.rows);
-                            let k = Math.round(side / 15);
-                            if (k % 2 === 0) k += 1;
-                            k = Math.max(31, k);
-
                             bg = new cv.Mat();
-                            cv.GaussianBlur(dest, bg, new cv.Size(k, k), 0, 0, cv.BORDER_DEFAULT);
-
-                            gray32 = new cv.Mat();
-                            bg32 = new cv.Mat();
-                            normed = new cv.Mat();
-                            dest.convertTo(gray32, cv.CV_32F);
-                            bg.convertTo(bg32, cv.CV_32F, 1.0, 1.0); // +1 avoids /0
-                            cv.divide(gray32, bg32, normed, 255.0);
-                            normed.convertTo(dest, cv.CV_8U);
-
-                            // Step 2: a gentle black/white levels stretch (like
-                            // Photoshop's Levels tool, but with a wide range so
-                            // it doesn't clip aggressively) — whitens the page
-                            // and darkens text without flattening the document's
-                            // natural look.
-                            const blackPoint = 90;
-                            const whitePoint = 248;
-                            const levelAlpha = 255.0 / (whitePoint - blackPoint);
-                            const levelBeta = -blackPoint * levelAlpha;
-                            leveled = new cv.Mat();
-                            dest.convertTo(leveled, -1, levelAlpha, levelBeta);
-
-                            // Step 3: blend the cleaned-up version with the
-                            // original scan (65% filtered / 35% original) so
-                            // the effect reads as "touched up", not replaced —
-                            // keeps the original document's character intact.
-                            cv.addWeighted(leveled, 0.65, original8U, 0.35, 0, dest);
+                            // 🪄 Smart Unsharp Mask: Text dark karega aur whiteness ko natural rakhega
+                            cv.GaussianBlur(dest, bg, new cv.Size(25, 25), 0, 0, cv.BORDER_DEFAULT);
+                            cv.addWeighted(dest, 1.5, bg, -0.5, 0, dest); 
+                            dest.convertTo(dest, -1, 1.15, 5); // Halki si chamak aur contrast
                         } catch (filterErr) {
                             console.warn("Clean Filter Failed", filterErr);
                         } finally {
                             if (bg) bg.delete();
-                            if (gray32) gray32.delete();
-                            if (bg32) bg32.delete();
-                            if (normed) normed.delete();
-                            if (original8U) original8U.delete();
-                            if (leveled) leveled.delete();
                         }
                     }
                 } else {
-                    // Color print type: convert channel layout only, no filter,
-                    // no contrast/levels change — colours are left exactly as scanned.
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
                 }
 
