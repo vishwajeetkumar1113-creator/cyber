@@ -808,7 +808,6 @@ async function confirmA4Adjust() {
     if (a4Resolver) a4Resolver(dataUrl);
 }
 
-// 🔥 CRASH-PROOF & FAST CROP
 async function compressImageFast(dataUrl) {
     if (!dataUrl || dataUrl.length < 500 * 1024) return dataUrl;
     return new Promise((resolve) => {
@@ -896,7 +895,7 @@ async function saveCropAndNext() {
                 dest = new cv.Mat();
                 cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
-                // 🔥 NEW & SAFE AUTO-CLEAN FILTER LOGIC
+                // 🔥 NEW & SAFE AUTO-CLEAN FILTER LOGIC (SOFT)
                 let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
 
                 if (printType == "5") {
@@ -906,12 +905,12 @@ async function saveCropAndNext() {
                         let bg = null;
                         try {
                             bg = new cv.Mat();
-                            // Background Estimation via Blurring (Odd Kernel required)
-                            cv.GaussianBlur(dest, bg, new cv.Size(41, 41), 0, 0, cv.BORDER_DEFAULT);
+                            // Background Estimation via Blurring (Soft Kernel)
+                            cv.GaussianBlur(dest, bg, new cv.Size(31, 31), 0, 0, cv.BORDER_DEFAULT);
                             // Normalize illumination (Makes background white)
                             cv.divide(dest, bg, dest, 255.0);
-                            // Contrast & Darken Text adjustment
-                            dest.convertTo(dest, -1, 1.4, -40);
+                            // Soft Contrast & Darken Text adjustment (alpha=1.15, beta=-10)
+                            dest.convertTo(dest, -1, 1.15, -10);
                         } catch (filterErr) {
                             console.warn("Clean Filter Failed, proceeding with normal B&W", filterErr);
                         } finally {
