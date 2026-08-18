@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Document Upload Pro</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <!-- 🔥 Mobile Compatible Legacy PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
@@ -44,13 +43,11 @@
 
 <body>
 
-<!-- 🔥 A4 CUSTOM ADJUST MODAL (POPUP) -->
 <div id="a4AdjustModal" class="modal-overlay">
     <div class="modal-container">
         <h3 style="color:#1976d2; margin-top:0; margin-bottom:4px;">📄 Adjust on A4 Sheet</h3>
         <p style="font-size:12px; color:#555; margin-bottom: 10px;">Document ko ungli se move karein aur LxB sliders se size set karein.</p>
 
-        <!-- A4 Aspect Ratio Canvas Box -->
         <div style="position:relative; display:inline-block; border: 2px solid #333; background: #ffffff; border-radius: 4px; overflow: hidden; box-shadow: 0 3px 8px rgba(0,0,0,0.2);">
             <canvas id="a4AdjustCanvas" width="248" height="350" style="touch-action: none; background: #ffffff; cursor: move; display: block;"></canvas>
         </div>
@@ -93,7 +90,6 @@
         <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
     </div>
 
-    <!-- 🔥 Default Mode: Full Page (Stretch), Option 2: Ration Card / ID Popup -->
     <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #bbdefb;">
         <label style="color: #1565c0;">Image Print Mode:</label>
         <select id="docType" style="font-weight: bold; color: #111;">
@@ -380,7 +376,7 @@ async function handleFileSelectionChange(){
             }
         } catch (err) {
             console.error("PDF Parsing Error:", err);
-            alert("⚠️ Error: PDF file load nahi ho saki.");
+            alert("⚠️ Error: PDF file load nahi ho saki. File corrupted ho sakti hai.");
             document.getElementById("file").value = ""; 
             return;
         }
@@ -656,7 +652,6 @@ function drawCrop() {
     s.corners.forEach(c => { s.ctx.fillStyle = '#28a745'; s.ctx.beginPath(); s.ctx.arc(c.x, c.y, 14, 0, Math.PI * 2); s.ctx.fill(); s.ctx.strokeStyle = '#fff'; s.ctx.lineWidth = 3; s.ctx.stroke(); });
 }
 
-// TOUCH EVENTS FOR CROP CANVAS
 function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
 cropEngine.canvas.addEventListener('touchstart', e=>{ const s=cropEngine; if(e.touches.length===2){ s.activeCorner=-1; s.isPanning=false; s.lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); s.lastTouchX=(e.touches[0].clientX+e.touches[1].clientX)/2; s.lastTouchY=(e.touches[0].clientY+e.touches[1].clientY)/2; } else if(e.touches.length===1){ const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY;} } }, {passive:false});
 cropEngine.canvas.addEventListener('touchmove', e=>{ const s=cropEngine; e.preventDefault(); if(e.touches.length===2){ const cDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2; let nz=s.zoom*(cDist/s.lastTouchDist); nz=Math.max(1,Math.min(8,nz)); const r=s.canvas.getBoundingClientRect(); const rx=(cx-r.left)*(s.canvas.width/r.width), ry=(cy-r.top)*(s.canvas.height/r.height); s.offsetX=rx-(rx-s.offsetX)*(nz/s.zoom); s.offsetY=ry-(ry-s.offsetY)*(nz/s.zoom); s.zoom=nz; s.offsetX+=(cx-s.lastTouchX); s.offsetY+=(cy-s.lastTouchY); s.lastTouchDist=cDist; s.lastTouchX=cx; s.lastTouchY=cy; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); } else if(e.touches.length===1){ if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.touches[0].clientX-s.lastTouchX); s.offsetY+=(e.touches[0].clientY-s.lastTouchY); s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY; drawCrop(); } } }, {passive:false});
@@ -729,10 +724,7 @@ function drawA4Adj() {
     let drawW = a4AdjState.w * scaleX;
     let drawH = a4AdjState.h * scaleY;
 
-    const isBw = document.getElementById("type").value == 5;
-    if (isBw && typeof cv === 'undefined') ctx.filter = 'grayscale(100%)';
     ctx.drawImage(a4AdjImg, drawX, drawY, drawW, drawH);
-    ctx.filter = 'none';
 
     ctx.strokeStyle = '#1976d2';
     ctx.lineWidth = 2;
@@ -805,10 +797,7 @@ async function confirmA4Adjust() {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0,0, a4CanvasW, a4CanvasH);
 
-    const isBw = document.getElementById("type").value == 5;
-    if (isBw && typeof cv === 'undefined') ctx.filter = 'grayscale(100%)';
     ctx.drawImage(a4AdjImg, a4AdjState.x, a4AdjState.y, a4AdjState.w, a4AdjState.h);
-    ctx.filter = 'none';
 
     const dataUrl = finalA4.toDataURL('image/jpeg', 0.90);
 
@@ -819,7 +808,7 @@ async function confirmA4Adjust() {
     if (a4Resolver) a4Resolver(dataUrl);
 }
 
-// 🔥 ULTRA-SAFE & FAST IMAGE COMPRESSION (<500KB)
+// 🔥 CRASH-PROOF & FAST CROP
 async function compressImageFast(dataUrl) {
     if (!dataUrl || dataUrl.length < 500 * 1024) return dataUrl;
     return new Promise((resolve) => {
@@ -842,11 +831,10 @@ async function compressImageFast(dataUrl) {
         };
         img.onerror = () => resolve(dataUrl);
         img.src = dataUrl;
-        setTimeout(() => resolve(dataUrl), 1000); // 1s safety fallback
+        setTimeout(() => resolve(dataUrl), 1000); 
     });
 }
 
-// 🔥 CRASH-PROOF SAVE CROP & NEXT
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -908,15 +896,35 @@ async function saveCropAndNext() {
                 dest = new cv.Mat();
                 cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
+                // 🔥 NEW & SAFE AUTO-CLEAN FILTER LOGIC
+                let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
+
                 if (printType == "5") {
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
+                    
+                    if (autoCleanEnabled) {
+                        let bg = null;
+                        try {
+                            bg = new cv.Mat();
+                            // Background Estimation via Blurring (Odd Kernel required)
+                            cv.GaussianBlur(dest, bg, new cv.Size(41, 41), 0, 0, cv.BORDER_DEFAULT);
+                            // Normalize illumination (Makes background white)
+                            cv.divide(dest, bg, dest, 255.0);
+                            // Contrast & Darken Text adjustment
+                            dest.convertTo(dest, -1, 1.4, -40);
+                        } catch (filterErr) {
+                            console.warn("Clean Filter Failed, proceeding with normal B&W", filterErr);
+                        } finally {
+                            if (bg) bg.delete();
+                        }
+                    }
                 } else {
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
                 }
 
                 cv.imshow(hCvs, dest);
             } catch (e) { 
-                console.warn("CV Error", e); 
+                console.warn("Warp/CV Error", e); 
                 hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
             } finally {
                 if (src) src.delete(); if (dest) dest.delete();
@@ -971,13 +979,7 @@ async function convertToA4(sourceCanvas) {
             rotCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
         }
         
-        if (document.getElementById("type").value == 5 && typeof cv === 'undefined') {
-            ctx.filter = 'grayscale(100%)';
-        }
-
         ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height);
-        ctx.filter = 'none';
-
         resolve(a4.toDataURL("image/jpeg", 0.90));
     });
 }
