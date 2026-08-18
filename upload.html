@@ -911,12 +911,21 @@ async function saveCropAndNext() {
                         let bg = null, gray32 = null, bg32 = null, normed = null;
                         try {
                             // Step 1: estimate the uneven page background with a
-                            // heavy blur, then divide it out. This is what makes
-                            // the paper come out flat white regardless of shadows
-                            // or scan lighting, without touching hue/saturation
-                            // since we're already in single-channel gray.
+                            // heavy blur, then divide it out. The blur radius is
+                            // scaled to the image size (not a fixed small number)
+                            // so it stays much wider than any text stroke —
+                            // otherwise the text itself leaks into the background
+                            // estimate and its contrast gets cancelled out instead
+                            // of enhanced. This step flattens shadows/uneven scan
+                            // lighting without touching hue/saturation, since
+                            // we're already single-channel gray.
+                            const side = Math.max(dest.cols, dest.rows);
+                            let k = Math.round(side / 15);
+                            if (k % 2 === 0) k += 1;
+                            k = Math.max(31, k);
+
                             bg = new cv.Mat();
-                            cv.GaussianBlur(dest, bg, new cv.Size(35, 35), 0, 0, cv.BORDER_DEFAULT);
+                            cv.GaussianBlur(dest, bg, new cv.Size(k, k), 0, 0, cv.BORDER_DEFAULT);
 
                             gray32 = new cv.Mat();
                             bg32 = new cv.Mat();
@@ -926,11 +935,20 @@ async function saveCropAndNext() {
                             cv.divide(gray32, bg32, normed, 255.0);
                             normed.convertTo(dest, cv.CV_8U);
 
-                            // Step 2: push a levels/contrast curve so background
-                            // pixels (already near-white after the divide) clip
-                            // to pure white, and darker ink pixels get pushed
-                            // further toward black — i.e. whiter page, darker text.
-                            dest.convertTo(dest, -1, 1.6, -60);
+                            // Step 2: a black/white levels stretch (like
+                            // Photoshop's Levels tool) — anything at or below
+                            // blackPoint is driven to pure black (text), anything
+                            // at or above whitePoint is driven to pure white
+                            // (page background), and the values in between are
+                            // stretched to fill the full range. This is what
+                            // actually darkens the text; a plain linear
+                            // contrast/brightness tweak (the old code) ends up
+                            // brightening mid-tone ink instead of darkening it.
+                            const blackPoint = 160;
+                            const whitePoint = 232;
+                            const levelAlpha = 255.0 / (whitePoint - blackPoint);
+                            const levelBeta = -blackPoint * levelAlpha;
+                            dest.convertTo(dest, -1, levelAlpha, levelBeta);
                         } catch (filterErr) {
                             console.warn("Clean Filter Failed", filterErr);
                         } finally {
