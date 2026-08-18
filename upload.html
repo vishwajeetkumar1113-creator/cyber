@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Document Upload</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <!-- 🔥 Mobile Compatible Legacy PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
@@ -27,11 +26,8 @@
         .page-render-container { display: flex; flex-direction: column; align-items: center; width: 100%; }
         .canvas-container { position: relative; margin: 15px auto; width: 100%; max-width: 400px; background: #f5f5f5; border: 2px dashed #28a745; border-radius: 8px; overflow: hidden; }
         #cropCanvas { display: block; width: 100%; height: auto; cursor: crosshair; }
-        
-        /* 🔥 Added flex-wrap so buttons look good on small screens */
         .crop-controls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
         .crop-controls button { padding: 8px 12px; font-size: 14px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s ease; }
-        
         .force-grayscale { filter: grayscale(100%) brightness(105%) contrast(105%) !important; }
         #submitBtn { background: #1976d2; color: white; width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s ease; }
         #submitBtn:disabled, #saveCropBtn:disabled { cursor: not-allowed; }
@@ -59,10 +55,12 @@
         <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
     </div>
 
-    <div class="input-group" id="docTypeGroup" style="display:none !important;">
+    <!-- 🔥 Added fit and stretch options -->
+    <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px;">
         <label style="color: #1565c0;">Image Print Size:</label>
-        <select id="docType">
-            <option value="full">Full Page (Marksheet / Poster)</option>
+        <select id="docType" style="font-weight: bold;">
+            <option value="fit" selected>A4 Perfect Fit (Ration Card / ID)</option>
+            <option value="full">A4 Stretch (Marksheet / Full Poster)</option>
         </select>
     </div>
 
@@ -108,7 +106,6 @@
                 <canvas id="cropCanvas"></canvas>
             </div>
             
-            <!-- 🔥 Added Full Page Selection Button Here -->
             <div class="crop-controls">
                 <button type="button" style="background:#17a2b8;" onclick="selectFullPage()">🔲 Full Page</button>
                 <button type="button" style="background:#28a745;" onclick="rotateImage()">↻ Rotate</button>
@@ -144,7 +141,6 @@
         if (e.ctrlKey && e.keyCode === 85) return false;
     };
 
-// 🔥 MOBILE BLOB WORKER SETUP (Bypasses Mobile CORS Block)
 const PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 (async function initMobilePdfWorker() {
     try {
@@ -375,7 +371,7 @@ async function handleFileSelectionChange(){
     if (uploadedImagesList.length > 0) {
         document.getElementById("pdfUI").style.display = "none";
         document.getElementById("imageUI").style.display = "block";
-        document.getElementById("docTypeGroup").style.display = "none"; 
+        document.getElementById("docTypeGroup").style.display = "block"; // Make dropdown visible
         document.getElementById("cropPreviewContainer").style.display = "none";
         document.getElementById("cropAreaWrapper").style.display = "block";
         
@@ -567,7 +563,6 @@ async function previewDocument() {
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
                     
-                    // Mobile Canvas Resolution Optimization
                     const initialViewport = page.getViewport({ scale: 1.0 });
                     const renderScale = Math.min(2.0, (window.innerWidth || 380) / initialViewport.width);
                     const viewport = page.getViewport({ scale: renderScale });
@@ -609,7 +604,7 @@ function selectFullPage() {
         { x: w, y: h },
         { x: 0, y: h }
     ];
-    resetZoom(); // Reset pan/zoom so user sees the full selection correctly
+    resetZoom();
     drawCrop();
 }
 
@@ -881,9 +876,24 @@ async function convertToA4(sourceCanvas) {
             ctx.filter = 'grayscale(100%)';
         }
 
-        ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height); 
-        ctx.filter = 'none';
+        // 🔥 Added Document Type Logic (Fit vs Stretch)
+        const docType = document.getElementById("docType") ? document.getElementById("docType").value : "fit";
 
+        if (docType === "fit") {
+            // Scale to fit within A4 while keeping aspect ratio (with 5% safe margin)
+            const margin = 0.95; // 95% of A4
+            const scale = Math.min((a4.width * margin) / drawCanvas.width, (a4.height * margin) / drawCanvas.height);
+            const drawW = drawCanvas.width * scale;
+            const drawH = drawCanvas.height * scale;
+            const offsetX = (a4.width - drawW) / 2;
+            const offsetY = (a4.height - drawH) / 2;
+            ctx.drawImage(drawCanvas, offsetX, offsetY, drawW, drawH);
+        } else {
+            // Stretch to fill completely (Old behavior)
+            ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height);
+        }
+
+        ctx.filter = 'none';
         resolve(a4.toDataURL("image/jpeg", 0.95));
     });
 }
