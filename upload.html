@@ -908,17 +908,20 @@ async function saveCropAndNext() {
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
 
                     if (autoCleanEnabled) {
-                        let bg = null, gray32 = null, bg32 = null, normed = null;
+                        let bg = null, gray32 = null, bg32 = null, normed = null, original8U = null, leveled = null;
                         try {
+                            // Keep an untouched copy of the scan before any
+                            // filtering, so we can blend back into it later —
+                            // that's what keeps the result close to the
+                            // original document instead of over-processing it.
+                            original8U = dest.clone();
+
                             // Step 1: estimate the uneven page background with a
                             // heavy blur, then divide it out. The blur radius is
-                            // scaled to the image size (not a fixed small number)
-                            // so it stays much wider than any text stroke —
-                            // otherwise the text itself leaks into the background
-                            // estimate and its contrast gets cancelled out instead
-                            // of enhanced. This step flattens shadows/uneven scan
-                            // lighting without touching hue/saturation, since
-                            // we're already single-channel gray.
+                            // scaled to the image size so it stays much wider
+                            // than any text stroke — otherwise the text itself
+                            // leaks into the background estimate and its
+                            // contrast gets cancelled out instead of enhanced.
                             const side = Math.max(dest.cols, dest.rows);
                             let k = Math.round(side / 15);
                             if (k % 2 === 0) k += 1;
@@ -935,20 +938,23 @@ async function saveCropAndNext() {
                             cv.divide(gray32, bg32, normed, 255.0);
                             normed.convertTo(dest, cv.CV_8U);
 
-                            // Step 2: a black/white levels stretch (like
-                            // Photoshop's Levels tool) — anything at or below
-                            // blackPoint is driven to pure black (text), anything
-                            // at or above whitePoint is driven to pure white
-                            // (page background), and the values in between are
-                            // stretched to fill the full range. This is what
-                            // actually darkens the text; a plain linear
-                            // contrast/brightness tweak (the old code) ends up
-                            // brightening mid-tone ink instead of darkening it.
-                            const blackPoint = 160;
-                            const whitePoint = 232;
+                            // Step 2: a gentle black/white levels stretch (like
+                            // Photoshop's Levels tool, but with a wide range so
+                            // it doesn't clip aggressively) — whitens the page
+                            // and darkens text without flattening the document's
+                            // natural look.
+                            const blackPoint = 90;
+                            const whitePoint = 248;
                             const levelAlpha = 255.0 / (whitePoint - blackPoint);
                             const levelBeta = -blackPoint * levelAlpha;
-                            dest.convertTo(dest, -1, levelAlpha, levelBeta);
+                            leveled = new cv.Mat();
+                            dest.convertTo(leveled, -1, levelAlpha, levelBeta);
+
+                            // Step 3: blend the cleaned-up version with the
+                            // original scan (65% filtered / 35% original) so
+                            // the effect reads as "touched up", not replaced —
+                            // keeps the original document's character intact.
+                            cv.addWeighted(leveled, 0.65, original8U, 0.35, 0, dest);
                         } catch (filterErr) {
                             console.warn("Clean Filter Failed", filterErr);
                         } finally {
@@ -956,6 +962,8 @@ async function saveCropAndNext() {
                             if (gray32) gray32.delete();
                             if (bg32) bg32.delete();
                             if (normed) normed.delete();
+                            if (original8U) original8U.delete();
+                            if (leveled) leveled.delete();
                         }
                     }
                 } else {
