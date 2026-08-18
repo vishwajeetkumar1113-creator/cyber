@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Document Upload Pro</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- 🔥 Mobile Compatible Legacy PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
@@ -32,10 +33,10 @@
         #submitBtn { background: #1976d2; color: white; width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s ease; }
         #submitBtn:disabled, #saveCropBtn:disabled { cursor: not-allowed; }
 
-        /* 🔥 Added Styles for A4 Adjust Modal */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
-        .modal-container { background: #fff; padding: 20px; border-radius: 8px; text-align: center; width: 95%; max-width: 400px; max-height: 95vh; display: flex; flex-direction: column; align-items: center; overflow-y: auto; }
-        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; margin: 8px 0; }
+        /* 🔥 A4 ADJUST POPUP MODAL STYLES */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 99999; justify-content: center; align-items: center; flex-direction: column; }
+        .modal-container { background: #fff; padding: 18px; border-radius: 10px; text-align: center; width: 95%; max-width: 380px; max-height: 95vh; display: flex; flex-direction: column; align-items: center; overflow-y: auto; box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; margin: 6px 0; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #1976d2; cursor: pointer; margin-top: -6px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #bbdefb; border-radius: 3px; }
     </style>
@@ -46,28 +47,28 @@
 <!-- 🔥 A4 CUSTOM ADJUST MODAL (POPUP) -->
 <div id="a4AdjustModal" class="modal-overlay">
     <div class="modal-container">
-        <h3 style="color:#1976d2; margin-top:0; margin-bottom:5px;">📄 Adjust Document on A4</h3>
-        <p style="font-size:12px; color:#555; margin-bottom: 15px;">A4 Sheet par document ko ungli se move karein aur LxB sliders se size set karein.</p>
+        <h3 style="color:#1976d2; margin-top:0; margin-bottom:4px;">📄 Adjust on A4 Sheet</h3>
+        <p style="font-size:12px; color:#555; margin-bottom: 10px;">Document ko ungli se move karein aur LxB sliders se size set karein.</p>
 
-        <!-- A4 Aspect Ratio Canvas (1:1.414) -->
-        <div style="position:relative; display:inline-block; border: 2px solid #ccc; background: white; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <canvas id="a4AdjustCanvas" width="248" height="350" style="touch-action: none; background: white; cursor: move;"></canvas>
+        <!-- A4 Aspect Ratio Canvas Box -->
+        <div style="position:relative; display:inline-block; border: 2px solid #333; background: #ffffff; border-radius: 4px; overflow: hidden; box-shadow: 0 3px 8px rgba(0,0,0,0.2);">
+            <canvas id="a4AdjustCanvas" width="248" height="350" style="touch-action: none; background: #ffffff; cursor: move; display: block;"></canvas>
         </div>
 
-        <div style="width: 100%; margin-top: 15px;">
+        <div style="width: 100%; margin-top: 12px; text-align: left;">
             <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333;">
-                <span>Width (B)</span><span id="a4Wtxt">35%</span>
+                <span>Width (B) ↔️</span><span id="a4Wtxt" style="color:#1976d2;">50%</span>
             </div>
-            <input type="range" id="a4WSlider" min="10" max="100" value="35" oninput="updateA4Adj()">
+            <input type="range" id="a4WSlider" min="15" max="100" value="50" oninput="updateA4Adj()">
 
-            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333; margin-top: 5px;">
-                <span>Height (L)</span><span id="a4Htxt">25%</span>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333; margin-top: 6px;">
+                <span>Length (L) ↕️</span><span id="a4Htxt" style="color:#1976d2;">35%</span>
             </div>
-            <input type="range" id="a4HSlider" min="10" max="100" value="25" oninput="updateA4Adj()">
+            <input type="range" id="a4HSlider" min="15" max="100" value="35" oninput="updateA4Adj()">
         </div>
 
-        <div style="margin-top:15px; width:100%;">
-            <button id="confirmA4Btn" onclick="confirmA4Adjust()" style="width:100%; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 15px;">✅ Save to A4</button>
+        <div style="margin-top:12px; width:100%;">
+            <button id="confirmA4Btn" onclick="confirmA4Adjust()" style="width:100%; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 15px; cursor: pointer;">✅ Save to A4</button>
         </div>
     </div>
 </div>
@@ -92,11 +93,12 @@
         <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
     </div>
 
-    <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px;">
-        <label style="color: #1565c0;">Image Print Size:</label>
+    <!-- 🔥 Default Mode: Full Page (Stretch), Option 2: Ration Card / ID Popup -->
+    <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #bbdefb;">
+        <label style="color: #1565c0;">Image Print Mode:</label>
         <select id="docType" style="font-weight: bold; color: #111;">
-            <option value="full" selected>A4 Full Page (Stretch / Marksheet)</option>
-            <option value="fit">A4 Custom Adjust (Ration / ID Popup)</option>
+            <option value="full" selected>A4 Full Page (Auto Stretch / Marksheet)</option>
+            <option value="fit">A4 Custom Adjust (Ration Card / ID Popup)</option>
         </select>
     </div>
 
@@ -234,7 +236,7 @@ function rotatedRectCorners(rect) {
     }));
 }
 
-function autoDetectDocumentCorners(canvasEl, imgEl, debugLabel) {
+function autoDetectDocumentCorners(canvasEl, imgEl) {
     const w = canvasEl.width;
     const h = canvasEl.height;
     const canvasArea = w * h;
@@ -242,13 +244,11 @@ function autoDetectDocumentCorners(canvasEl, imgEl, debugLabel) {
     let src, gray, blurred, kernel;
     let bestQuad = null;
     let bestScore = -1;
-    let candidatesSeen = 0;
-    let candidatesRejected = { size: 0, shape: 0, error: 0 };
 
     const minArea = canvasArea * 0.15;
     const maxArea = canvasArea * 0.95;
 
-    function scanContours(binaryMat, label) {
+    function scanContours(binaryMat) {
         let contours = new cv.MatVector();
         let hierarchy = new cv.Mat();
         cv.findContours(binaryMat, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
@@ -258,8 +258,7 @@ function autoDetectDocumentCorners(canvasEl, imgEl, debugLabel) {
             let hull = null;
             try {
                 const area = cv.contourArea(cnt);
-                if (area < minArea || area > maxArea) { candidatesRejected.size++; continue; }
-                candidatesSeen++;
+                if (area < minArea || area > maxArea) continue;
 
                 hull = new cv.Mat();
                 cv.convexHull(cnt, hull);
@@ -295,11 +294,8 @@ function autoDetectDocumentCorners(canvasEl, imgEl, debugLabel) {
                         bestQuad = ordered;
                         bestScore = score;
                     }
-                } else {
-                    candidatesRejected.shape++;
                 }
-            } catch (candidateErr) {
-                candidatesRejected.error++;
+            } catch (err) {
             } finally {
                 if (hull) hull.delete();
                 cnt.delete();
@@ -325,29 +321,16 @@ function autoDetectDocumentCorners(canvasEl, imgEl, debugLabel) {
         kernel = cv.Mat.ones(5, 5, cv.CV_8U);
         const meanVal = cv.mean(blurred)[0];
 
-        const multiplierSets = [[0.66, 1.33], [0.4, 1.6], [0.2, 2.0]];
+        const multiplierSets = [[0.66, 1.33], [0.4, 1.6]];
         for (const [loMult, hiMult] of multiplierSets) {
-            const lower = Math.max(0, loMult * meanVal);
-            const upper = Math.min(255, hiMult * meanVal);
             let edged = new cv.Mat();
             let dilated = new cv.Mat();
-            cv.Canny(blurred, edged, lower, upper);
+            cv.Canny(blurred, edged, Math.max(0, loMult * meanVal), Math.min(255, hiMult * meanVal));
             cv.dilate(edged, dilated, kernel, new cv.Point(-1, -1), 2);
-            scanContours(dilated, `canny(${loMult},${hiMult})`);
+            scanContours(dilated);
             edged.delete();
             dilated.delete();
         }
-
-        let otsu = new cv.Mat();
-        cv.threshold(blurred, otsu, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-        scanContours(otsu, "otsu-bright");
-        otsu.delete();
-
-        let otsuInv = new cv.Mat();
-        cv.threshold(blurred, otsuInv, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
-        scanContours(otsuInv, "otsu-dark");
-        otsuInv.delete();
-
         return bestQuad;
     } catch (e) {
         return null;
@@ -397,7 +380,7 @@ async function handleFileSelectionChange(){
             }
         } catch (err) {
             console.error("PDF Parsing Error:", err);
-            alert("⚠️ Error: PDF file load nahi ho saki. File corrupted ho sakti hai.");
+            alert("⚠️ Error: PDF file load nahi ho saki.");
             document.getElementById("file").value = ""; 
             return;
         }
@@ -446,7 +429,6 @@ function loadCurrentImageForCrop() {
         } else {
             document.getElementById("cropPreviewContainer").style.display = "block";
             document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
-            if(document.getElementById("autoDetectMsg")) document.getElementById("autoDetectMsg").style.display = "none";
             
             const gallery = document.getElementById("thumbnailGallery");
             gallery.innerHTML = ""; 
@@ -506,27 +488,17 @@ function loadCurrentImageForCrop() {
             cropEngine.corners = defaultCorners;
 
             if (typeof cv !== 'undefined' && typeof cv.imread === 'function') {
-                if (detectStatusEl) {
-                    detectStatusEl.textContent = '🔍 Detecting document edges...';
-                    detectStatusEl.style.color = '#888';
-                }
+                if (detectStatusEl) detectStatusEl.textContent = '🔍 Detecting document edges...';
                 try {
-                    const detectedQuad = autoDetectDocumentCorners(cropEngine.canvas, img, `image-${currentImageIndex + 1}`);
+                    const detectedQuad = autoDetectDocumentCorners(cropEngine.canvas, img);
                     if (detectedQuad) {
                         cropEngine.corners = detectedQuad;
                         if (detectStatusEl) {
-                            detectStatusEl.textContent = '✓ Document edges auto-detected — adjust if needed';
+                            detectStatusEl.textContent = '✓ Document edges auto-detected';
                             detectStatusEl.style.color = '#28a745';
                         }
-                    } else if (detectStatusEl) {
-                        detectStatusEl.textContent = 'ℹ️ Could not auto-detect — please drag corners manually';
-                        detectStatusEl.style.color = '#e65100';
                     }
                 } catch (err) {
-                    if (detectStatusEl) {
-                        detectStatusEl.textContent = 'ℹ️ Could not auto-detect — please drag corners manually';
-                        detectStatusEl.style.color = '#e65100';
-                    }
                 }
             }
 
@@ -663,25 +635,6 @@ function rotateImage() {
             cropEngine.canvas.height = (rotatedImg.height * 400) / rotatedImg.width;
             cropEngine.img = rotatedImg;
             cropEngine.corners = [{x:30, y:30}, {x:400-30, y:30}, {x:400-30, y:cropEngine.canvas.height-30}, {x:30, y:cropEngine.canvas.height-30}];
-
-            if (typeof cv !== 'undefined' && typeof cv.imread === 'function') {
-                const detectStatusEl = document.getElementById("cropDetectStatus");
-                try {
-                    const detectedQuad = autoDetectDocumentCorners(cropEngine.canvas, rotatedImg, `image-${currentImageIndex + 1}-rotated`);
-                    if (detectedQuad) {
-                        cropEngine.corners = detectedQuad;
-                        if (detectStatusEl) {
-                            detectStatusEl.textContent = '✓ Document edges auto-detected — adjust if needed';
-                            detectStatusEl.style.color = '#28a745';
-                        }
-                    } else if (detectStatusEl) {
-                        detectStatusEl.textContent = 'ℹ️ Could not auto-detect — please drag corners manually';
-                        detectStatusEl.style.color = '#e65100';
-                    }
-                } catch (err) {
-                    console.warn("Auto-Detect fail hua (rotate).", err);
-                }
-            }
             drawCrop();
         };
         rotatedImg.src = internalCanvas.toDataURL("image/jpeg");
@@ -703,7 +656,7 @@ function drawCrop() {
     s.corners.forEach(c => { s.ctx.fillStyle = '#28a745'; s.ctx.beginPath(); s.ctx.arc(c.x, c.y, 14, 0, Math.PI * 2); s.ctx.fill(); s.ctx.strokeStyle = '#fff'; s.ctx.lineWidth = 3; s.ctx.stroke(); });
 }
 
-// 🔥 EVENT LISTENERS FOR CROP DRAGGING
+// TOUCH EVENTS FOR CROP CANVAS
 function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
 cropEngine.canvas.addEventListener('touchstart', e=>{ const s=cropEngine; if(e.touches.length===2){ s.activeCorner=-1; s.isPanning=false; s.lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); s.lastTouchX=(e.touches[0].clientX+e.touches[1].clientX)/2; s.lastTouchY=(e.touches[0].clientY+e.touches[1].clientY)/2; } else if(e.touches.length===1){ const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY;} } }, {passive:false});
 cropEngine.canvas.addEventListener('touchmove', e=>{ const s=cropEngine; e.preventDefault(); if(e.touches.length===2){ const cDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2; let nz=s.zoom*(cDist/s.lastTouchDist); nz=Math.max(1,Math.min(8,nz)); const r=s.canvas.getBoundingClientRect(); const rx=(cx-r.left)*(s.canvas.width/r.width), ry=(cy-r.top)*(s.canvas.height/r.height); s.offsetX=rx-(rx-s.offsetX)*(nz/s.zoom); s.offsetY=ry-(ry-s.offsetY)*(nz/s.zoom); s.zoom=nz; s.offsetX+=(cx-s.lastTouchX); s.offsetY+=(cy-s.lastTouchY); s.lastTouchDist=cDist; s.lastTouchX=cx; s.lastTouchY=cy; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); } else if(e.touches.length===1){ if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.touches[0].clientX-s.lastTouchX); s.offsetY+=(e.touches[0].clientY-s.lastTouchY); s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY; drawCrop(); } } }, {passive:false});
@@ -713,11 +666,10 @@ cropEngine.canvas.addEventListener('mousemove', e=>{ const s=cropEngine; if(s.ac
 window.addEventListener('mouseup', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
 cropEngine.canvas.addEventListener('wheel', e=>{ e.preventDefault(); const s=cropEngine; const m=getPos(e); let nz=e.deltaY<0?s.zoom*1.1:s.zoom/1.1; nz=Math.max(1,Math.min(8,nz)); s.offsetX=m.x-(m.x-s.offsetX)*(nz/s.zoom); s.offsetY=m.y-(m.y-s.offsetY)*(nz/s.zoom); s.zoom=nz; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); }, {passive:false});
 
-
-// 🔥 A4 CUSTOM ADJUSTMENT MODAL VARIABLES & FUNCTIONS
+// 🔥 A4 POPUP VARIABLES & DRAGGING
 let a4AdjImg = null;
-const a4CanvasW = 2480;
-const a4CanvasH = 3508;
+const a4CanvasW = 1600;
+const a4CanvasH = 2260;
 let a4AdjState = { x: 0, y: 0, w: 0, h: 0 };
 let a4Resolver = null;
 let isA4Dragging = false;
@@ -742,19 +694,19 @@ function openA4AdjustModal(sourceCanvas) {
         
         a4AdjImg = drawCanvas;
 
-        document.getElementById('a4WSlider').value = 35;
-        document.getElementById('a4HSlider').value = 25;
+        document.getElementById('a4WSlider').value = 55;
+        document.getElementById('a4HSlider').value = 38;
 
-        a4AdjState.x = a4CanvasW * 0.32;
-        a4AdjState.y = a4CanvasH * 0.1;
+        a4AdjState.x = a4CanvasW * 0.225;
+        a4AdjState.y = a4CanvasH * 0.15;
 
         updateA4Adj();
     });
 }
 
 function updateA4Adj() {
-    let wp = document.getElementById('a4WSlider').value;
-    let hp = document.getElementById('a4HSlider').value;
+    let wp = parseInt(document.getElementById('a4WSlider').value);
+    let hp = parseInt(document.getElementById('a4HSlider').value);
     document.getElementById('a4Wtxt').innerText = wp + '%';
     document.getElementById('a4Htxt').innerText = hp + '%';
 
@@ -771,10 +723,6 @@ function drawA4Adj() {
 
     const scaleX = cvs.width / a4CanvasW;
     const scaleY = cvs.height / a4CanvasH;
-
-    ctx.strokeStyle = '#eee';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0,0, cvs.width, cvs.height);
 
     let drawX = a4AdjState.x * scaleX;
     let drawY = a4AdjState.y * scaleY;
@@ -840,16 +788,15 @@ function moveA4Drag(e) {
     drawA4Adj();
 }
 
-window.addEventListener('mouseup', stopA4Drag);
-window.addEventListener('touchend', stopA4Drag);
-function stopA4Drag() { isA4Dragging = false; }
+window.addEventListener('mouseup', () => { isA4Dragging = false; });
+window.addEventListener('touchend', () => { isA4Dragging = false; });
 
 async function confirmA4Adjust() {
     const btn = document.getElementById('confirmA4Btn');
-    btn.innerText = "⏳ Generating...";
+    btn.innerText = "⏳ Saving...";
     btn.disabled = true;
 
-    await new Promise(r => setTimeout(r, 50)); 
+    await new Promise(r => setTimeout(r, 30)); 
 
     const finalA4 = document.createElement('canvas');
     finalA4.width = a4CanvasW;
@@ -863,7 +810,7 @@ async function confirmA4Adjust() {
     ctx.drawImage(a4AdjImg, a4AdjState.x, a4AdjState.y, a4AdjState.w, a4AdjState.h);
     ctx.filter = 'none';
 
-    const dataUrl = finalA4.toDataURL('image/jpeg', 0.95);
+    const dataUrl = finalA4.toDataURL('image/jpeg', 0.90);
 
     document.getElementById('a4AdjustModal').style.display = 'none';
     btn.innerText = "✅ Save to A4";
@@ -872,7 +819,34 @@ async function confirmA4Adjust() {
     if (a4Resolver) a4Resolver(dataUrl);
 }
 
-// 🔥 PROCESS CROP, OPEN MODAL OR CONVERT IMMEDIATELY
+// 🔥 ULTRA-SAFE & FAST IMAGE COMPRESSION (<500KB)
+async function compressImageFast(dataUrl) {
+    if (!dataUrl || dataUrl.length < 500 * 1024) return dataUrl;
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let w = img.width, h = img.height;
+            if (w > 1600 || h > 2260) {
+                let scale = Math.min(1600 / w, 2260 / h);
+                w = Math.round(w * scale);
+                h = Math.round(h * scale);
+            }
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+        setTimeout(() => resolve(dataUrl), 1000); // 1s safety fallback
+    });
+}
+
+// 🔥 CRASH-PROOF SAVE CROP & NEXT
 async function saveCropAndNext() {
     const s = cropEngine; if (!s.img) return alert("Upload image first.");
     
@@ -881,148 +855,107 @@ async function saveCropAndNext() {
     btn.style.opacity = "0.5";
     btn.innerText = "Processing Fast...";
 
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(resolve => setTimeout(resolve, 30));
 
-    const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
-    
-    const p1 = [mappedCorners[0].x / s.canvas.width, mappedCorners[0].y / s.canvas.height];
-    const p2 = [mappedCorners[1].x / s.canvas.width, mappedCorners[1].y / s.canvas.height];
-    const p3 = [mappedCorners[2].x / s.canvas.width, mappedCorners[2].y / s.canvas.height];
-    const p4 = [mappedCorners[3].x / s.canvas.width, mappedCorners[3].y / s.canvas.height];
+    try {
+        const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
+        
+        const p1 = [mappedCorners[0].x / s.canvas.width, mappedCorners[0].y / s.canvas.height];
+        const p2 = [mappedCorners[1].x / s.canvas.width, mappedCorners[1].y / s.canvas.height];
+        const p3 = [mappedCorners[2].x / s.canvas.width, mappedCorners[2].y / s.canvas.height];
+        const p4 = [mappedCorners[3].x / s.canvas.width, mappedCorners[3].y / s.canvas.height];
 
-    let targetW = Math.round(Math.max(
-        Math.hypot((p2[0]-p1[0])*s.img.width, (p2[1]-p1[1])*s.img.height),
-        Math.hypot((p3[0]-p4[0])*s.img.width, (p3[1]-p4[1])*s.img.height)
-    ));
-    let targetH = Math.round(Math.max(
-        Math.hypot((p4[0]-p1[0])*s.img.width, (p4[1]-p1[1])*s.img.height),
-        Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[0])*s.img.height)
-    ));
+        let targetW = Math.round(Math.max(
+            Math.hypot((p2[0]-p1[0])*s.img.width, (p2[1]-p1[1])*s.img.height),
+            Math.hypot((p3[0]-p4[0])*s.img.width, (p3[1]-p4[1])*s.img.height)
+        ));
+        let targetH = Math.round(Math.max(
+            Math.hypot((p4[0]-p1[0])*s.img.width, (p4[1]-p1[1])*s.img.height),
+            Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[0])*s.img.height)
+        ));
 
-    if (targetW > 2500 || targetH > 3500) {
-        const scale = 3000 / Math.max(targetW, targetH);
-        targetW = Math.round(targetW * scale);
-        targetH = Math.round(targetH * scale);
-    }
-
-    let hCvs = document.createElement('canvas'); hCvs.width = targetW; hCvs.height = targetH;
-
-    if (typeof cv !== 'undefined') {
-        let printType = document.getElementById("type").value; 
-        let src, dest, srcTri, dstTri, M;
-
-        try {
-            let imgCanvas = document.createElement('canvas');
-            imgCanvas.width = s.img.width; imgCanvas.height = s.img.height;
-            imgCanvas.getContext('2d').drawImage(s.img, 0, 0);
-            src = cv.imread(imgCanvas);
-
-            srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                p1[0] * src.cols, p1[1] * src.rows, 
-                p2[0] * src.cols, p2[1] * src.rows, 
-                p3[0] * src.cols, p3[1] * src.rows, 
-                p4[0] * src.cols, p4[1] * src.rows  
-            ]);
-            dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                0, 0, targetW, 0, targetW, targetH, 0, targetH
-            ]);
-
-            M = cv.getPerspectiveTransform(srcTri, dstTri);
-            dest = new cv.Mat();
-            cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
-
-            let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
-
-            if (printType == "5") {
-                cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
-
-                if (autoCleanEnabled) {
-                    let smallDest = new cv.Mat();
-                    let bgSmall = new cv.Mat();
-                    let bg = new cv.Mat();
-                    let morphKernel = null;
-                    try {
-                        let maxDim = Math.max(dest.rows, dest.cols);
-                        let scale = maxDim > 800 ? 800 / maxDim : 1.0;
-                        
-                        if (scale < 1.0) {
-                            cv.resize(dest, smallDest, new cv.Size(), scale, scale, cv.INTER_AREA);
-                        } else {
-                            dest.copyTo(smallDest);
-                        }
-
-                        let closeSize = Math.round(Math.min(smallDest.rows, smallDest.cols) / 15);
-                        if (closeSize % 2 === 0) closeSize++;
-                        if (closeSize < 11) closeSize = 11;
-                        
-                        morphKernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(closeSize, closeSize));
-                        cv.morphologyEx(smallDest, bgSmall, cv.MORPH_CLOSE, morphKernel);
-
-                        let blurSize = closeSize % 2 === 0 ? closeSize + 1 : closeSize;
-                        cv.GaussianBlur(bgSmall, bgSmall, new cv.Size(blurSize, blurSize), 0, 0, cv.BORDER_DEFAULT);
-
-                        if (scale < 1.0) {
-                            cv.resize(bgSmall, bg, new cv.Size(dest.cols, dest.rows), 0, 0, cv.INTER_LINEAR);
-                        } else {
-                            bgSmall.copyTo(bg);
-                        }
-
-                        cv.divide(dest, bg, dest, 255);
-                        cv.medianBlur(dest, dest, 3);
-
-                        let floatMat = new cv.Mat();
-                        try {
-                            dest.convertTo(floatMat, cv.CV_32F, 1.0 / 255.0, 0);
-                            cv.pow(floatMat, 2.4, floatMat); 
-                            floatMat.convertTo(dest, cv.CV_8U, 255.0, 0);
-                        } finally {
-                            floatMat.delete();
-                        }
-                    } finally {
-                        if (smallDest) smallDest.delete();
-                        if (bgSmall) bgSmall.delete();
-                        if (bg) bg.delete();
-                        if (morphKernel) morphKernel.delete();
-                    }
-                }
-            } else {
-                cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
-            }
-
-            cv.imshow(hCvs, dest);
-        } catch (e) { 
-            console.warn("CV Error", e); 
-            hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
-        } finally {
-            if (src) src.delete(); if (dest) dest.delete();
-            if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
+        if (targetW > 1800 || targetH > 2500) {
+            const scale = 2000 / Math.max(targetW, targetH);
+            targetW = Math.round(targetW * scale);
+            targetH = Math.round(targetH * scale);
         }
-    } else {
-        hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
-    }
 
-    let docType = document.getElementById("docType") ? document.getElementById("docType").value : "full";
-    let a4DataUrl;
-    
-    if (docType === "fit") {
-        a4DataUrl = await openA4AdjustModal(hCvs);
-    } else {
-        a4DataUrl = await convertToA4(hCvs);
-    }
+        let hCvs = document.createElement('canvas'); 
+        hCvs.width = targetW; 
+        hCvs.height = targetH;
 
-    a4DataUrl = await compressImage(a4DataUrl, 500);
-    processedA4Images.push(a4DataUrl);
-    
-    currentImageIndex++;
-    loadCurrentImageForCrop();
-    calculate();
+        if (typeof cv !== 'undefined' && cv.Mat && typeof cv.imread === 'function') {
+            let printType = document.getElementById("type").value; 
+            let src, dest, srcTri, dstTri, M;
+
+            try {
+                let imgCanvas = document.createElement('canvas');
+                imgCanvas.width = s.img.width; imgCanvas.height = s.img.height;
+                imgCanvas.getContext('2d').drawImage(s.img, 0, 0);
+                src = cv.imread(imgCanvas);
+
+                srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                    p1[0] * src.cols, p1[1] * src.rows, 
+                    p2[0] * src.cols, p2[1] * src.rows, 
+                    p3[0] * src.cols, p3[1] * src.rows, 
+                    p4[0] * src.cols, p4[1] * src.rows  
+                ]);
+                dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                    0, 0, targetW, 0, targetW, targetH, 0, targetH
+                ]);
+
+                M = cv.getPerspectiveTransform(srcTri, dstTri);
+                dest = new cv.Mat();
+                cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+                if (printType == "5") {
+                    cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
+                } else {
+                    cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
+                }
+
+                cv.imshow(hCvs, dest);
+            } catch (e) { 
+                console.warn("CV Error", e); 
+                hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
+            } finally {
+                if (src) src.delete(); if (dest) dest.delete();
+                if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
+            }
+        } else {
+            hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
+        }
+
+        let docType = document.getElementById("docType") ? document.getElementById("docType").value : "full";
+        let a4DataUrl;
+        
+        if (docType === "fit") {
+            a4DataUrl = await openA4AdjustModal(hCvs);
+        } else {
+            a4DataUrl = await convertToA4(hCvs);
+        }
+
+        a4DataUrl = await compressImageFast(a4DataUrl);
+        processedA4Images.push(a4DataUrl);
+        
+        currentImageIndex++;
+        loadCurrentImageForCrop();
+        calculate();
+
+    } catch (err) {
+        console.error("Save Crop Exception:", err);
+        alert("Crop process error! Kripya dobara try karein.");
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.innerText = "Save Crop";
+    }
 }
             
 async function convertToA4(sourceCanvas) {
     return new Promise(resolve => {
         const a4 = document.createElement('canvas'); 
-        a4.width = 2480; 
-        a4.height = 3508; 
+        a4.width = a4CanvasW; 
+        a4.height = a4CanvasH; 
         const ctx = a4.getContext('2d'); 
         ctx.fillStyle = '#FFFFFF'; 
         ctx.fillRect(0,0,a4.width,a4.height);
@@ -1042,10 +975,10 @@ async function convertToA4(sourceCanvas) {
             ctx.filter = 'grayscale(100%)';
         }
 
-        ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height); 
+        ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height);
         ctx.filter = 'none';
 
-        resolve(a4.toDataURL("image/jpeg", 0.95));
+        resolve(a4.toDataURL("image/jpeg", 0.90));
     });
 }
 
@@ -1169,7 +1102,7 @@ async function submitOrder() {
                             }
                             ctx.putImageData(imgData, 0, 0);
                             
-                            const imgDataUrl = canvas.toDataURL("image/jpeg", 0.9);
+                            const imgDataUrl = canvas.toDataURL("image/jpeg", 0.85);
                             const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
                             const embeddedImage = await outPdf.embedJpg(imgBytes);
                             
