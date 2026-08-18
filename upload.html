@@ -27,8 +27,11 @@
         .page-render-container { display: flex; flex-direction: column; align-items: center; width: 100%; }
         .canvas-container { position: relative; margin: 15px auto; width: 100%; max-width: 400px; background: #f5f5f5; border: 2px dashed #28a745; border-radius: 8px; overflow: hidden; }
         #cropCanvas { display: block; width: 100%; height: auto; cursor: crosshair; }
-        .crop-controls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 8px; }
+        
+        /* 🔥 Added flex-wrap so buttons look good on small screens */
+        .crop-controls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
         .crop-controls button { padding: 8px 12px; font-size: 14px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s ease; }
+        
         .force-grayscale { filter: grayscale(100%) brightness(105%) contrast(105%) !important; }
         #submitBtn { background: #1976d2; color: white; width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s ease; }
         #submitBtn:disabled, #saveCropBtn:disabled { cursor: not-allowed; }
@@ -104,7 +107,10 @@
             <div class="canvas-container" id="cropContainer">
                 <canvas id="cropCanvas"></canvas>
             </div>
+            
+            <!-- 🔥 Added Full Page Selection Button Here -->
             <div class="crop-controls">
+                <button type="button" style="background:#17a2b8;" onclick="selectFullPage()">🔲 Full Page</button>
                 <button type="button" style="background:#28a745;" onclick="rotateImage()">↻ Rotate</button>
                 <button type="button" style="background:#6c757d;" onclick="resetZoom()">Reset Zoom</button>
                 <button type="button" style="background:#1976d2;" id="saveCropBtn" onclick="saveCropAndNext()">Save Crop</button>
@@ -590,6 +596,21 @@ async function previewDocument() {
     }
     updateLivePreviewGrid();
     applyPreviewFilter();
+}
+
+// 🔥 NEW: Full Page Selection Function
+function selectFullPage() {
+    if (!cropEngine.img) return;
+    const w = cropEngine.canvas.width;
+    const h = cropEngine.canvas.height;
+    cropEngine.corners = [
+        { x: 0, y: 0 },
+        { x: w, y: 0 },
+        { x: w, y: h },
+        { x: 0, y: h }
+    ];
+    resetZoom(); // Reset pan/zoom so user sees the full selection correctly
+    drawCrop();
 }
 
 function rotateImage() {
