@@ -898,27 +898,51 @@ async function saveCropAndNext() {
                 dest = new cv.Mat();
                 cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
-                // 🔥 NEW & SAFE AUTO-CLEAN FILTER LOGIC (SOFT UNSHARP MASK)
+                // 🔥 DOCUMENT SCAN CLEAN FILTER — whitens the page background and
+                // darkens text strokes. Only ever touches the B&W (printType 5)
+                // pipeline; the color branch below is left completely untouched
+                // so colour documents are never recoloured/filtered.
                 let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
 
                 if (printType == "5") {
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
-                    
+
                     if (autoCleanEnabled) {
-                        let bg = null;
+                        let bg = null, gray32 = null, bg32 = null, normed = null;
                         try {
+                            // Step 1: estimate the uneven page background with a
+                            // heavy blur, then divide it out. This is what makes
+                            // the paper come out flat white regardless of shadows
+                            // or scan lighting, without touching hue/saturation
+                            // since we're already in single-channel gray.
                             bg = new cv.Mat();
-                            // 🪄 Smart Unsharp Mask: Text dark karega aur whiteness ko natural rakhega
-                            cv.GaussianBlur(dest, bg, new cv.Size(25, 25), 0, 0, cv.BORDER_DEFAULT);
-                            cv.addWeighted(dest, 1.5, bg, -0.5, 0, dest); 
-                            dest.convertTo(dest, -1, 1.15, 5); // Halki si chamak aur contrast
+                            cv.GaussianBlur(dest, bg, new cv.Size(35, 35), 0, 0, cv.BORDER_DEFAULT);
+
+                            gray32 = new cv.Mat();
+                            bg32 = new cv.Mat();
+                            normed = new cv.Mat();
+                            dest.convertTo(gray32, cv.CV_32F);
+                            bg.convertTo(bg32, cv.CV_32F, 1.0, 1.0); // +1 avoids /0
+                            cv.divide(gray32, bg32, normed, 255.0);
+                            normed.convertTo(dest, cv.CV_8U);
+
+                            // Step 2: push a levels/contrast curve so background
+                            // pixels (already near-white after the divide) clip
+                            // to pure white, and darker ink pixels get pushed
+                            // further toward black — i.e. whiter page, darker text.
+                            dest.convertTo(dest, -1, 1.6, -60);
                         } catch (filterErr) {
                             console.warn("Clean Filter Failed", filterErr);
                         } finally {
                             if (bg) bg.delete();
+                            if (gray32) gray32.delete();
+                            if (bg32) bg32.delete();
+                            if (normed) normed.delete();
                         }
                     }
                 } else {
+                    // Color print type: convert channel layout only, no filter,
+                    // no contrast/levels change — colours are left exactly as scanned.
                     cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
                 }
 
