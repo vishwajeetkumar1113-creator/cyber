@@ -1,441 +1,151 @@
-/* ============================================================
-   MS Communication Cyber Cafe
-   Signature idea: the counter itself — a cash-register receipt
-   for the rate card, a paper notice taped up for the services,
-   a rubber date stamp, a corkboard backdrop. Nothing borrowed
-   from a generic SaaS template; every device is something you'd
-   actually find at a print-shop counter.
-   ============================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
-
-:root {
-    --ink:        #1B3A5C;   /* deep ledger blue — headings, buttons */
-    --ink-dark:   #10283F;
-    --cork:       #C9A87C;   /* corkboard base */
-    --cork-dark:  #B08F5E;
-    --paper:      #FAF6EA;   /* warm paper */
-    --paper-card: #FFFDF7;
-    --marigold:   #E8A33D;   /* price / accent */
-    --stamp-red:  #B23A2F;   /* ink-stamp red */
-    --tape:       #EDE3C4;
-    --slate:      #5B6B7A;
-    --line:       #D8CFBB;
-    --shadow:     rgba(16, 22, 30, 0.28);
-}
-
-* { box-sizing: border-box; }
-
-html { scroll-behavior: smooth; }
-
 body {
     margin: 0;
-    min-height: 100vh;
-    background:
-        radial-gradient(circle at 20% 15%, rgba(255,255,255,0.10), transparent 45%),
-        radial-gradient(circle at 82% 78%, rgba(0,0,0,0.10), transparent 40%),
-        repeating-radial-gradient(circle at 10% 20%, rgba(0,0,0,0.035) 0 1px, transparent 1px 3px),
-        var(--cork);
-    background-blend-mode: normal, normal, multiply, normal;
-    font-family: 'Work Sans', system-ui, sans-serif;
-    color: var(--ink-dark);
-    padding: 44px 18px 60px;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f6f9;
 }
 
-.board {
-    max-width: 560px;
-    margin: 0 auto;
-    position: relative;
-}
-
-/* ---------- Reveal-on-load choreography ---------- */
-
-.reveal {
-    animation: rise 0.6s cubic-bezier(.2,.7,.2,1) both;
-    animation-delay: calc(var(--d, 0) * 110ms);
-}
-
-@keyframes rise {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .reveal { animation: none; }
-}
-
-/* ---------- Rubber stamp ---------- */
-
-.stamp {
-    position: absolute;
-    top: 4px;
-    right: 6px;
-    font-family: 'Space Mono', monospace;
-    font-weight: 700;
-    font-size: 14px;
-    letter-spacing: 2.5px;
-    color: var(--stamp-red);
-    border: 2.5px solid var(--stamp-red);
-    border-radius: 50%;
-    width: 76px;
-    height: 76px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transform: rotate(-13deg);
-    opacity: 0.82;
-    mix-blend-mode: multiply;
-    z-index: 2;
-}
-
-.stamp::before {
-    content: "";
-    position: absolute;
-    inset: 6px;
-    border: 1px solid var(--stamp-red);
-    border-radius: 50%;
-}
-
-/* ---------- Header ---------- */
+/* Header */
 
 header {
+    background: #1976d2;
+    color: white;
     text-align: center;
-    padding-top: 10px;
-}
-
-.eyebrow {
-    margin: 0 0 10px;
-    font-size: 11.5px;
-    letter-spacing: 2.5px;
-    text-transform: uppercase;
-    color: var(--ink-dark);
-    font-weight: 600;
-    background: var(--paper-card);
-    display: inline-block;
-    padding: 5px 12px;
-    border-radius: 999px;
-    box-shadow: 0 4px 10px -4px var(--shadow);
+    padding: 30px 20px;
 }
 
 header h1 {
-    margin: 14px 0 0;
-    font-family: 'Fraunces', serif;
-    font-weight: 700;
-    font-size: clamp(36px, 7vw, 50px);
-    letter-spacing: -0.5px;
-    color: var(--ink-dark);
-    text-shadow: 0 1px 0 rgba(255,255,255,0.35);
-}
-
-.tagline {
-    margin: 8px 0 0;
-    font-size: 15px;
-    color: var(--ink-dark);
-    font-weight: 500;
-    opacity: 0.75;
-}
-
-.hours {
-    margin: 10px 0 0;
-    font-family: 'Space Mono', monospace;
-    font-size: 12px;
-    letter-spacing: 0.5px;
-    color: var(--ink-dark);
-    opacity: 0.65;
-}
-
-/* ---------- Layout ---------- */
-
-main {
-    margin-top: 34px;
-    display: flex;
-    flex-direction: column;
-    gap: 30px;
-}
-
-/* ================= Receipt (signature element) ================= */
-
-.receipt {
-    position: relative;
-    filter: drop-shadow(0 16px 26px var(--shadow));
-    transform: rotate(-1.1deg);
-}
-
-.receipt-inner {
-    background: var(--paper-card);
-    padding: 26px 26px 20px;
-    font-family: 'Space Mono', monospace;
-    color: var(--ink-dark);
-    background-image: repeating-linear-gradient(
-        180deg,
-        rgba(27,58,92,0.025) 0 1px,
-        transparent 1px 26px
-    );
-}
-
-.receipt-title {
     margin: 0;
+}
+
+header p {
+    margin-top: 10px;
+}
+
+/* Card */
+
+.card {
+    max-width: 500px;
+    margin: 30px auto;
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-sizing: border-box;
+}
+
+/* Heading */
+
+.card h2 {
+    color: #1976d2;
     text-align: center;
-    font-weight: 700;
-    font-size: 19px;
-    letter-spacing: 4px;
-    color: var(--ink);
 }
 
-.receipt-sub {
-    margin: 4px 0 0;
+.card h3 {
+    color: #1976d2;
     text-align: center;
-    font-size: 11px;
-    letter-spacing: 2px;
-    color: var(--slate);
+    margin-top: 20px;
 }
 
-.receipt-rule {
-    margin: 16px 0;
-    border-top: 1px dashed var(--line);
+/* Inputs */
+
+input,
+select {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 16px;
 }
 
-.rate-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+/* Buttons */
+
+button,
+.btn {
+    width: 100%;
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 14px;
+    font-size: 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    box-sizing: border-box;
+}
+
+button:hover,
+.btn:hover {
+    background: #218838;
+}
+
+/* Price */
+
+#total {
+    color: #1976d2;
+    text-align: center;
+}
+
+/* Images and Canvas Global Setup */
+
+img, canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ID Crop Area Container - Updated for Canvas Stability */
+
+.canvas-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 15px auto;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f5f5f5;
+    box-sizing: border-box;
+}
+
+#frontCanvas,
+#backCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* Legacy Image Viewports for compatibility */
+
+#frontImage,
+#backImage {
+    display: block;
+    max-width: 100%;
+    max-height: 180px;
+}
+
+/* Crop Buttons */
+
+.controls {
     display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.rate-list li {
-    display: flex;
-    align-items: baseline;
+    flex-wrap: wrap;
     gap: 8px;
+    margin-top: 10px;
+}
+
+.controls button {
+    flex: 1;
+    min-width: 110px;
+    width: auto;
+    padding: 10px;
     font-size: 14px;
 }
 
-.rate-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    white-space: nowrap;
-    font-weight: 400;
-    color: var(--ink-dark);
-}
+/* Mobile responsive adjustments */
 
-.dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex: none;
-    display: inline-block;
-}
+@media (max-width: 480px) {
 
-.dot-bw {
-    background: repeating-conic-gradient(#2b2b2b 0% 25%, #f2f2f2 0% 50%) 0 0 / 100% 100%;
-    border: 1px solid #b9b9b9;
-}
-
-.dot-color {
-    background: conic-gradient(from 0deg, #E8A33D, #B23A2F, #1B3A5C, #3F8F63, #E8A33D);
-}
-
-.rate-dots {
-    flex: 1;
-    border-bottom: 2px dotted var(--line);
-    transform: translateY(-4px);
-}
-
-.rate-price {
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--marigold);
-    white-space: nowrap;
-}
-
-.receipt-note {
-    margin: 0;
-    text-align: center;
-    font-size: 11px;
-    color: var(--slate);
-    letter-spacing: 0.3px;
-}
-
-.barcode {
-    margin: 18px auto 4px;
-    height: 34px;
-    width: 84%;
-    background-image: repeating-linear-gradient(
-        90deg,
-        var(--ink-dark) 0px, var(--ink-dark) 2px,
-        transparent 2px, transparent 3px,
-        var(--ink-dark) 3px, var(--ink-dark) 4px,
-        transparent 4px, transparent 7px,
-        var(--ink-dark) 7px, var(--ink-dark) 10px,
-        transparent 10px, transparent 12px
-    );
-    opacity: 0.8;
-}
-
-/* torn zig-zag bottom edge of the receipt */
-.receipt-edge {
-    height: 14px;
-    background: var(--paper-card);
-    -webkit-mask-image: repeating-linear-gradient(115deg, #000 0 7px, transparent 7px 14px);
-            mask-image: repeating-linear-gradient(115deg, #000 0 7px, transparent 7px 14px);
-}
-
-/* ================= Services card (taped notice) ================= */
-
-.card {
-    background: var(--paper-card);
-    border-radius: 3px;
-    padding: 30px 26px 24px;
-    box-shadow: 0 16px 30px -16px var(--shadow);
-    position: relative;
-    transform: rotate(0.6deg);
-}
-
-.tape {
-    position: absolute;
-    top: -14px;
-    width: 64px;
-    height: 26px;
-    background: var(--tape);
-    opacity: 0.85;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-}
-
-.tape-left {
-    left: 24px;
-    transform: rotate(-7deg);
-}
-
-.tape-right {
-    right: 24px;
-    transform: rotate(6deg);
-}
-
-.card-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 18px;
-    padding-bottom: 12px;
-    border-bottom: 1px dashed var(--line);
-}
-
-.card-head h2 {
-    margin: 0;
-    font-family: 'Fraunces', serif;
-    font-weight: 600;
-    font-size: 21px;
-    color: var(--ink);
-}
-
-.card-head-note {
-    font-size: 11.5px;
-    color: var(--slate);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-/* ---------- Service buttons ---------- */
-
-.btn-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.btn {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    text-decoration: none;
-    background: var(--ink);
-    color: var(--paper);
-    border-radius: 8px;
-    padding: 14px 16px;
-    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-    box-shadow: 0 6px 16px -8px var(--shadow);
-}
-
-.btn:hover,
-.btn:focus-visible {
-    background: var(--ink-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 22px -8px var(--shadow);
-}
-
-.btn:focus-visible {
-    outline: 2px solid var(--marigold);
-    outline-offset: 2px;
-}
-
-.btn-icon {
-    font-size: 22px;
-    flex: none;
-    width: 38px;
-    height: 38px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(250, 246, 234, 0.12);
-    border-radius: 8px;
-}
-
-.btn-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex: 1;
-}
-
-.btn-title {
-    font-weight: 600;
-    font-size: 15px;
-}
-
-.btn-sub {
-    font-size: 12.5px;
-    color: rgba(250, 246, 234, 0.68);
-}
-
-.btn-arrow {
-    font-size: 16px;
-    color: var(--marigold);
-    flex: none;
-    transition: transform 0.15s ease;
-}
-
-.btn:hover .btn-arrow {
-    transform: translateX(3px);
-}
-
-/* ---------- Footer ---------- */
-
-footer {
-    margin-top: 34px;
-    text-align: center;
-    font-size: 12.5px;
-    color: var(--ink-dark);
-    opacity: 0.7;
-    letter-spacing: 0.2px;
-}
-
-/* ---------- Responsive ---------- */
-
-@media (max-width: 420px) {
-    .stamp {
-        width: 60px;
-        height: 60px;
-        font-size: 11px;
-        top: 0;
-        right: 0;
-    }
-
-    body { padding-top: 60px; }
-
-    .receipt, .card { transform: none; }
-
-    .tape-left { left: 16px; }
-    .tape-right { right: 16px; }
-}
+    .card {
+        margin: 15px
